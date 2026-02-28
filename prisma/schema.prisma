@@ -1,0 +1,2058 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+enum UserRole {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String?
+  emailVerified DateTime?
+  image     String?
+  role      UserRole @default(STUDENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  enrollments      Enrollment[]
+  payments         Payment[]
+  receipts         Receipt[]
+  idempotencyKeys  IdempotencyKey[]
+  profile          UserProfile?
+  tokens           Token[]
+  incidents        SafetyIncident[]
+  wallets          Wallet[]
+  miningActivities MiningActivity[]
+  jobApplications  JobApplication[]
+  skills           UserSkill[]
+  assessments      Assessment[]
+  chatSessions     ChatSession[]
+  notifications    Notification[]
+  consentRecords   ConsentRecord[]
+  skillProgresses  SkillProgress[]
+  assessmentAttempts AssessmentAttempt[]
+  credentials      Credential[]
+  tutorSessions    TutorSession[]
+  attendance       Attendance[]
+  constitutionalAuditLogs ConstitutionalAuditLog[]
+  aiFamilyInteractions AIFamilyInteraction[]
+  aiFamilyConsultations AIFamilyConsultation[]
+  subscription     Subscription?
+  coursesInstructed Course[] @relation("CourseInstructor")
+  courseReviews    CourseReview[] @relation("CourseReviews")
+  coursePurchases  CoursePurchase[] @relation("CoursePurchases")
+  instructorEarnings InstructorEarnings[] @relation("InstructorEarnings")
+  classSessionsInstructed ClassSession[]
+  cohortsInstructed Cohort[]
+  tokenBalance     TokenBalance?
+  tokenTransactions TokenTransaction[]
+  leaderboardEntries LeaderboardEntry[]
+  tokenRedemptions TokenRedemption[]
+  burnTransactions BurnTransaction[] @relation("BurnTransactions")
+  proofOfKnowledge ProofOfKnowledge[] @relation("ProofOfKnowledge")
+  queryClassifications QueryClassification[] @relation("QueryClassifications")
+  scholarships Scholarship[]
+  proofsOfValue ProofOfValue[]
+  buildspacesProjects BuildSpaceProject[]
+  figmaFrames         FigmaFrame[]
+  collectibles        Collectible[]
+
+  // NextAuth fields
+  accounts Account[]
+  sessions Session[]
+
+  @@index([role])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model UserProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  bio         String?
+  avatar      String?
+  location    String?
+  timezone    String?
+  preferences String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+model Course {
+  id              String         @id @default(cuid())
+  instructorId    String
+  title           String
+  description     String
+  category        String
+  level           CourseLevel    @default(BEGINNER)
+  duration        Int            // in minutes
+  price           Float          @default(0)
+  currency        String         @default("ZAR")
+  status          CourseStatus   @default(DRAFT)
+  thumbnail       String?
+  rating          Float          @default(0)
+  enrollmentCount Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  instructor      User           @relation("CourseInstructor", fields: [instructorId], references: [id], onDelete: Cascade)
+  enrollments     Enrollment[]
+  modules         CourseModule[]
+  reviews         CourseReview[]
+  purchases       CoursePurchase[]
+  earnings        InstructorEarnings[]
+  payments        Payment[]       @relation("CoursePayments")
+  cohorts         Cohort[]
+  credentials     Credential[]
+
+  @@index([instructorId])
+  @@index([status])
+  @@index([category])
+  @@index([level])
+  @@map("courses")
+}
+
+model CourseReview {
+  id        String   @id @default(cuid())
+  courseId  String
+  userId    String
+  rating    Int      // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User   @relation("CourseReviews", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, userId])
+  @@index([courseId])
+  @@index([userId])
+  @@map("course_reviews")
+}
+
+model CoursePurchase {
+  id        String   @id @default(cuid())
+  courseId  String
+  userId    String
+  paymentId String?
+  price     Float
+  currency  String   @default("ZAR")
+  purchasedAt DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User   @relation("CoursePurchases", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, userId])
+  @@index([courseId])
+  @@index([userId])
+  @@index([purchasedAt])
+  @@map("course_purchases")
+}
+
+model InstructorEarnings {
+  id              String   @id @default(cuid())
+  courseId        String
+  instructorId    String
+  totalEarnings   Float    @default(0)
+  paidEarnings    Float    @default(0)
+  pendingEarnings Float    @default(0)
+  lastPaidAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  course     Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  instructor User   @relation("InstructorEarnings", fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, instructorId])
+  @@index([instructorId])
+  @@map("instructor_earnings")
+}
+
+model CourseModule {
+  id        String   @id @default(cuid())
+  courseId  String
+  title     String
+  content   String
+  order     Int
+  createdAt DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("course_modules")
+}
+
+model Enrollment {
+  id          String           @id @default(cuid())
+  userId      String
+  studentId   String           // Alias for userId for backward compatibility
+  courseId    String
+  status      EnrollmentStatus @default(ACTIVE)
+  progress    Float            @default(0)
+  enrolledAt  DateTime         @default(now())
+  completedAt DateTime?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([status])
+  @@index([enrolledAt])
+  @@map("enrollments")
+}
+
+model Payment {
+  id                    String          @id @default(cuid())
+  userId                String
+  stripePaymentIntentId String          @unique
+  amount                Int             // in cents
+  currency              String          @default("usd")
+  status                PaymentStatus   @default(PENDING)
+  paymentMethodId       String?
+  courseId              String?
+  course                Course?         @relation("CoursePayments", fields: [courseId], references: [id])
+  subscriptionTierId    String?
+  metadata              Json            @default("{}")
+  idempotencyKey        String          @unique
+  receiptId             String?
+  receipt               Receipt?
+  refunds               Refund[]
+  refundedAmount        Int?
+  refundReason          String?
+  errorCode             String?
+  errorMessage          String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+model Receipt {
+  id              String          @id @default(cuid())
+  paymentId       String          @unique
+  payment         Payment         @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoiceNumber   String          @unique
+  amount          Int             // in cents
+  currency        String          @default("usd")
+  items           Json            // Array of receipt items
+  pdfUrl          String
+  emailSentAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("receipts")
+}
+
+model IdempotencyKey {
+  id              String          @id @default(cuid())
+  key             String          @unique
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentResult   Json
+  expiresAt       DateTime
+  createdAt       DateTime        @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
+model Token {
+  id        String    @id @default(cuid())
+  userId    String
+  type      TokenType
+  token     String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("tokens")
+}
+
+// Figma frames imported via BuildSpaces Design Studio
+model FigmaFrame {
+  id         String   @id @default(cuid())
+  figmaId    String?
+  name       String
+  width      Int?
+  height     Int?
+  components Json?
+  raw        Json
+  importedBy String?
+  importedAt DateTime @default(now())
+
+  user User? @relation(fields: [importedBy], references: [id], onDelete: SetNull)
+
+  @@index([figmaId])
+  @@index([importedBy])
+  @@map("figma_frames")
+}
+
+model Collectible {
+  id           String   @id @default(cuid())
+  name         String
+  tier         String   // common, uncommon, rare, epic, legendary, mythical
+  power        Int
+  description  String
+  achievements String[]
+  rarity       Float
+  image        String
+  minted       Boolean  @default(false)
+  ownerId      String?
+  transaction  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  owner User? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
+  @@map("collectibles")
+}
+
+model SafetyIncident {
+  id          String         @id @default(cuid())
+  userId      String
+  type        IncidentType
+  severity    SeverityLevel
+  latitude    Float
+  longitude   Float
+  description String
+  status      IncidentStatus @default(REPORTED)
+  timestamp   DateTime       @default(now())
+  resolvedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("safety_incidents")
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+}
+
+enum PaymentType {
+  ENROLLMENT
+  SUBSCRIPTION
+  DONATION
+  REFUND
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  SUCCEEDED
+}
+
+model Refund {
+  id                String          @id @default(cuid())
+  paymentId         String
+  stripeRefundId    String          @unique
+  amount            Int             // in cents
+  currency          String          @default("usd")
+  reason            String?
+  status            RefundStatus    @default(PENDING)
+  metadata          Json            @default("{}")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([status])
+  @@map("refunds")
+}
+
+model WebhookEvent {
+  id            String          @id @default(cuid())
+  stripeEventId String          @unique
+  eventType     String
+  processed     Boolean         @default(false)
+  data          Json
+  createdAt     DateTime        @default(now())
+  processedAt   DateTime?
+
+  @@index([eventType])
+  @@index([processed])
+  @@map("webhook_events")
+}
+
+enum RefundStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+// Audit log model for BuildSpaces and Constitutional events
+model AuditLog {
+  id                     String   @id @default(cuid())
+  timestamp              DateTime @default(now())
+  eventType              String
+  severity               String
+  userId                 String?
+  sessionId              String?
+  ipAddress              String?
+  userAgent              String?
+  resource               String?
+  action                 String?
+  details                Json?
+  constitutionalAlignment Float?
+  success                Boolean  @default(true)
+  error                  String?
+
+  @@index([userId])
+  @@map("audit_logs")
+}
+
+enum SubscriptionTier {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
+  PAST_DUE
+}
+
+enum BillingStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum TokenTransactionType {
+  EARN
+  REDEEM
+  TRANSFER
+  BONUS
+  PENALTY
+}
+
+enum LeaderboardType {
+  GLOBAL
+  FRIENDS
+  CLASS
+}
+
+enum TokenRedemptionType {
+  FEATURE_UNLOCK
+  PREMIUM_CONTENT
+  MERCHANDISE
+  DONATION
+}
+
+enum TokenRedemptionStatus {
+  PENDING
+  APPROVED
+  COMPLETED
+  REJECTED
+}
+
+enum EnterpriseTier {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+  CUSTOM
+}
+
+enum EnterpriseStatus {
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  CANCELLED
+}
+
+enum SupportPriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum CustomizationType {
+  BRANDING
+  DOMAIN
+  SSO
+  API
+  FEATURE
+  INTEGRATION
+}
+
+enum TokenType {
+  ACCESS
+  REFRESH
+  RESET_PASSWORD
+}
+
+enum IncidentType {
+  CRIME
+  ACCIDENT
+  EMERGENCY
+  OTHER
+}
+
+enum SeverityLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum IncidentStatus {
+  REPORTED
+  INVESTIGATING
+  RESOLVED
+  CLOSED
+}
+
+// ============================================
+// FINANCIAL SERVICES (Azora Mint, Pay, Mining)
+// ============================================
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String
+  currency  String   // AZR, BTC, ETH, USD
+  balance   Decimal  @default(0) @db.Decimal(20, 8)
+  address   String   @unique
+  truthScore Int     @default(50)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([userId, currency])
+  @@map("wallets")
+}
+
+model Transaction {
+  id          String            @id @default(cuid())
+  walletId    String
+  type        TransactionType
+  amount      Decimal           @db.Decimal(20, 8)
+  currency    String
+  status      TransactionStatus @default(PENDING)
+  description String
+  fromAddress String?
+  toAddress   String?
+  metadata    Json?
+  createdAt   DateTime          @default(now())
+  completedAt DateTime?
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([status, createdAt])
+  @@map("transactions")
+}
+
+model MiningActivity {
+  id           String        @id @default(cuid())
+  userId       String
+  activityType MiningType
+  tokensEarned Decimal       @db.Decimal(20, 8)
+  metadata     Json?
+  status       MiningStatus  @default(PENDING)
+  startedAt    DateTime      @default(now())
+  completedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("mining_activities")
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER
+  MINING_REWARD
+  PAYMENT
+  REFUND
+  CREDIT
+  DEBIT
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum MiningType {
+  COURSE_COMPLETION
+  ASSESSMENT_PASS
+  PEER_TEACHING
+  CONTENT_CREATION
+  COMMUNITY_CONTRIBUTION
+}
+
+enum MiningStatus {
+  PENDING
+  VERIFIED
+  REWARDED
+  REJECTED
+}
+
+// ============================================
+// MARKETPLACE SERVICES (Azora Forge)
+// ============================================
+
+model Job {
+  id           String     @id @default(cuid())
+  title        String
+  description  String
+  company      String
+  location     String?
+  remote       Boolean    @default(false)
+  salary       Decimal?   @db.Decimal(12, 2)
+  currency     String     @default("ZAR")
+  status       JobStatus  @default(ACTIVE)
+  requirements Json?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  expiresAt    DateTime?
+
+  applications JobApplication[]
+  skills       JobSkill[]
+
+  @@index([status])
+  @@map("jobs")
+}
+
+model JobApplication {
+  id          String              @id @default(cuid())
+  userId      String
+  jobId       String
+  status      ApplicationStatus   @default(PENDING)
+  coverLetter String?
+  resume      String?
+  matchScore  Float?
+  appliedAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@map("job_applications")
+}
+
+model Skill {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  category    String
+  description String?
+  createdAt   DateTime @default(now())
+
+  userSkills UserSkill[]
+  jobSkills  JobSkill[]
+  predecessors    CurriculumEdge[] @relation("SkillPredecessor")
+  successors      CurriculumEdge[] @relation("SkillSuccessor")
+  learningObjectives LearningObjective[]
+  skillProgress   SkillProgress[]
+
+  @@map("skills")
+}
+
+model UserSkill {
+  id          String      @id @default(cuid())
+  userId      String
+  skillId     String
+  level       SkillLevel
+  verified    Boolean     @default(false)
+  endorsements Int        @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+  @@map("user_skills")
+}
+
+model JobSkill {
+  id       String     @id @default(cuid())
+  jobId    String
+  skillId  String
+  required Boolean    @default(true)
+  level    SkillLevel
+
+  job   Job   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, skillId])
+  @@map("job_skills")
+}
+
+enum JobStatus {
+  ACTIVE
+  FILLED
+  CLOSED
+  EXPIRED
+}
+
+enum ApplicationStatus {
+  PENDING
+  REVIEWING
+  SHORTLISTED
+  INTERVIEWED
+  OFFERED
+  ACCEPTED
+  REJECTED
+}
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+// ============================================
+// EDUCATION SERVICES (LMS, Assessments)
+// ============================================
+
+model Assessment {
+  id          String           @id @default(cuid())
+  userId      String
+  courseId    String?
+  type        AssessmentType
+  title       String
+  questions   Json
+  answers     Json?
+  score       Float?
+  maxScore    Float
+  status      AssessmentStatus @default(NOT_STARTED)
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts AssessmentAttempt[]
+
+  @@index([userId])
+  @@map("assessments")
+}
+
+model LearningPath {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  difficulty  String
+  duration    Int      // in hours
+  courses     Json     // array of course IDs
+  skills      Json     // array of skill IDs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("learning_paths")
+}
+
+// Sapiens models moved to service-level schemas (services/azora-sapiens/prisma/schema.prisma)
+
+enum AssessmentType {
+  QUIZ
+  EXAM
+  ASSIGNMENT
+  PROJECT
+  SKILL_TEST
+}
+
+enum AssessmentStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  GRADED
+}
+
+// ============================================
+// SAPIENS EDUCATION DOMAIN EXTENSIONS
+// ============================================
+
+model CurriculumEdge {
+  id            String   @id @default(cuid())
+  predecessorId String
+  successorId   String
+  prerequisite  Boolean  @default(true)
+  weight        Float    @default(1.0)
+  description   String?
+  evidence      String?
+  createdAt     DateTime @default(now())
+
+  predecessor   Skill    @relation("SkillPredecessor", fields: [predecessorId], references: [id], onDelete: Cascade)
+  successor     Skill    @relation("SkillSuccessor", fields: [successorId], references: [id], onDelete: Cascade)
+
+  @@unique([predecessorId, successorId])
+  @@index([predecessorId])
+  @@index([successorId])
+  @@map("curriculum_edges")
+}
+
+model LearningObjective {
+  id                 String   @id @default(cuid())
+  skillId            String
+  courseId           String?
+  objective          String
+  assessmentCriteria Json?
+  description        String?
+  bloomLevel         String?
+  createdAt          DateTime @default(now())
+
+  skill              Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([skillId])
+  @@index([courseId])
+  @@map("learning_objectives")
+}
+
+model SkillProgress {
+  id               String   @id @default(cuid())
+  userId           String
+  skillId          String
+  proficiencyLevel Float    @default(0.0)
+  evidenceScore    Float    @default(0.0)
+  lastAssessmentId String?
+  lastAssessedAt   DateTime?
+  masteredAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+  @@index([userId])
+  @@index([skillId])
+  @@map("skill_progress")
+}
+
+model AssessmentAttempt {
+  id               String   @id @default(cuid())
+  assessmentId     String
+  learnerId        String
+  score            Int?
+  maxScore         Int
+  passed           Boolean  @default(false)
+  responses        Json?
+  feedback         String?
+  integrityLevel   String   @default("medium")
+  integrityFlagged Boolean  @default(false)
+  integrityReview  String?
+  tokensEarned     Int      @default(0)
+  auditLogId       String?
+  status           String   @default("in_progress")
+  startedAt        DateTime @default(now())
+  completedAt      DateTime?
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+  @@index([learnerId])
+  @@index([status])
+  @@map("assessment_attempts")
+}
+
+model Credential {
+  id                 String   @id @default(cuid())
+  userId             String
+  courseId           String?
+  type               String
+  title              String
+  issuedBy           String
+  issuedDate         DateTime @default(now())
+  evidence           Json?
+  credentialJson     Json?
+  blockchainAnchored Boolean  @default(false)
+  blockchainHash     String?
+  verificationUrl    String?
+  status             String   @default("issued")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([courseId])
+  @@index([type])
+  @@map("credentials")
+}
+
+model Cohort {
+  id              String   @id @default(cuid())
+  courseId        String
+  name            String
+  instructorId    String
+  startDate       DateTime
+  endDate         DateTime
+  status          String   @default("forming")
+  maxLearners     Int      @default(30)
+  enrollmentUrl   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  instructor   User     @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  sessions     ClassSession[]
+  attendance    Attendance[]
+
+  @@index([courseId])
+  @@index([instructorId])
+  @@map("cohorts")
+}
+
+model ClassSession {
+  id               String   @id @default(cuid())
+  cohortId         String
+  sessionType      String
+  title            String
+  instructorId     String?
+  scheduledStart   DateTime
+  scheduledEnd     DateTime
+  buildspacesRoomId String?
+  buildspacesRoomUrl String?
+  recordingUrl     String?
+  status           String   @default("scheduled")
+  createdAt        DateTime @default(now())
+
+  cohort    Cohort     @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  instructor User?     @relation(fields: [instructorId], references: [id], onDelete: SetNull)
+  attendance Attendance[]
+
+  @@index([cohortId])
+  @@index([scheduledStart])
+  @@map("class_sessions")
+}
+
+model Attendance {
+  id              String   @id @default(cuid())
+  sessionId       String
+  cohortId        String
+  learnerId       String
+  joinedAt        DateTime
+  leftAt          DateTime?
+  durationMinutes Int      @default(0)
+  attended        Boolean  @default(true)
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  cohort  Cohort       @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  learner User         @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, learnerId])
+  @@index([sessionId])
+  @@index([learnerId])
+  @@map("attendance")
+}
+
+model TutorSession {
+  id         String   @id @default(cuid())
+  courseId   String?
+  lessonId   String?
+  userId     String
+  status     String   @default("active")
+  startedAt  DateTime @default(now())
+  endedAt    DateTime?
+
+  user    User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages TutorMessage[]
+
+  @@index([userId])
+  @@map("tutor_sessions")
+}
+
+model TutorMessage {
+  id         String   @id @default(cuid())
+  sessionId  String
+  lessonId   String?
+  role       String
+  content    String
+  groundedIn String?
+  timestamp  DateTime @default(now())
+
+  session TutorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("tutor_messages")
+}
+
+model ConstitutionalAuditLog {
+  id                    String   @id @default(cuid())
+  action                String
+  entityType            String
+  entityId              String
+  userId                String
+  preChecksPassed       Boolean  @default(true)
+  postChecksPassed      Boolean  @default(true)
+  constitutionalConcern Boolean  @default(false)
+  evidence              Json?
+  auditDetails          Json?
+  createdAt             DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([action])
+  @@index([entityType])
+  @@index([userId])
+  @@map("constitutional_audit_logs")
+}
+
+model ConsentRecord {
+  id                   String   @id @default(cuid())
+  userId               String
+  consentType          String
+  consentGiven         Boolean  @default(false)
+  parentConsentRequired Boolean @default(false)
+  parentConsentGiven   Boolean?
+  timestamp            DateTime @default(now())
+
+  ipAddress            String?
+  userAgent            String?
+  createdAt            DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, consentType])
+  @@index([timestamp])
+  @@map("consent_records")
+}
+
+model CompliancePolicy {
+  id            String   @id @default(cuid())
+  policyType    String
+  jurisdiction  String
+  content       String
+  effectiveDate DateTime
+  deprecatedAt  DateTime?
+  createdAt     DateTime @default(now())
+
+  @@unique([policyType, jurisdiction])
+  @@map("compliance_policies")
+}
+
+// ============================================
+// AI SERVICES (AI Family, Chat)
+// ============================================
+
+model ChatSession {
+  id           String        @id @default(cuid())
+  userId       String
+  aiPersona    String        // elara, themba, sankofa, etc.
+  title        String?
+  context      Json?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@index([userId])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  role      String   // user, assistant
+  content   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("chat_messages")
+}
+
+model AIPersonality {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  role        String
+  personality String
+  mood        String   @default("neutral")
+  traits      Json
+  relationships Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("ai_personalities")
+}
+
+// ============================================
+// AI FAMILY INTERACTIONS
+// ============================================
+
+model AIFamilyInteraction {
+  id              String     @id @default(cuid())
+  userId          String
+  familyMember    String
+  message         String
+  response        String
+  emotionalState  String?
+  context         Json?
+  createdAt       DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, familyMember])
+  @@index([createdAt])
+  @@map("ai_family_interactions")
+}
+
+model AIFamilyConsultation {
+  id           String   @id @default(cuid())
+  userId       String
+  topic        String
+  insights     Json
+  response     String
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, topic])
+  @@map("ai_family_consultations")
+}
+
+// ============================================
+// NOTIFICATION & EVENTS
+// ============================================
+
+model Notification {
+  id        String             @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  read      Boolean            @default(false)
+  createdAt DateTime           @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+model Event {
+  id        String     @id @default(cuid())
+  type      String
+  source    String
+  data      Json
+  status    EventStatus @default(PENDING)
+  createdAt DateTime   @default(now())
+  processedAt DateTime?
+
+  @@index([type, status])
+  @@map("events")
+}
+
+enum NotificationType {
+  COURSE_UPDATE
+  PAYMENT_SUCCESS
+  MINING_REWARD
+  JOB_MATCH
+  APPLICATION_UPDATE
+  SYSTEM_ALERT
+  AI_FAMILY_INTERACTION
+}
+
+enum EventStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ============================================
+// SUBSCRIPTIONS & MONETIZATION
+// ============================================
+
+model Subscription {
+  id            String              @id @default(cuid())
+  userId        String              @unique
+  tier          SubscriptionTier    @default(FREE)
+  status        SubscriptionStatus  @default(ACTIVE)
+  stripeCustomerId String?
+  stripeSubscriptionId String?
+  currentPeriodStart DateTime?
+  currentPeriodEnd DateTime?
+  renewalDate   DateTime?
+  cancelledAt   DateTime?
+  cancelReason  String?
+  metadata      Json                @default("{}")
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  billingHistory BillingHistory[]
+
+  @@index([tier])
+  @@index([status])
+  @@index([renewalDate])
+  @@map("subscriptions")
+}
+
+model BillingHistory {
+  id              String              @id @default(cuid())
+  subscriptionId  String
+  amount          Int                 // in cents
+  currency        String              @default("usd")
+  status          BillingStatus       @default(PENDING)
+  invoiceNumber   String              @unique
+  stripeInvoiceId String?
+  billedAt        DateTime
+  dueAt           DateTime
+  paidAt          DateTime?
+  failedAt        DateTime?
+  failureReason   String?
+  metadata        Json                @default("{}")
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([billedAt])
+  @@map("billing_history")
+}
+
+model SubscriptionTierConfig {
+  id              String              @id @default(cuid())
+  tier            SubscriptionTier    @unique
+  name            String
+  monthlyPrice    Int                 // in cents
+  annualPrice     Int                 // in cents
+  features        Json                // Array of feature strings
+  courseLimit     Int?                // null = unlimited
+  uploadLimit     Int?                // null = unlimited
+  tokenMonthly    Int
+  revenueShare    Float               // 0.70 for 70%
+  supportLevel    String              // community, priority, dedicated
+  description     String?
+  isActive        Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@map("subscription_tier_config")
+}
+
+// ============================================
+// TOKEN REWARDS SYSTEM
+// ============================================
+
+model TokenBalance {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Decimal  @default(0) @db.Decimal(20, 8)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions TokenTransaction[]
+
+  @@map("token_balances")
+}
+
+model TokenTransaction {
+  id        String            @id @default(cuid())
+  userId    String
+  balanceId String
+  amount    Decimal           @db.Decimal(20, 8)
+  type      TokenTransactionType
+  reason    String
+  balanceAfter Decimal        @db.Decimal(20, 8) // Balance after transaction
+  metadata  Json?
+  createdAt DateTime          @default(now())
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenBalance TokenBalance  @relation(fields: [balanceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("token_transactions")
+}
+
+model LeaderboardEntry {
+  id              String   @id @default(cuid())
+  userId          String
+  rank            Int
+  score           Decimal  @db.Decimal(20, 8)
+  leaderboardType LeaderboardType
+  period          String   // 'global', 'weekly', 'monthly'
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, leaderboardType, period])
+  @@index([leaderboardType])
+  @@index([period])
+  @@index([rank])
+  @@map("leaderboard_entries")
+}
+
+model TokenRedemption {
+  id        String                @id @default(cuid())
+  userId    String
+  amount    Decimal               @db.Decimal(20, 8)
+  type      TokenRedemptionType
+  status    TokenRedemptionStatus @default(PENDING)
+  metadata  Json?
+  createdAt DateTime              @default(now())
+  completedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("token_redemptions")
+}
+
+// ============================================
+// ENTERPRISE LICENSING
+// ============================================
+
+model EnterpriseLicense {
+  id                String              @id @default(cuid())
+  organizationId    String              @unique
+  organizationName  String
+  tier              EnterpriseTier
+  status            EnterpriseStatus    @default(ACTIVE)
+  licenseKey        String              @unique
+  maxUsers          Int
+  maxCourses        Int?                // null = unlimited
+  maxApiCalls       Int?                // null = unlimited
+  startDate         DateTime
+  expiryDate        DateTime
+  autoRenew         Boolean             @default(true)
+  customDomain      String?
+  whiteLabel        Boolean             @default(false)
+  ssoEnabled        Boolean             @default(false)
+  apiAccessEnabled  Boolean             @default(false)
+  metadata          Json                @default("{}")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  organization      EnterpriseOrganization?
+  usageTracking     EnterpriseUsageTracking[]
+  supportTickets    EnterpriseSupportTicket[]
+  customizations    EnterpriseCustomization[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([expiryDate])
+  @@map("enterprise_licenses")
+}
+
+model EnterpriseOrganization {
+  id              String              @id @default(cuid())
+  licenseId       String              @unique
+  name            String
+  email           String
+  phone           String?
+  website         String?
+  industry        String?
+  country         String?
+  city            String?
+  address         String?
+  adminUserId     String?
+  contactName     String?
+  contactEmail    String?
+  contactPhone    String?
+  metadata        Json                @default("{}")
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  license         EnterpriseLicense   @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@map("enterprise_organizations")
+}
+
+model EnterpriseUsageTracking {
+  id              String              @id @default(cuid())
+  licenseId       String
+  date            DateTime            @default(now())
+  activeUsers     Int                 @default(0)
+  coursesCreated  Int                 @default(0)
+  apiCallsUsed    Int                 @default(0)
+  storageUsed     Float               @default(0) // in GB
+  metadata        Json                @default("{}")
+
+  license         EnterpriseLicense   @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@index([licenseId])
+  @@index([date])
+  @@map("enterprise_usage_tracking")
+}
+
+model EnterpriseSupportTicket {
+  id              String              @id @default(cuid())
+  licenseId       String
+  ticketNumber    String              @unique
+  title           String
+  description     String
+  priority        SupportPriority     @default(NORMAL)
+  status          SupportTicketStatus @default(OPEN)
+  assignedTo      String?
+  createdBy       String
+  createdAt       DateTime            @default(now())
+  resolvedAt      DateTime?
+  metadata        Json                @default("{}")
+
+  license         EnterpriseLicense   @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@index([licenseId])
+  @@index([status])
+  @@index([priority])
+  @@map("enterprise_support_tickets")
+}
+
+model EnterpriseCustomization {
+  id              String              @id @default(cuid())
+  licenseId       String
+  type            CustomizationType
+  key             String
+  value           String
+  description     String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  license         EnterpriseLicense   @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@unique([licenseId, type, key])
+  @@index([licenseId])
+  @@map("enterprise_customizations")
+}
+
+// ============================================
+// PRIVACY & GDPR
+// ============================================
+
+model TokenSupply {
+  id                    String   @id @default(cuid())
+  totalSupply           Decimal  @db.Decimal(20, 8)
+  circulatingSupply     Decimal  @db.Decimal(20, 8)
+  burnedSupply          Decimal  @default(0) @db.Decimal(20, 8)
+  lastUpdated           DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("token_supply")
+}
+
+model BurnTransaction {
+  id                    String   @id @default(cuid())
+  userId                String
+  amount                Decimal  @db.Decimal(20, 8)
+  burnRate              Float    // 0.05 for 5%, 0.03 for 3%, 0.02 for 2%
+  burnedAmount          Decimal  @db.Decimal(20, 8)
+  transactionType       BurnTransactionType
+  reason                String
+  blockchainTxHash      String?
+  blockchainStatus      BlockchainStatus @default(PENDING)
+  metadata              Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation("BurnTransactions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([transactionType])
+  @@index([blockchainStatus])
+  @@index([createdAt])
+  @@map("burn_transactions")
+}
+
+model ProofOfKnowledge {
+  id                    String   @id @default(cuid())
+  userId                String
+  courseId              String
+  completionDate        DateTime
+  certificateId         String   @unique
+  verificationHash      String   @unique
+  expiryDate            DateTime?
+  metadata              Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation("ProofOfKnowledge", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@index([completionDate])
+  @@map("proof_of_knowledge")
+}
+
+model SystemBuyOrderRevenue {
+  id                    String   @id @default(cuid())
+  source                RevenueSource
+  amount                Decimal  @db.Decimal(20, 8)
+  currency              String   @default("ZAR")
+  recordedAt            DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([source])
+  @@index([recordedAt])
+  @@index([createdAt])
+  @@map("system_buy_order_revenue")
+}
+
+model SystemBuyOrderHistory {
+  id                    String   @id @default(cuid())
+  revenueUsed           Decimal  @db.Decimal(20, 8)
+  tokensAcquired        Decimal  @db.Decimal(20, 8)
+  pricePerToken         Decimal  @db.Decimal(20, 8)
+  executionTime         DateTime
+  blockchainTxHash      String?  @unique
+  status                BuyOrderStatus @default(pending)
+  error                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([status])
+  @@index([executionTime])
+  @@index([createdAt])
+  @@map("system_buy_order_history")
+}
+
+enum BurnTransactionType {
+  COURSE_SALE
+  EARNINGS_WITHDRAWAL
+  TOKEN_REDEMPTION
+}
+
+enum BlockchainStatus {
+  PENDING
+  PROCESSING
+  CONFIRMED
+  FAILED
+}
+
+enum RevenueSource {
+  course_sale
+  subscription
+  other
+}
+
+enum BuyOrderStatus {
+  pending
+  completed
+  failed
+}
+
+// ============================================
+// AI ROUTING SYSTEM (Phase 2)
+// ============================================
+
+model QueryClassification {
+  id                    String   @id @default(cuid())
+  query                 String
+  classifiedAs          QueryComplexity
+  confidence            Float    // 0.0 to 1.0
+  routedTo              RoutingTier
+  responseTime          Int      // milliseconds
+  cost                  Decimal  @db.Decimal(12, 8)
+  userId                String?
+  metadata              Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User? @relation("QueryClassifications", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([classifiedAs])
+  @@index([routedTo])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("query_classifications")
+}
+
+model RoutingMetrics {
+  id                    String   @id @default(cuid())
+  routingTier           RoutingTier
+  totalRequests         Int       @default(0)
+  successfulRequests    Int       @default(0)
+  failedRequests        Int       @default(0)
+  averageResponseTime   Int       // milliseconds
+  averageCost           Decimal   @db.Decimal(12, 8)
+  cacheHits             Int       @default(0)
+  cacheMisses           Int       @default(0)
+  lastUpdated           DateTime  @default(now())
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([routingTier])
+  @@index([routingTier])
+  @@index([lastUpdated])
+  @@map("routing_metrics")
+}
+
+model AIRoutingCache {
+  id                    String   @id @default(cuid())
+  queryHash             String   @unique
+  query                 String
+  response              String
+  routingTier           RoutingTier
+  cost                  Decimal   @db.Decimal(12, 8)
+  ttl                   Int       // seconds
+  expiresAt             DateTime
+  hitCount              Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([routingTier])
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@map("ai_routing_cache")
+}
+
+enum QueryComplexity {
+  SIMPLE
+  MODERATE
+  COMPLEX
+}
+
+enum RoutingTier {
+  LOCAL_LLM
+  RAP_SYSTEM
+  EXTERNAL_LLM
+}
+
+// ============================================
+// AGENT / TASKS / KNOWLEDGE
+// ============================================
+
+model Task {
+  id         String   @id @default(cuid())
+  title      String?
+  description String?
+  payload    Json     @default("{}")
+  status     String   @default("pending")
+  agentId    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  executions AgentExecution[]
+  @@index([status])
+  @@index([agentId])
+  @@map("tasks")
+}
+
+model Agent {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  type      String
+  status    String
+  heartbeat DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  executions AgentExecution[]
+
+  @@map("agents")
+}
+
+model AgentExecution {
+  id        String   @id @default(cuid())
+  taskId    String
+  agentId   String
+  status    String
+  logs      Json?
+  result    Json?
+  startedAt DateTime?
+  endedAt   DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([agentId])
+  @@map("agent_executions")
+}
+
+model KnowledgeNode {
+  id        String   @id @default(cuid())
+  path      String
+  type      String
+  title     String?
+  content   String
+  // embedding: will use Postgres `vector` type via pgvector; Prisma doesn't support it natively.
+  // Use Unsupported("vector")? so Prisma will accept the DB type while allowing raw SQL operations.
+  // embedding Unsupported("vector")? // pgvector extension not enabled in local DB
+  embeddingJson Json? @map("embedding_json")
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([path])
+  @@map("knowledge_nodes")
+}
+
+// ============================================
+// CITADEL FUND SERVICES
+// ============================================
+
+model CitadelFund {
+  id                String   @id @default(cuid())
+  totalCollected    Decimal  @default(0) @db.Decimal(20, 8)
+  totalDistributed  Decimal  @default(0) @db.Decimal(20, 8)
+  currentBalance    Decimal  @default(0) @db.Decimal(20, 8)
+  updatedAt         DateTime @updatedAt
+  
+  @@map("citadel_funds")
+}
+
+model CitadelTransaction {
+  id              String   @id @default(cuid())
+  type            CitadelTransactionType
+  amount          Decimal  @db.Decimal(20, 8)
+  source          String?
+  recipient       String?
+  purpose         String?
+  description     String?
+  transactionId   String?
+  createdAt       DateTime @default(now())
+  
+  @@map("citadel_transactions")
+}
+
+enum CitadelTransactionType {
+  COLLECTION
+  SCHOLARSHIP
+  GRANT
+  PUBLIC_GOOD
+}
+
+model Scholarship {
+  id          String   @id @default(cuid())
+  studentId   String
+  amount      Decimal  @db.Decimal(20, 8)
+  reason      String
+  courseType  String?
+  status      ApprovalStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@map("scholarships")
+}
+
+model Grant {
+  id          String   @id @default(cuid())
+  recipientId String?
+  recipientName String?
+  amount      Decimal  @db.Decimal(20, 8)
+  purpose     String
+  projectType String?
+  status      ApprovalStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("grants")
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DISBURSED
+}
+
+// ============================================
+// PROOF OF VALUE SERVICES
+// ============================================
+
+model ProofOfValue {
+  id            String   @id @default(cuid())
+  userId        String
+  contentHash   String   @unique
+  valueScore    Float
+  proofType     MiningType
+  status        MiningStatus @default(PENDING)
+  verifiedAt    DateTime?
+  verifierId    String?
+  createdAt     DateTime @default(now())
+  
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("proof_of_values")
+}
+
+// ============================================
+// ADMIN & SECRETS MANAGEMENT
+// ============================================
+
+model Secret {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   // AES-256-CBC encrypted
+  iv          String   // Initialization vector for encryption
+  category    String   @default("general")
+  description String?
+  lastUpdated DateTime @default(now()) @updatedAt
+  updatedBy   String   @default("system")
+  
+  @@index([category])
+  @@map("secrets")
+}
+
+model BlockchainTransaction {
+  id              String   @id @default(cuid())
+  transactionHash String   @unique
+  from            String
+  to              String
+  amount          Float
+  contractAddress String?
+  contractMethod  String?
+  gasUsed         String?
+  gasPrice        String?
+  status          String   @default("pending")
+  blockNumber     Int?
+  timestamp       DateTime @default(now())
+  
+  @@index([from])
+  @@index([to])
+  @@index([status])
+  @@map("blockchain_transactions")
+}
+
+model BlockchainEvent {
+  id              String   @id @default(cuid())
+  eventType       String
+  contractAddress String
+  transactionHash String?
+  blockNumber     Int?
+  data            Json     // Flexible storage for event data
+  amount          Float?
+  from            String?
+  to              String?
+  timestamp       DateTime @default(now())
+  
+  @@index([eventType])
+  @@index([contractAddress])
+  @@map("blockchain_events")
+}
+
+model Certificate {
+  id            String   @id @default(cuid())
+  tokenId       String   @unique
+  recipient     String
+  courseId      String?
+  achievementId String?
+  ipfsHash      String?
+  metadata      Json?
+  issuedAt      DateTime @default(now())
+  
+  @@index([recipient])
+  @@map("certificates")
+}
+
+model StakingTransaction {
+  id              String   @id @default(cuid())
+  userId          String
+  transactionHash String
+  amount          Float
+  action          String   // stake, unstake, claim
+  stakingPeriod   Int?     // in days
+  rewardRate      Float?
+  timestamp       DateTime @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@map("staking_transactions")
+}
+
+model ValueCreationRecord {
+  id               String   @id @default(cuid())
+  userId           String
+  activityType     String
+  activityId       String?
+  valueScore       Float
+  rewardAmount     Float?
+  rewardTxHash     String?
+  status           String   @default("pending")
+  antiGamingChecks Json?    // Store validation results
+  processedAt      DateTime?
+  createdAt        DateTime @default(now())
+  
+  @@index([userId])
+  @@index([activityType])
+  @@index([status])
+  @@map("value_creation_records")
+}
+
+model CitadelFundAllocation {
+  id              String   @id @default(cuid())
+  transactionId   String
+  sourceType      String   // payment, subscription, etc
+  sourceId        String
+  amount          Float
+  currency        String   @default("ZAR")
+  percentage      Float    @default(10)
+  allocatedAt     DateTime @default(now())
+  reversed        Boolean  @default(false)
+  reversedAt      DateTime?
+  
+  @@index([sourceType])
+  @@index([transactionId])
+  @@map("citadel_fund_allocations")
+}
+
+
+// BuildSpaces models: projects, specs, and agent executions
+model BuildSpaceProject {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  ownerId     String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  specs BuildSpaceSpec[]
+  executions BuildSpaceExecution[]
+
+  @@index([ownerId])
+  @@map("buildspaces_projects")
+}
+
+model BuildSpaceSpec {
+  id        String   @id @default(cuid())
+  projectId String
+  title     String
+  content   String   // spec content (yaml/json/etc)
+  format    String   @default("yaml")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project BuildSpaceProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  executions BuildSpaceExecution[]
+
+  @@index([projectId])
+  @@map("buildspaces_specs")
+}
+
+model BuildSpaceExecution {
+  id         String   @id @default(cuid())
+  projectId  String?
+  specId     String?
+  agentName  String
+  status     String   @default("pending")
+  input      Json
+  output     Json?
+  tokensUsed Int?     @default(0)
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  project BuildSpaceProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  spec    BuildSpaceSpec?    @relation(fields: [specId], references: [id], onDelete: Cascade)
+
+  @@index([agentName])
+  @@index([status])
+  @@map("buildspaces_executions")
+}

@@ -1,0 +1,5 @@
+# pnpm workspace configuration
+# Note: This is a standalone repository without workspaces
+# This file is kept for potential future use if integrating with other repos
+
+packages: []
