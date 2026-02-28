@@ -69,7 +69,7 @@ const LABELS: TaskLabel[] = [
 
 const MS_PER_DAY = 86400000
 
-
+const PRIORITY_CONFIG = {
   urgent: { icon: AlertCircle, color: "text-red-500", bg: "bg-red-500/10", label: "Urgent", order: 0 },
   high: { icon: ArrowUp, color: "text-orange-500", bg: "bg-orange-500/10", label: "High", order: 1 },
   medium: { icon: Minus, color: "text-yellow-500", bg: "bg-yellow-500/10", label: "Medium", order: 2 },
