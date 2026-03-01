@@ -337,33 +337,3 @@ export default function InnovationTheater() {
         </div>
     );
 }
-
-                            </div>
-                            <p className="text-sm text-slate-300">Great presentation! The demo was really impressive.</p>
-                        </div>
-                        <div className="bg-slate-800/50 p-3 rounded-lg">
-                            <div className="flex items-center gap-2 mb-1">
-                                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
-                                    S
-                                </div>
-                                <span className="text-sm font-medium text-white">Sarah Chen</span>
-                                <span className="text-xs text-slate-400">1m ago</span>
-                            </div>
-                            <p className="text-sm text-slate-300">Can you show the code for the animation?</p>
-                        </div>
-                        <div className="bg-slate-800/50 p-3 rounded-lg">
-                            <div className="flex items-center gap-2 mb-1">
-                                <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
-                                    M
-                                </div>
-                                <span className="text-sm font-medium text-white">Mike Ross</span>
-                                <span className="text-xs text-slate-400">30s ago</span>
-                            </div>
-                            <p className="text-sm text-slate-300">Love the real-time features!</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}

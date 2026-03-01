@@ -639,6 +639,7 @@ export function CommandDesk() {
 
       // also push trace steps into global store
       const { addStep } = useCitadelStore.getState()
+      let fullContent = ''
 
       while (true) {
         const { done, value } = await reader.read()

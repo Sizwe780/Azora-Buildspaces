@@ -282,7 +282,7 @@ function CreateTaskModal({
               <span className="text-xs text-zinc-500">Status</span>
               <select
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                onChange={(e) => setStatus(e.target.value as keyof typeof STATUS_CONFIG)}
                 className="bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1 text-xs text-zinc-300"
               >
                 {Object.entries(STATUS_CONFIG).map(([key, val]) => (
@@ -514,7 +514,7 @@ function TaskDetailDialog({
               <label className="text-xs text-zinc-500 mb-1 block">Status</label>
               <select
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                onChange={(e) => setStatus(e.target.value as keyof typeof STATUS_CONFIG)}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-300"
               >
                 {Object.entries(STATUS_CONFIG).map(([key, val]) => (

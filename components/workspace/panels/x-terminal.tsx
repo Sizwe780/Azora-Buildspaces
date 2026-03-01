@@ -25,6 +25,7 @@ export function XTerminal({ onData, socket }: XTerminalProps) {
         const { WebLinksAddon } = await import("xterm-addon-web-links")
 
         // Import xterm CSS
+        // @ts-ignore - CSS import handled by bundler
         await import("xterm/css/xterm.css")
 
         const fitAddon = new FitAddon()

@@ -45,9 +45,9 @@ interface ReasoningTraceProps {
 
 export default function ReasoningTrace({ stream, skeleton = 'code', initialSteps, lastSyncedOverride }: ReasoningTraceProps) {
   // subscribe to global store if no stream and no explicit initialSteps
-  const storeSteps = useCitadelStore((s) => s.activeTrace)
+  const storeSteps = useCitadelStore((s: any) => s.activeTrace)
   const lastSynced =
-    lastSyncedOverride ?? useCitadelStore((s) => s.lastSynced)
+    lastSyncedOverride ?? useCitadelStore((s: any) => s.lastSynced)
   const [steps, setSteps] = useState<TraceStep[]>(() => {
     if (stream) return []
     if (initialSteps) return initialSteps

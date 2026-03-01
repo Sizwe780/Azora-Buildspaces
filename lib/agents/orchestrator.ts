@@ -325,20 +325,15 @@ export class WorkflowOrchestrator {
         break
       case 'agent':
         emit('thought', `Agent node ${node.id} (${(node.data as AgentNodeData).agentType})`)
-        // persist thought
-        await maybePersist('thought', `Agent node ${node.id}`)
         startAction(`agent ${(node.data as AgentNodeData).agentType}`)
         output = await this.executeAgentNode(node, context)
         emit('observation', `Agent output: ${JSON.stringify(output)}`)
-        await maybePersist('observation', JSON.stringify(output))
         break
       case 'action':
         emit('thought', `Action node ${node.id} (${(node.data as ActionNodeData).actionType})`)
-        await maybePersist('thought', `Action node ${node.id}`)
         startAction(`action ${(node.data as ActionNodeData).actionType}`)
         output = await this.executeActionNode(node, context)
         emit('observation', `Action result: ${JSON.stringify(output)}`)
-        await maybePersist('observation', JSON.stringify(output))
         break
       default:
         throw new Error(`Unknown node type: ${node.type}`)

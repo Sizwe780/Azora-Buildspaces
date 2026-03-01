@@ -38,7 +38,7 @@ import {
   Terminal,
   CheckCircle2,
 } from 'lucide-react'
-import { Workflow, WorkflowNode, getOrchestrator } from '@/lib/agents/orchestrator'
+import { Workflow, WorkflowNode, WorkflowEdge, getOrchestrator } from '@/lib/agents/orchestrator'
 
 // Custom Node Components
 import { TriggerNode } from './nodes/trigger-node'
@@ -137,7 +137,11 @@ export function FlowEditor({ workflowId, onSave }: FlowEditorProps) {
       name: workflowName,
       description: `Agent workflow with ${nodes.length} nodes`,
       nodes: nodes as WorkflowNode[],
-      edges,
+      edges: edges.map(e => ({
+        ...e,
+        sourceHandle: e.sourceHandle ?? undefined,
+        targetHandle: e.targetHandle ?? undefined,
+      })) as WorkflowEdge[],
       enabled: true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
