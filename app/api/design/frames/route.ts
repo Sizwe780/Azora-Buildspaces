@@ -16,7 +16,7 @@ export async function POST(req: Request) {
       const { getServerSession } = await import('next-auth/next')
       // import authOptions if available in monorepo packages
       // @ts-ignore
-      const maybeAuth = await import('packages/lib/auth').catch(() => null)
+      const maybeAuth = await import('@/lib/auth/config').catch(() => null)
       const authOptions = maybeAuth?.authOptions
       if (typeof getServerSession === 'function') {
         const session: any = authOptions ? await getServerSession(authOptions) : await getServerSession()

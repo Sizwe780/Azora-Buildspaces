@@ -59,8 +59,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "userId is required" }, { status: 400 })
     }
 
-    const profile = userProfiles.get(userId) ?? { unlockedIds: [], displayName: userId }
-
+    const profile = userProfiles.get(userId) ?? { unlockedIds: [] as string[], displayName: userId }
     if (displayName) profile.displayName = displayName
 
     if (achievementId) {
