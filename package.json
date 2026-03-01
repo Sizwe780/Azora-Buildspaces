@@ -15,6 +15,7 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "seed:admin": "node scripts/seed-admin.js",
+    "setup:login": "tsx scripts/setup-login.ts",
     "playwright:install": "playwright install --with-deps",
     "test:e2e": "playwright test --config=tests/playwright.config.ts",
     "setup": "tsx scripts/setup.ts",
