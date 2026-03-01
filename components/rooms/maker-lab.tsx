@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,92 @@ export default function MakerLab() {
     const [selectedBoard, setSelectedBoard] = useState("esp32");
     const [isSimulating, setIsSimulating] = useState(false);
     const [simulationData, setSimulationData] = useState<any>(null);
+
+    // Sensor live data
+    const [sensorReadings, setSensorReadings] = useState<Record<string, number[]>>({
+        temperature: [22.4, 22.6, 22.5, 22.8, 23.1, 23.0, 22.9, 23.2],
+        humidity:    [61, 62, 61, 60, 62, 63, 61, 62],
+        pressure:    [1013, 1014, 1013, 1012, 1013, 1014, 1013, 1012],
+        light:       [320, 340, 330, 310, 350, 360, 340, 355],
+    });
+    const sensorIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Serial monitor
+    const [serialLog, setSerialLog] = useState<{ ts: string; data: string; type: "rx" | "tx" }[]>([
+        { ts: "00:00:01", data: "ESP32 booting...", type: "rx" },
+        { ts: "00:00:02", data: "WiFi connecting to SSID: Azora", type: "rx" },
+        { ts: "00:00:03", data: "IP: 192.168.1.42", type: "rx" },
+        { ts: "00:00:04", data: "Sensors initialized OK", type: "rx" },
+        { ts: "00:00:05", data: "MQTT broker: mqtt.azora.io", type: "rx" },
+    ]);
+    const [serialCmd, setSerialCmd] = useState("");
+    const serialEndRef = useRef<HTMLDivElement>(null);
+
+    // Tests
+    const [testResults, setTestResults] = useState<{ name: string; status: "pending" | "pass" | "fail"; duration?: number }[]>([
+        { name: "GPIO pin read/write", status: "pending" },
+        { name: "WiFi connection", status: "pending" },
+        { name: "MQTT publish", status: "pending" },
+        { name: "Sensor I2C init", status: "pending" },
+        { name: "NVS storage write", status: "pending" },
+        { name: "OTA update check", status: "pending" },
+    ]);
+    const [isRunningTests, setIsRunningTests] = useState(false);
+
+    // MQTT topics
+    const [mqttTopics] = useState([
+        { topic: "device/telemetry", qos: 1, messages: 142, lastMsg: "2s ago" },
+        { topic: "device/commands", qos: 2, messages: 7, lastMsg: "1m ago" },
+        { topic: "device/status", qos: 0, messages: 38, lastMsg: "5s ago" },
+    ]);
+
+    // Live sensor simulation
+    useEffect(() => {
+        sensorIntervalRef.current = setInterval(() => {
+            setSensorReadings(prev => {
+                const next: Record<string, number[]> = {};
+                Object.entries(prev).forEach(([key, vals]) => {
+                    const last = vals[vals.length - 1];
+                    const noise = (Math.random() - 0.5) * (key === "light" ? 10 : key === "pressure" ? 0.5 : 0.4);
+                    const newVal = parseFloat((last + noise).toFixed(1));
+                    next[key] = [...vals.slice(-11), newVal];
+                });
+                return next;
+            });
+        }, 2000);
+        return () => { if (sensorIntervalRef.current) clearInterval(sensorIntervalRef.current); };
+    }, []);
+
+    useEffect(() => {
+        serialEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [serialLog]);
+
+    const sendSerialCmd = useCallback(() => {
+        if (!serialCmd.trim()) return;
+        const ts = new Date().toISOString().substr(11, 8);
+        setSerialLog(prev => [
+            ...prev,
+            { ts, data: serialCmd.trim(), type: "tx" },
+            { ts, data: `> OK (${serialCmd.trim()})`, type: "rx" },
+        ]);
+        setSerialCmd("");
+    }, [serialCmd]);
+
+    const runTests = useCallback(async () => {
+        setIsRunningTests(true);
+        setTestResults(prev => prev.map(t => ({ ...t, status: "pending" as const })));
+        for (let i = 0; i < testResults.length; i++) {
+            await new Promise(r => setTimeout(r, 400 + Math.random() * 300));
+            const pass = Math.random() > 0.15;
+            const duration = Math.round(50 + Math.random() * 200);
+            setTestResults(prev => prev.map((t, idx) => idx === i ? { ...t, status: pass ? "pass" : "fail", duration } : t));
+        }
+        setIsRunningTests(false);
+    }, [testResults.length]);
+
+    const SENSOR_UNITS: Record<string, string> = {
+        temperature: "°C", humidity: "%RH", pressure: "hPa", light: "lux"
+    };
 
     const boards = [
         { id: "esp32", name: "ESP32", description: "WiFi & Bluetooth SoC" },
@@ -190,6 +276,184 @@ export default function MakerLab() {
                             Deploy
                         </TabsTrigger>
                     </TabsList>
+
+                    {/* Sensors Tab */}
+                    <TabsContent value="sensors" className="h-full m-0 p-4 overflow-y-auto">
+                        <div className="grid grid-cols-2 gap-4 mb-6">
+                            {Object.entries(sensorReadings).map(([key, vals]) => {
+                                const current = vals[vals.length - 1];
+                                const min = Math.min(...vals);
+                                const max = Math.max(...vals);
+                                const unit = SENSOR_UNITS[key] || "";
+                                const sparkH = 32;
+                                const sparkW = 80;
+                                const points = vals.map((v, i) => {
+                                    const x = (i / (vals.length - 1)) * sparkW;
+                                    const y = sparkH - ((v - min) / (max - min + 0.001)) * sparkH;
+                                    return `${x},${y}`;
+                                }).join(" ");
+                                return (
+                                    <Card key={key}>
+                                        <CardContent className="p-4">
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div>
+                                                    <div className="text-[10px] text-muted-foreground capitalize font-semibold uppercase tracking-wider">{key}</div>
+                                                    <div className="text-2xl font-bold mt-0.5">{current}<span className="text-sm font-normal text-muted-foreground ml-1">{unit}</span></div>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                                    <span className="text-[10px] text-emerald-500">Live</span>
+                                                </div>
+                                            </div>
+                                            {/* Sparkline */}
+                                            <svg width={sparkW} height={sparkH} className="mt-1">
+                                                <polyline points={points} fill="none" stroke="hsl(var(--primary))" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                            <div className="flex justify-between text-[9px] text-muted-foreground mt-1">
+                                                <span>Min {min}{unit}</span>
+                                                <span>Max {max}{unit}</span>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                );
+                            })}
+                        </div>
+
+                        {/* Serial Monitor */}
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm flex items-center gap-2">
+                                    <Activity className="w-4 h-4 text-orange-500" />
+                                    Serial Monitor
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-3">
+                                <div className="bg-black rounded-md border border-border/50 h-32 overflow-y-auto p-2 font-mono text-xs mb-2">
+                                    {serialLog.map((entry, i) => (
+                                        <div key={i} className={`${entry.type === "tx" ? "text-cyan-400" : "text-emerald-400"}`}>
+                                            <span className="text-slate-600 mr-2">[{entry.ts}]</span>
+                                            <span className="text-slate-500 mr-1">{entry.type === "tx" ? "→" : "←"}</span>
+                                            {entry.data}
+                                        </div>
+                                    ))}
+                                    <div ref={serialEndRef} />
+                                </div>
+                                <div className="flex gap-2">
+                                    <Input
+                                        value={serialCmd}
+                                        onChange={e => setSerialCmd(e.target.value)}
+                                        onKeyDown={e => e.key === "Enter" && sendSerialCmd()}
+                                        placeholder="Send command (Enter)..."
+                                        className="h-8 text-xs font-mono"
+                                    />
+                                    <Button size="sm" onClick={sendSerialCmd} className="h-8 text-xs bg-orange-500 hover:bg-orange-600">Send</Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    {/* IoT MQTT Tab */}
+                    <TabsContent value="iot" className="h-full m-0 p-4 overflow-y-auto">
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-semibold">MQTT Broker</h3>
+                                <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs">
+                                    Connected
+                                </Badge>
+                            </div>
+                            <Card>
+                                <CardContent className="p-3">
+                                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Broker</div>
+                                    <code className="text-xs text-foreground">mqtt.azora.io:1883</code>
+                                </CardContent>
+                            </Card>
+                            <div className="space-y-2">
+                                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Topics</div>
+                                {mqttTopics.map((t, i) => (
+                                    <div key={i} className="flex items-center justify-between p-3 rounded-lg border bg-muted/10">
+                                        <div>
+                                            <code className="text-xs text-foreground">{t.topic}</code>
+                                            <div className="text-[10px] text-muted-foreground mt-0.5">QoS {t.qos} · {t.messages} msgs · Last {t.lastMsg}</div>
+                                        </div>
+                                        <Badge variant="outline" className="text-[10px]">Active</Badge>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="space-y-2">
+                                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Publish Message</div>
+                                <div className="flex gap-2">
+                                    <Input placeholder="topic/path" className="h-8 text-xs font-mono flex-1" />
+                                    <Input placeholder="payload JSON" className="h-8 text-xs font-mono flex-1" />
+                                    <Button size="sm" className="h-8 text-xs bg-orange-500 hover:bg-orange-600">Publish</Button>
+                                </div>
+                            </div>
+                        </div>
+                    </TabsContent>
+
+                    {/* Testing Tab */}
+                    <TabsContent value="testing" className="h-full m-0 p-4 overflow-y-auto">
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-semibold">Hardware Test Suite</h3>
+                                <Button
+                                    size="sm"
+                                    onClick={runTests}
+                                    disabled={isRunningTests}
+                                    className="gap-2 bg-orange-500 hover:bg-orange-600"
+                                >
+                                    {isRunningTests ? <><Activity className="w-3.5 h-3.5 animate-spin" />Running…</> : <><Play className="w-3.5 h-3.5" />Run All Tests</>}
+                                </Button>
+                            </div>
+
+                            {/* Summary */}
+                            {testResults.some(t => t.status !== "pending") && (
+                                <div className="grid grid-cols-3 gap-3 text-center">
+                                    {[
+                                        { label: "Passed", count: testResults.filter(t => t.status === "pass").length, color: "text-emerald-500" },
+                                        { label: "Failed", count: testResults.filter(t => t.status === "fail").length, color: "text-red-500" },
+                                        { label: "Pending", count: testResults.filter(t => t.status === "pending").length, color: "text-slate-400" },
+                                    ].map(s => (
+                                        <div key={s.label} className="p-3 rounded-lg border bg-muted/10">
+                                            <div className={`text-xl font-bold ${s.color}`}>{s.count}</div>
+                                            <div className="text-[10px] text-muted-foreground">{s.label}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="space-y-2">
+                                {testResults.map((test, i) => (
+                                    <div key={i} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                                        test.status === "pass" ? "bg-emerald-500/5 border-emerald-500/20" :
+                                        test.status === "fail" ? "bg-red-500/5 border-red-500/20" :
+                                        "bg-muted/5 border-border/50"
+                                    }`}>
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-2 h-2 rounded-full ${
+                                                test.status === "pass" ? "bg-emerald-500" :
+                                                test.status === "fail" ? "bg-red-500" :
+                                                isRunningTests ? "bg-amber-400 animate-pulse" : "bg-slate-600"
+                                            }`} />
+                                            <span className="text-sm">{test.name}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {test.duration && <span className="text-[10px] text-muted-foreground">{test.duration}ms</span>}
+                                            <Badge
+                                                variant="outline"
+                                                className={`text-[10px] ${
+                                                    test.status === "pass" ? "border-emerald-500/30 text-emerald-400" :
+                                                    test.status === "fail" ? "border-red-500/30 text-red-400" :
+                                                    "border-border text-muted-foreground"
+                                                }`}
+                                            >
+                                                {test.status}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </TabsContent>
 
                     <TabsContent value="overview" className="h-full m-0 p-4">
                         <div className="grid grid-cols-3 gap-4 h-full">

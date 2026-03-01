@@ -71,6 +71,7 @@ export default function DeepFocus() {
     const [todayMinutes, setTodayMinutes] = useState(0);
     const [streak, setStreak] = useState(0);
     const [distractions, setDistractions] = useState(0);
+    const [distractionLog, setDistractionLog] = useState<{ time: string; note: string }[]>([]);
     const [sessionLog, setSessionLog] = useState<{ date: string; minutes: number; mode: string }[]>([]);
     const [aiInsights, setAiInsights] = useState<string[]>([]);
     const [breakCount, setBreakCount] = useState(0);
@@ -200,6 +201,14 @@ export default function DeepFocus() {
             if (timerRef.current) clearInterval(timerRef.current);
         };
     }, [isActive, timeLeft, mode]);
+
+    const logDistraction = () => {
+        setDistractions(d => d + 1);
+        setDistractionLog(prev => [{
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            note: `Distraction #${distractions + 1}`,
+        }, ...prev].slice(0, 20));
+    };
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -431,6 +440,35 @@ export default function DeepFocus() {
                                     </div> 
                                 </div>
 
+                                {/* Distraction Tracker */}
+                                <div className="w-full space-y-2 pt-2">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                            <Zap className="w-3 h-3" />
+                                            Distractions
+                                        </h3>
+                                        <span className={`text-xs font-bold ${distractions === 0 ? "text-emerald-400" : distractions < 3 ? "text-amber-400" : "text-red-400"}`}>
+                                            {distractions}
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={logDistraction}
+                                        className="w-full py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-xs text-red-300 hover:bg-red-500/20 transition-colors font-medium"
+                                    >
+                                        + I got distracted
+                                    </button>
+                                    {distractionLog.length > 0 && (
+                                        <div className="space-y-1 max-h-20 overflow-y-auto">
+                                            {distractionLog.map((d, i) => (
+                                                <div key={i} className="flex items-center justify-between text-[10px] text-muted-foreground">
+                                                    <span>{d.note}</span>
+                                                    <span className="text-muted-foreground/50">{d.time}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
                                 {/* Daily Goal */}
                                 <div className="w-full space-y-2 pt-2">
                                     <div className="flex items-center justify-between">
@@ -464,32 +502,56 @@ export default function DeepFocus() {
                                     )}
                                 </div>
 
-                                {/* Mini Streak Calendar (last 7 days) */}
+                                {/* 4-week GitHub-style heatmap */}
                                 <div className="w-full space-y-2 pt-2">
                                     <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                                         <Calendar className="w-3 h-3" />
-                                        This Week
+                                        4-Week Activity
                                     </h3>
-                                    <div className="flex gap-1 justify-center">
-                                        {Array.from({ length: 7 }, (_, i) => {
-                                            const d = new Date()
-                                            d.setDate(d.getDate() - (6 - i))
-                                            const dateStr = d.toISOString().split('T')[0]
-                                            const dayMinutes = sessionLog
-                                                .filter(s => s.date === dateStr)
-                                                .reduce((sum, s) => sum + s.minutes, 0)
-                                            const intensity = dayMinutes === 0 ? 0 : dayMinutes < 30 ? 1 : dayMinutes < 60 ? 2 : dayMinutes < 120 ? 3 : 4
-                                            const colors = ['bg-muted/20', 'bg-emerald-900', 'bg-emerald-700', 'bg-emerald-500', 'bg-emerald-400']
-                                            const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-                                            return (
-                                                <div key={i} className="flex flex-col items-center gap-1">
-                                                    <span className="text-[9px] text-muted-foreground">{dayNames[d.getDay()]}</span>
-                                                    <div className={`w-6 h-6 rounded-sm ${colors[intensity]} flex items-center justify-center`} title={`${dateStr}: ${dayMinutes}m`}>
-                                                        {dayMinutes > 0 && <span className="text-[8px] text-white font-mono">{dayMinutes}</span>}
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
+                                    <div className="flex gap-1">
+                                        {/* Day labels column */}
+                                        <div className="flex flex-col gap-1 pt-4">
+                                            {['M', '', 'W', '', 'F', '', 'S'].map((d, i) => (
+                                                <span key={i} className="text-[8px] text-muted-foreground/50 h-4 leading-4">{d}</span>
+                                            ))}
+                                        </div>
+                                        {/* 4 weeks × 7 days grid */}
+                                        {Array.from({ length: 4 }, (_, week) => (
+                                            <div key={week} className="flex flex-col gap-1">
+                                                {week === 0 && (
+                                                    <span className="text-[8px] text-muted-foreground/50 text-center">4w</span>
+                                                )}
+                                                {week === 2 && (
+                                                    <span className="text-[8px] text-muted-foreground/50 text-center">2w</span>
+                                                )}
+                                                {(week === 1 || week === 3) && <span className="text-[8px] h-3" />}
+                                                {Array.from({ length: 7 }, (_, day) => {
+                                                    const daysAgo = (3 - week) * 7 + (6 - day)
+                                                    const d = new Date()
+                                                    d.setDate(d.getDate() - daysAgo)
+                                                    const dateStr = d.toISOString().split('T')[0]
+                                                    const mins = sessionLog
+                                                        .filter(s => s.date === dateStr)
+                                                        .reduce((sum, s) => sum + s.minutes, 0)
+                                                    const intensity = mins === 0 ? 0 : mins < 30 ? 1 : mins < 60 ? 2 : mins < 120 ? 3 : 4
+                                                    const colors = ['bg-muted/20', 'bg-emerald-900/60', 'bg-emerald-700/70', 'bg-emerald-500/80', 'bg-emerald-400']
+                                                    return (
+                                                        <div
+                                                            key={day}
+                                                            className={`w-4 h-4 rounded-sm ${colors[intensity]} hover:ring-1 hover:ring-emerald-400 transition-all cursor-default`}
+                                                            title={`${dateStr}: ${mins}m`}
+                                                        />
+                                                    )
+                                                })}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex items-center gap-1 justify-end">
+                                        <span className="text-[8px] text-muted-foreground/50">Less</span>
+                                        {['bg-muted/20', 'bg-emerald-900/60', 'bg-emerald-700/70', 'bg-emerald-500/80', 'bg-emerald-400'].map((c, i) => (
+                                            <div key={i} className={`w-3 h-3 rounded-sm ${c}`} />
+                                        ))}
+                                        <span className="text-[8px] text-muted-foreground/50">More</span>
                                     </div>
                                 </div>
 

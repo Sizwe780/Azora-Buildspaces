@@ -15,7 +15,7 @@ import {
     FolderOpen, File, FileText, Settings, Image, Code,
     Database, Sparkles, Wifi, WifiOff,
     Bot, SquareTerminal, CircleDot, FolderClosed,
-    Trash2, RefreshCw, Globe
+    Trash2, RefreshCw, Globe, Zap
 } from "lucide-react"
 import { XTerminal } from "@/components/workspace/panels/x-terminal"
 import * as Y from "yjs"
@@ -309,21 +309,94 @@ function SearchSidebar() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// GIT SIDEBAR
-// ═══════════════════════════════════════════════════════════════════════
+// GIT SIDEBAR — with changed-files list & diff viewer
+// ════════��══════════════════════════════════════════════════════════════
 function GitSidebar() {
+    const { fileMap } = useFileSystem()
+    const [commitMsg, setCommitMsg] = useState("")
+    const [showDiff, setShowDiff] = useState<string | null>(null)
+
+    // Simulate changed files from open files
+    const changedFiles = Object.values(fileMap)
+        .filter(n => n.type === "file" && n.content)
+        .slice(0, 5)
+        .map((n, i) => ({
+            name: n.name,
+            status: i === 0 ? "M" : i === 1 ? "A" : "M",
+        }))
+
     return (
         <div className="h-full flex flex-col bg-[#0d1117]">
             <div className="h-9 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">Source Control</div>
             <div className="px-3 pb-3">
-                <input placeholder="Message (⌘Enter to commit)" className="w-full bg-[#161b22] border border-[#30363d] rounded-md px-3 py-1.5 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors" />
+                <input
+                    value={commitMsg}
+                    onChange={e => setCommitMsg(e.target.value)}
+                    placeholder="Message (⌘Enter to commit)"
+                    className="w-full bg-[#161b22] border border-[#30363d] rounded-md px-3 py-1.5 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
+                />
+                <button
+                    onClick={() => { setCommitMsg(""); }}
+                    className="w-full mt-2 py-1.5 rounded-md text-[12px] font-medium bg-[#238636] hover:bg-[#2ea043] text-white transition-colors disabled:opacity-40"
+                    disabled={!commitMsg.trim()}
+                >
+                    Commit
+                </button>
             </div>
-            <div className="px-3">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] mb-2">Changes</div>
-                <div className="text-[13px] text-[#484f58] text-center py-8">
-                    <GitBranch className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                    <p>No changes detected</p>
-                    <p className="text-[11px] mt-1">Working tree clean</p>
+
+            <div className="px-3 flex-1 overflow-y-auto">
+                <div className="flex items-center justify-between mb-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-[#8b949e]">
+                        Changes ({changedFiles.length})
+                    </div>
+                    <button className="text-[11px] text-[#58a6ff] hover:underline">Stage All</button>
+                </div>
+
+                {changedFiles.length === 0 ? (
+                    <div className="text-[13px] text-[#484f58] text-center py-8">
+                        <GitBranch className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                        <p>No changes detected</p>
+                        <p className="text-[11px] mt-1">Working tree clean</p>
+                    </div>
+                ) : (
+                    <div className="space-y-0.5">
+                        {changedFiles.map(f => (
+                            <div key={f.name}>
+                                <button
+                                    onClick={() => setShowDiff(showDiff === f.name ? null : f.name)}
+                                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#1f1f1f] group transition-colors"
+                                >
+                                    <span className={`text-[11px] font-bold w-4 shrink-0 ${f.status === "A" ? "text-emerald-400" : "text-amber-400"}`}>
+                                        {f.status}
+                                    </span>
+                                    {getFileIcon(f.name)}
+                                    <span className="text-[13px] text-[#c9d1d9] truncate flex-1 text-left">{f.name}</span>
+                                    <span className="text-[10px] text-[#484f58] opacity-0 group-hover:opacity-100">+/−</span>
+                                </button>
+                                {showDiff === f.name && (
+                                    <div className="mx-2 mb-1 p-2 rounded bg-[#161b22] border border-[#30363d] font-mono text-[11px]">
+                                        <div className="text-emerald-400">+ // modified</div>
+                                        <div className="text-red-400">- // previous</div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <div className="mt-4 pt-3 border-t border-[#1b1f27]">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] mb-2">Recent Commits</div>
+                    {["feat: add AI inline completion", "fix: tab strip scroll", "refactor: yjs binding"].map((msg, i) => (
+                        <div key={i} className="flex items-start gap-2 px-1 py-1.5">
+                            <div className="w-5 h-5 rounded-full bg-[#1f6feb] flex items-center justify-center shrink-0 mt-0.5">
+                                <span className="text-[9px] font-bold text-white">{String.fromCharCode(65 + i)}</span>
+                            </div>
+                            <div className="min-w-0">
+                                <div className="text-[12px] text-[#c9d1d9] truncate">{msg}</div>
+                                <div className="text-[10px] text-[#484f58]">{i === 0 ? "just now" : `${i * 2}h ago`} · main</div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>
@@ -488,22 +561,62 @@ function PanelTabs({ activePanel, onPanelChange, onClose }: { activePanel: Panel
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// BREADCRUMB BAR
+// ═══════════════════════════════════════════════════════════════════════
+function BreadcrumbBar({ fileName }: { fileName: string }) {
+    if (!fileName) return null
+    const parts = fileName.split("/")
+    return (
+        <div className="h-7 flex items-center px-4 gap-1 bg-[#010409] border-b border-[#1b1f27] text-[12px] text-[#484f58] select-none shrink-0">
+            <span className="hover:text-[#8b949e] cursor-pointer">src</span>
+            {parts.map((part, i) => (
+                <span key={i} className="flex items-center gap-1">
+                    <ChevronRight className="w-3 h-3 text-[#30363d]" />
+                    <span className={cn("hover:text-[#8b949e] cursor-pointer", i === parts.length - 1 && "text-[#c9d1d9]")}>
+                        {part}
+                    </span>
+                </span>
+            ))}
+        </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // STATUS BAR
 // ═══════════════════════════════════════════════════════════════════════
-function IDEStatusBar({ activeFile, onTogglePanel }: { activeFile: string | null; panelVisible: boolean; onTogglePanel: () => void }) {
+function IDEStatusBar({
+    activeFile,
+    onTogglePanel,
+    cursorLine,
+    cursorCol,
+}: {
+    activeFile: string | null
+    panelVisible: boolean
+    onTogglePanel: () => void
+    cursorLine: number
+    cursorCol: number
+}) {
     const lang = activeFile ? getLanguage(activeFile) : "plaintext"
     return (
-        <div className="h-6 bg-[#0d1117] border-t border-[#1b1f27] flex items-center justify-between px-3 text-[11px] text-[#484f58] select-none shrink-0">
+        <div className="h-6 bg-[#1f6feb] flex items-center justify-between px-3 text-[11px] text-white/80 select-none shrink-0">
             <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1.5 cursor-pointer hover:text-[#8b949e] transition-colors"><GitBranch className="w-3 h-3" /><span>main</span></div>
-                <div className="flex items-center gap-1.5"><CircleDot className="w-3 h-3" /><span>0 errors, 0 warnings</span></div>
+                <div className="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
+                    <GitBranch className="w-3 h-3" /><span>main</span>
+                </div>
+                <div className="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
+                    <CircleDot className="w-3 h-3" /><span>0 errors, 0 warnings</span>
+                </div>
             </div>
             <div className="flex items-center gap-4">
-                <span className="cursor-pointer hover:text-[#8b949e] transition-colors">Ln 1, Col 1</span>
-                <span className="cursor-pointer hover:text-[#8b949e] transition-colors">Spaces: 2</span>
-                <span className="cursor-pointer hover:text-[#8b949e] transition-colors">UTF-8</span>
-                <span className="cursor-pointer hover:text-[#8b949e] transition-colors capitalize">{lang}</span>
-                <button onClick={onTogglePanel} className="flex items-center gap-1 cursor-pointer hover:text-[#8b949e] transition-colors"><SquareTerminal className="w-3 h-3" /></button>
+                <span className="cursor-pointer hover:text-white transition-colors">
+                    Ln {cursorLine}, Col {cursorCol}
+                </span>
+                <span className="cursor-pointer hover:text-white transition-colors">Spaces: 2</span>
+                <span className="cursor-pointer hover:text-white transition-colors">UTF-8</span>
+                <span className="cursor-pointer hover:text-white transition-colors capitalize">{lang}</span>
+                <button onClick={onTogglePanel} className="flex items-center gap-1 cursor-pointer hover:text-white transition-colors">
+                    <SquareTerminal className="w-3 h-3" />
+                </button>
             </div>
         </div>
     )
@@ -605,6 +718,8 @@ export function CodeChamber({ id }: CodeChamberProps) {
     const [sidebarVisible, setSidebarVisible] = useState(true)
     const [panelView, setPanelView] = useState<PanelView>("terminal")
     const [panelVisible, setPanelVisible] = useState(true)
+    const [cursorLine, setCursorLine] = useState(1)
+    const [cursorCol, setCursorCol] = useState(1)
 
     // Yjs Collaboration State
     const [yDoc, setYDoc] = useState<Y.Doc | null>(null)
@@ -684,6 +799,12 @@ export function CodeChamber({ id }: CodeChamberProps) {
 
     const handleEditorMount = useCallback((editor: any, monaco: any) => {
         setEditorInstance(editor)
+
+        // Track cursor position for status bar
+        editor.onDidChangeCursorPosition((e: any) => {
+            setCursorLine(e.position.lineNumber)
+            setCursorCol(e.position.column)
+        })
 
         // Register inline AI completion provider (like Cursor/Copilot ghost text)
         const disposable = monaco.languages.registerInlineCompletionsProvider("*", {
@@ -849,6 +970,9 @@ export function CodeChamber({ id }: CodeChamberProps) {
                                                 })}
                                             </div>
 
+                                            {/* Breadcrumb bar */}
+                                            {activeFileName && <BreadcrumbBar fileName={activeFileName} />}
+
                                             {/* Editor / Welcome */}
                                             <div className="flex-1 min-h-0 relative">
                                                 {activeFileId ? (
@@ -915,7 +1039,13 @@ export function CodeChamber({ id }: CodeChamberProps) {
                 </div>
 
                 {/* Status Bar */}
-                <IDEStatusBar activeFile={activeFileName} panelVisible={panelVisible} onTogglePanel={() => setPanelVisible(!panelVisible)} />
+                <IDEStatusBar
+                    activeFile={activeFileName}
+                    panelVisible={panelVisible}
+                    onTogglePanel={() => setPanelVisible(!panelVisible)}
+                    cursorLine={cursorLine}
+                    cursorCol={cursorCol}
+                />
             </div>
         </TooltipProvider>
     )

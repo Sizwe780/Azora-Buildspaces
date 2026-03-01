@@ -526,73 +526,99 @@ export default function AIStudio() {
                   </TabsTrigger>
                 </TabsList>
 
-                {/* Workflow Canvas */}
-                <TabsContent value="workflow" className="flex-1 m-0 relative overflow-auto">
-                  <div className="p-6 min-h-full">
-                    {isLoading ? (
-                      <div className="flex items-center justify-center h-64">
-                        <RefreshCw className="w-6 h-6 animate-spin text-zinc-600" />
-                      </div>
-                    ) : nodes.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center h-64">
-                        <Workflow className="w-14 h-14 text-zinc-800 mb-4" />
-                        <p className="text-sm text-zinc-500 mb-1">No nodes in workflow</p>
-                        <p className="text-xs text-zinc-700 mb-4">Drag nodes from the palette to build your AI pipeline</p>
-                        <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => addNode("input")}>
-                          <Plus className="w-3 h-3" />
-                          Add Input Node
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
+                {/* Workflow Canvas — DAG-style positioned cards */}
+                <TabsContent value="workflow" className="flex-1 m-0 relative overflow-auto bg-[#0a0a0f]"
+                  style={{ backgroundImage: "radial-gradient(circle, #27272a 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
+                  {isLoading ? (
+                    <div className="flex items-center justify-center h-64">
+                      <RefreshCw className="w-6 h-6 animate-spin text-zinc-600" />
+                    </div>
+                  ) : nodes.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-64">
+                      <Workflow className="w-14 h-14 text-zinc-800 mb-4" />
+                      <p className="text-sm text-zinc-500 mb-1">No nodes in workflow</p>
+                      <p className="text-xs text-zinc-700 mb-4">Click a node type in the palette to add it</p>
+                      <Button variant="outline" size="sm" className="gap-1.5 text-xs border-zinc-700 text-zinc-400" onClick={() => addNode("input")}>
+                        <Plus className="w-3 h-3" />
+                        Add Input Node
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="relative min-h-full min-w-full p-8">
+                      {/* SVG connector arrows */}
+                      <svg className="absolute inset-0 pointer-events-none overflow-visible" style={{ zIndex: 0 }}>
+                        {nodes.map((node, idx) => {
+                          if (idx === 0) return null
+                          const fromY = (idx - 1) * 110 + 80 + 28
+                          const toY = idx * 110 + 80
+                          const x = 160
+                          return (
+                            <g key={`arrow-${node.id}`}>
+                              <line
+                                x1={x} y1={fromY} x2={x} y2={toY}
+                                stroke="#3f3f46" strokeWidth="2" markerEnd="url(#arrowhead)"
+                              />
+                            </g>
+                          )
+                        })}
+                        <defs>
+                          <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto">
+                            <polygon points="0 0, 8 3, 0 6" fill="#52525b" />
+                          </marker>
+                        </defs>
+                      </svg>
+
+                      {/* Node cards */}
+                      <div className="relative space-y-6" style={{ zIndex: 1 }}>
                         {nodes.map((node, idx) => {
                           const nodeConfig = NODE_TYPES.find((t) => t.type === node.type)
                           const Icon = nodeConfig?.icon || Brain
+                          const isSelected = selectedNode?.id === node.id
                           return (
                             <motion.div
                               key={node.id}
-                              initial={{ opacity: 0, y: 8 }}
-                              animate={{ opacity: 1, y: 0 }}
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className="flex justify-center"
                             >
-                              {idx > 0 && (
-                                <div className="flex justify-center py-1">
-                                  <div className="w-px h-6 bg-zinc-800" />
-                                </div>
-                              )}
                               <button
                                 onClick={() => setSelectedNode(node)}
-                                className={`w-full flex items-center gap-3 p-4 rounded-xl border transition-all ${
-                                  selectedNode?.id === node.id
-                                    ? "border-blue-500/50 bg-blue-500/5 ring-1 ring-blue-500/20"
-                                    : `border-zinc-800 hover:border-zinc-700 bg-zinc-900/40`
+                                className={`relative flex items-center gap-3 p-4 rounded-xl border-2 transition-all w-80 bg-zinc-900/90 backdrop-blur-sm shadow-xl ${
+                                  isSelected
+                                    ? "border-blue-500 shadow-blue-500/20"
+                                    : "border-zinc-800 hover:border-zinc-600"
                                 }`}
                               >
+                                {/* Input port */}
+                                <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-zinc-700 border-2 border-zinc-600" />
+                                {/* Output port */}
+                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-zinc-700 border-2 border-zinc-600" />
+
                                 <div className={`p-2 rounded-lg ${nodeConfig?.color || "text-zinc-400"}`}>
                                   <Icon className="w-4 h-4" />
                                 </div>
                                 <div className="flex-1 text-left">
-                                  <p className="text-sm font-medium text-zinc-200">{node.name}</p>
-                                  <p className="text-[10px] text-zinc-600">{nodeConfig?.label}</p>
+                                  <p className="text-sm font-semibold text-zinc-200">{node.name}</p>
+                                  <p className="text-[10px] text-zinc-500">{nodeConfig?.label}</p>
                                 </div>
-                                {getStatusIcon(node.status)}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 w-6 p-0 text-zinc-700 hover:text-red-400"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    removeNode(node.id)
-                                  }}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
+                                <div className="flex items-center gap-1.5">
+                                  {getStatusIcon(node.status)}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 text-zinc-700 hover:text-red-400"
+                                    onClick={(e) => { e.stopPropagation(); removeNode(node.id) }}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
                               </button>
                             </motion.div>
                           )
                         })}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </TabsContent>
 
                 {/* Runs */}
@@ -1001,14 +1027,55 @@ export default function AIStudio() {
                   </ScrollArea>
                 </TabsContent>
 
-                {/* Graph */}
-                <TabsContent value="graph" className="flex-1 m-0 p-4">
-                  <div className="h-full flex flex-col items-center justify-center">
-                    <Network className="w-12 h-12 text-zinc-800 mb-3" />
-                    <p className="text-xs text-zinc-600 mb-1">Agent Interaction Graph</p>
-                    <p className="text-[10px] text-zinc-700">
-                      {nodes.length > 0 ? `${nodes.length} nodes connected` : "Add nodes to visualize"}
-                    </p>
+                {/* Graph — SVG DAG topology */}
+                <TabsContent value="graph" className="flex-1 m-0 overflow-auto">
+                  <div className="p-4 h-full">
+                    {nodes.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center">
+                        <Network className="w-12 h-12 text-zinc-800 mb-3" />
+                        <p className="text-xs text-zinc-600 mb-1">Agent Interaction Graph</p>
+                        <p className="text-[10px] text-zinc-700">Add nodes to visualize the topology</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold">{nodes.length} nodes</p>
+                        <svg width="100%" height={Math.max(160, nodes.length * 72)} className="overflow-visible">
+                          {nodes.map((node, idx) => {
+                            const nc = NODE_TYPES.find(t => t.type === node.type)
+                            const x = 80
+                            const y = idx * 72 + 36
+                            const nextY = (idx + 1) * 72 + 36
+                            return (
+                              <g key={node.id}>
+                                {/* Connector line */}
+                                {idx < nodes.length - 1 && (
+                                  <line x1={x + 100} y1={y} x2={x + 100} y2={nextY}
+                                    stroke="#3f3f46" strokeWidth="2" strokeDasharray="4 2" />
+                                )}
+                                {/* Node box */}
+                                <rect x={x} y={y - 22} width={200} height={44} rx={8}
+                                  fill={selectedNode?.id === node.id ? "#1e3a5f" : "#18181b"}
+                                  stroke={selectedNode?.id === node.id ? "#3b82f6" : "#3f3f46"}
+                                  strokeWidth="1.5"
+                                  className="cursor-pointer"
+                                  onClick={() => setSelectedNode(node)}
+                                />
+                                {/* Input port */}
+                                <circle cx={x} cy={y} r={5} fill="#3f3f46" stroke="#52525b" strokeWidth="1" />
+                                {/* Output port */}
+                                <circle cx={x + 200} cy={y} r={5} fill="#3f3f46" stroke="#52525b" strokeWidth="1" />
+                                {/* Status dot */}
+                                <circle cx={x + 185} cy={y - 14} r={4}
+                                  fill={node.status === "success" ? "#22c55e" : node.status === "error" ? "#ef4444" : node.status === "running" ? "#3b82f6" : "#3f3f46"}
+                                />
+                                <text x={x + 12} y={y - 6} fontSize="11" fontWeight="600" fill="#e4e4e7">{node.name}</text>
+                                <text x={x + 12} y={y + 10} fontSize="10" fill="#71717a">{nc?.label}</text>
+                              </g>
+                            )
+                          })}
+                        </svg>
+                      </div>
+                    )}
                   </div>
                 </TabsContent>
               </Tabs>

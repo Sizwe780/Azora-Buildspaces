@@ -123,6 +123,7 @@ const TABS = [
   { id: "components", label: "Components", icon: Layers },
   { id: "apis", label: "APIs", icon: Globe },
   { id: "docs", label: "Docs", icon: BookOpen },
+  { id: "graph", label: "Graph", icon: Network },
 ]
 
 /* ─── knowledge item card ─── */
@@ -293,6 +294,8 @@ export default function KnowledgeOcean() {
   const [conversationHistory, setConversationHistory] = useState<{ question: string; answer: string; sources: any[]; timestamp: string }[]>([])
   const [relatedQuestions, setRelatedQuestions] = useState<string[]>([])
   const [showHistory, setShowHistory] = useState(false)
+  const [viewingItem, setViewingItem] = useState<KnowledgeItem | null>(null)
+
   const [stats, setStats] = useState<IndexStats>({
     totalFiles: 0,
     totalFunctions: 0,
@@ -891,8 +894,8 @@ export default function KnowledgeOcean() {
           </TabsList>
         </div>
 
-        {/* Content for all tabs */}
-        {TABS.map((tab) => (
+        {/* Content for non-graph tabs */}
+        {TABS.filter(tab => tab.id !== "graph").map((tab) => (
           <TabsContent key={tab.id} value={tab.id} className="flex-1 m-0 overflow-hidden">
             <ScrollArea className="h-full">
               {isScanning ? (
@@ -931,7 +934,137 @@ export default function KnowledgeOcean() {
             </ScrollArea>
           </TabsContent>
         ))}
+
+        {/* Graph tab — SVG knowledge topology (inside Tabs) */}
+        <TabsContent value="graph" className="flex-1 m-0 overflow-hidden">
+          <div className="h-full flex flex-col bg-zinc-950/50">
+            <div className="px-6 py-3 border-b border-zinc-800/50 flex items-center gap-2">
+              <Network className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-medium text-zinc-300">Knowledge Graph</span>
+              <Badge variant="outline" className="text-[10px] h-5 border-zinc-700 text-zinc-500 ml-auto">{knowledgeItems.length} nodes</Badge>
+            </div>
+            <div className="flex-1 overflow-auto p-6">
+              {knowledgeItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full py-20">
+                  <Network className="w-12 h-12 text-zinc-700 mb-3" />
+                  <p className="text-sm text-zinc-500">No knowledge indexed yet</p>
+                  <p className="text-xs text-zinc-600 mt-1">Scan your project to visualize connections</p>
+                </div>
+              ) : (
+                <svg width="100%" height={Math.max(400, knowledgeItems.length * 24)} className="overflow-visible">
+                  {Object.entries(TYPE_CONFIG).map(([type, conf], ti) => {
+                    const typeItems = knowledgeItems.filter(i => i.type === type)
+                    if (typeItems.length === 0) return null
+                    const cx = 120 + (ti % 3) * 220
+                    const cy = 80 + Math.floor(ti / 3) * 160
+                    return (
+                      <g key={type}>
+                        <circle cx={cx} cy={cy} r={32} fill="#18181b" stroke="#3f3f46" strokeWidth="1.5" />
+                        <text x={cx} y={cy + 4} textAnchor="middle" fontSize="10" fontWeight="600" fill="#e4e4e7">{conf.label}</text>
+                        <text x={cx} y={cy + 18} textAnchor="middle" fontSize="9" fill="#71717a">{typeItems.length}</text>
+                        {typeItems.slice(0, 4).map((item, ii) => {
+                          const angle = (ii / 4) * Math.PI * 2 - Math.PI / 2
+                          const sx = cx + Math.cos(angle) * 70
+                          const sy = cy + Math.sin(angle) * 60
+                          return (
+                            <g key={item.id}>
+                              <line x1={cx} y1={cy} x2={sx} y2={sy} stroke="#3f3f46" strokeWidth="1" />
+                              <circle cx={sx} cy={sy} r={16} fill="#27272a" stroke="#52525b" strokeWidth="1"
+                                className="cursor-pointer hover:stroke-blue-400 transition-colors"
+                                onClick={() => setViewingItem(item)} />
+                              <text x={sx} y={sy + 4} textAnchor="middle" fontSize="8" fill="#a1a1aa">
+                                {item.title.substring(0, 6)}
+                              </text>
+                            </g>
+                          )
+                        })}
+                      </g>
+                    )
+                  })}
+                </svg>
+              )}
+            </div>
+          </div>
+        </TabsContent>
       </Tabs>
+
+      {/* Document Viewer Panel */}
+      <AnimatePresence>
+        {viewingItem && (
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 30, stiffness: 300 }}
+            className="absolute inset-y-0 right-0 w-96 bg-zinc-900 border-l border-zinc-800 flex flex-col z-30 shadow-2xl"
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                {(() => { const conf = TYPE_CONFIG[viewingItem.type] || TYPE_CONFIG.file; const Icon = conf.icon; return <Icon className={`w-4 h-4 ${conf.color}`} /> })()}
+                <span className="text-sm font-semibold text-zinc-200 truncate max-w-[200px]">{viewingItem.title}</span>
+              </div>
+              <button onClick={() => setViewingItem(null)} className="text-zinc-500 hover:text-zinc-200 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <ScrollArea className="flex-1 p-5">
+              <div className="space-y-4">
+                {viewingItem.path && (
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold mb-1">Path</div>
+                    <code className="text-xs text-zinc-300 bg-zinc-800 px-2 py-1 rounded block break-all">{viewingItem.path}</code>
+                  </div>
+                )}
+                {viewingItem.description && (
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold mb-1">Description</div>
+                    <p className="text-sm text-zinc-300 leading-relaxed">{viewingItem.description}</p>
+                  </div>
+                )}
+                {viewingItem.language && (
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold mb-1">Language</div>
+                    <Badge variant="outline" className="text-xs border-zinc-700 text-zinc-400">{viewingItem.language}</Badge>
+                  </div>
+                )}
+                {viewingItem.tags && viewingItem.tags.length > 0 && (
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold mb-2">Tags</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {viewingItem.tags.map(tag => (
+                        <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300">#{tag}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  {viewingItem.size != null && (
+                    <div className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/30">
+                      <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-0.5">Size</div>
+                      <div className="text-sm font-semibold text-zinc-200">{viewingItem.size} bytes</div>
+                    </div>
+                  )}
+                  {viewingItem.lastModified && (
+                    <div className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/30">
+                      <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-0.5">Modified</div>
+                      <div className="text-sm font-semibold text-zinc-200 truncate">{viewingItem.lastModified}</div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button size="sm" variant="outline" className="flex-1 gap-1.5 border-zinc-700 text-zinc-300 text-xs"
+                    onClick={() => { if (viewingItem.path) navigator.clipboard.writeText(viewingItem.path) }}>
+                    <Copy className="w-3.5 h-3.5" />Copy Path
+                  </Button>
+                  <Button size="sm" className="flex-1 gap-1.5 bg-blue-600 hover:bg-blue-700 text-xs">
+                    <Eye className="w-3.5 h-3.5" />Open
+                  </Button>
+                </div>
+              </div>
+            </ScrollArea>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Status Bar ── */}
       <div className="h-7 border-t border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/20 text-[11px] text-zinc-600">
