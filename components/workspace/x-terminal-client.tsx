@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useCallback } from "react"
 import { Terminal } from "xterm"
 import { FitAddon } from "xterm-addon-fit"
 import { WebLinksAddon } from "xterm-addon-web-links"
@@ -11,22 +11,98 @@ export default function XTerminalClient({ onData, socket }: XTerminalProps) {
     const terminalRef = useRef<HTMLDivElement>(null)
     const xtermRef = useRef<Terminal | null>(null)
     const fitAddonRef = useRef<FitAddon | null>(null)
+    const commandBufferRef = useRef<string>("")
+    const isExecutingRef = useRef<boolean>(false)
+    const workspaceIdRef = useRef<string>("default")
+
+    // Get workspace ID from localStorage
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const stored = localStorage.getItem('citadel-active-project')
+            if (stored) workspaceIdRef.current = stored
+        }
+    }, [])
+
+    const executeCommand = useCallback(async (command: string) => {
+        const term = xtermRef.current
+        if (!term || isExecutingRef.current) return
+
+        isExecutingRef.current = true
+
+        // Handle built-in commands
+        const trimmed = command.trim()
+        if (!trimmed) {
+            term.write('\r\n$ ')
+            isExecutingRef.current = false
+            return
+        }
+
+        if (trimmed === 'clear') {
+            term.clear()
+            term.write('$ ')
+            isExecutingRef.current = false
+            return
+        }
+
+        if (trimmed === 'help') {
+            term.write('\r\n\x1b[36mBuildspaces Terminal\x1b[0m — Commands run in workspace directory\r\n')
+            term.write('  \x1b[33mclear\x1b[0m     Clear terminal\r\n')
+            term.write('  \x1b[33mhelp\x1b[0m      Show this help\r\n')
+            term.write('  Any other command is executed in the workspace shell.\r\n\r\n$ ')
+            isExecutingRef.current = false
+            return
+        }
+
+        term.write('\r\n')
+
+        try {
+            const res = await fetch('/api/fs/exec', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    command: trimmed,
+                    workspaceId: workspaceIdRef.current
+                })
+            })
+
+            if (res.ok) {
+                const data = await res.json()
+                if (data.stdout) {
+                    // Convert \n to \r\n for xterm
+                    const output = data.stdout.replace(/\n/g, '\r\n')
+                    term.write(output)
+                    if (!output.endsWith('\r\n')) term.write('\r\n')
+                }
+                if (data.stderr) {
+                    const errOutput = data.stderr.replace(/\n/g, '\r\n')
+                    term.write(`\x1b[31m${errOutput}\x1b[0m`)
+                    if (!errOutput.endsWith('\r\n')) term.write('\r\n')
+                }
+            } else {
+                const errData = await res.json().catch(() => ({ error: 'Unknown error' }))
+                term.write(`\x1b[31mError: ${errData.error}\x1b[0m\r\n`)
+            }
+        } catch (e: any) {
+            term.write(`\x1b[31mFailed to execute command: ${e.message}\x1b[0m\r\n`)
+        }
+
+        term.write('$ ')
+        isExecutingRef.current = false
+    }, [])
 
     useEffect(() => {
-        // Double check refs to prevent double initialization in StrictMode
         if (!terminalRef.current || xtermRef.current) return
 
         try {
-            // Initialize Terminal
             const term = new Terminal({
                 cursorBlink: true,
                 fontSize: 14,
                 fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                 theme: {
-                    background: "#09090b", // zinc-950
-                    foreground: "#fafafa", // zinc-50
-                    cursor: "#22d3ee", // cyan-400
-                    selectionBackground: "#27272a", // zinc-800
+                    background: "#09090b",
+                    foreground: "#fafafa",
+                    cursor: "#22d3ee",
+                    selectionBackground: "#27272a",
                     black: "#09090b",
                     red: "#ef4444",
                     green: "#22c55e",
@@ -53,52 +129,59 @@ export default function XTerminalClient({ onData, socket }: XTerminalProps) {
             term.loadAddon(fitAddon)
             term.loadAddon(webLinksAddon)
             
-            // Mount to DOM
             term.open(terminalRef.current)
             fitAddon.fit()
             
-            // Store refs
             xtermRef.current = term
             fitAddonRef.current = fitAddon
 
-            term.write('\x1b[36mWelcome to Buildspaces Terminal\x1b[0m\r\n')
-            term.write('\x1b[2mConnected to local environment\x1b[0m\r\n\r\n')
+            term.write('\x1b[36m⚡ Buildspaces Terminal\x1b[0m\r\n')
+            term.write('\x1b[2mType commands to run in your workspace. Type "help" for info.\x1b[0m\r\n\r\n')
             term.write('$ ')
 
             term.onData(data => {
-                if (onData) {
-                    onData(data)
-                }
-                // Echo for demo/local purposes if no socket
-                if (!socket) {
-                    if (data === '\r') {
-                        term.write('\r\n$ ')
-                    } else if (data === '\u007F') { // Backspace
+                if (onData) onData(data)
+
+                // If WebSocket is connected, let the socket handle everything
+                if (socket) return
+
+                // Local command execution mode
+                if (data === '\r') {
+                    // Enter pressed — execute command
+                    const cmd = commandBufferRef.current
+                    commandBufferRef.current = ""
+                    executeCommand(cmd)
+                } else if (data === '\u007F') {
+                    // Backspace
+                    if (commandBufferRef.current.length > 0) {
+                        commandBufferRef.current = commandBufferRef.current.slice(0, -1)
                         term.write('\b \b')
-                    } else {
-                        term.write(data)
                     }
+                } else if (data === '\u0003') {
+                    // Ctrl+C
+                    commandBufferRef.current = ""
+                    term.write('^C\r\n$ ')
+                } else if (data === '\u000C') {
+                    // Ctrl+L — clear
+                    commandBufferRef.current = ""
+                    term.clear()
+                    term.write('$ ')
+                } else if (data.charCodeAt(0) >= 32) {
+                    // Regular character
+                    commandBufferRef.current += data
+                    term.write(data)
                 }
             })
 
-            // Handle window resize
             const handleResize = () => {
-                try {
-                    fitAddon.fit()
-                } catch (e) {
-                    console.error("Resize error:", e)
-                }
+                try { fitAddon.fit() } catch { /* ignore */ }
             }
             
             window.addEventListener('resize', handleResize)
 
             return () => {
                 window.removeEventListener('resize', handleResize)
-                try {
-                    term.dispose()
-                } catch (e) {
-                    // Ignore disposal errors
-                }
+                try { term.dispose() } catch { /* ignore */ }
                 xtermRef.current = null
                 fitAddonRef.current = null
             }
@@ -116,23 +199,8 @@ export default function XTerminalClient({ onData, socket }: XTerminalProps) {
         }
 
         socket.addEventListener('message', handleMessage)
-
-        return () => {
-            socket.removeEventListener('message', handleMessage)
-        }
+        return () => { socket.removeEventListener('message', handleMessage) }
     }, [socket])
-
-    // listen for external output events (e.g. logs from runtimeEngine.startDevServer)
-    useEffect(() => {
-        const handler = (e: Event) => {
-            const detail = (e as CustomEvent).detail
-            if (detail && typeof detail.data === 'string') {
-                xtermRef.current?.write(detail.data)
-            }
-        }
-        window.addEventListener('workspace:terminal-output', handler)
-        return () => window.removeEventListener('workspace:terminal-output', handler)
-    }, [])
 
     return <div ref={terminalRef} className="h-full w-full overflow-hidden bg-zinc-950" />
 }

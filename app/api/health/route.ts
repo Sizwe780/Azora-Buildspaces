@@ -10,8 +10,16 @@
 
 import { NextResponse } from 'next/server'
 import { getDatabaseStatus, PRISMA_AVAILABLE } from '@/lib/database/client'
-import { getProviderHealth } from '../../../../packages/shared-api/ai-router'
+// import { getProviderHealth } from '../../../../packages/shared-api/ai-router'
 import { auditLogger } from '@/lib/services/centralized-audit-logger'
+
+// Stub for getProviderHealth until shared-api package is available
+function getProviderHealth() {
+    return {
+        providers: {},
+        summary: { total: 0, healthy: 0, degraded: 0, unhealthy: 0 }
+    }
+}
 
 export const dynamic = 'force-dynamic'
 

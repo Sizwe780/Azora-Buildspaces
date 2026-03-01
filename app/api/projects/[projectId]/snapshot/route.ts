@@ -3,10 +3,11 @@ import { getFileSystemSnapshot } from '@/lib/agents/persistence'
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const snapshot = await getFileSystemSnapshot(params.projectId)
+    const { projectId } = await params
+    const snapshot = await getFileSystemSnapshot(projectId)
     if (!snapshot) {
       return NextResponse.json({ files: [], updatedAt: null }, { status: 200 })
     }

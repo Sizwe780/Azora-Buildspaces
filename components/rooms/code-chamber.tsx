@@ -11,7 +11,7 @@ import dynamic from "next/dynamic"
 import {
     Files, Search, GitBranch, Box, Play, Bug,
     ChevronRight, ChevronDown, X, FileCode, Plus,
-    CheckCircle,
+    CheckCircle, Save,
     FolderOpen, File, FileText, Settings, Image, Code,
     Database, Sparkles, Wifi, WifiOff,
     Bot, SquareTerminal, CircleDot, FolderClosed,
@@ -312,18 +312,114 @@ function SearchSidebar() {
 // GIT SIDEBAR — with changed-files list & diff viewer
 // ════════��══════════════════════════════════════════════════════════════
 function GitSidebar() {
-    const { fileMap } = useFileSystem()
+    const { fileMap, workspaceId } = useFileSystem()
     const [commitMsg, setCommitMsg] = useState("")
     const [showDiff, setShowDiff] = useState<string | null>(null)
+    const [changedFiles, setChangedFiles] = useState<{ name: string; status: string }[]>([])
+    const [recentCommits, setRecentCommits] = useState<{ hash: string; message: string; date: string }[]>([])
+    const [currentBranch, setCurrentBranch] = useState("main")
+    const [isCommitting, setIsCommitting] = useState(false)
+    const [gitError, setGitError] = useState<string | null>(null)
 
-    // Simulate changed files from open files
-    const changedFiles = Object.values(fileMap)
-        .filter(n => n.type === "file" && n.content)
-        .slice(0, 5)
-        .map((n, i) => ({
-            name: n.name,
-            status: i === 0 ? "M" : i === 1 ? "A" : "M",
-        }))
+    // Fetch real git status
+    useEffect(() => {
+        if (!workspaceId) return
+        const fetchGitStatus = async () => {
+            try {
+                const statusRes = await fetch(
+                    `/api/fs?operation=gitStatus&path=.&workspaceId=${encodeURIComponent(workspaceId)}`
+                )
+                if (statusRes.ok) {
+                    const data = await statusRes.json()
+                    setCurrentBranch(data.branch || "main")
+                    if (data.status) {
+                        const files = data.status
+                            .split('\n')
+                            .filter((l: string) => l.trim())
+                            .map((l: string) => ({
+                                name: l.substring(3).trim(),
+                                status: l.substring(0, 2).trim() || "M"
+                            }))
+                        setChangedFiles(files)
+                    } else {
+                        setChangedFiles([])
+                    }
+                    setGitError(null)
+                }
+            } catch {
+                setGitError("Not a git repository")
+            }
+        }
+
+        const fetchGitLog = async () => {
+            try {
+                const logRes = await fetch(
+                    `/api/fs?operation=gitLog&path=.&workspaceId=${encodeURIComponent(workspaceId)}&limit=5`
+                )
+                if (logRes.ok) {
+                    const data = await logRes.json()
+                    if (data.commits) {
+                        setRecentCommits(data.commits.map((c: any) => ({
+                            hash: c.hash?.substring(0, 7) || '',
+                            message: c.message || '',
+                            date: c.date || ''
+                        })))
+                    }
+                }
+            } catch { /* no git log */ }
+        }
+
+        fetchGitStatus()
+        fetchGitLog()
+        const interval = setInterval(() => { fetchGitStatus(); fetchGitLog() }, 10000)
+        return () => clearInterval(interval)
+    }, [workspaceId])
+
+    const handleCommit = async () => {
+        if (!commitMsg.trim() || !workspaceId) return
+        setIsCommitting(true)
+        try {
+            await fetch('/api/fs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ operation: 'gitAdd', path: '.', files: ['.'], workspaceId })
+            })
+            await fetch('/api/fs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ operation: 'gitCommit', path: '.', message: commitMsg, workspaceId })
+            })
+            setCommitMsg("")
+            // Refresh
+            const statusRes = await fetch(
+                `/api/fs?operation=gitStatus&path=.&workspaceId=${encodeURIComponent(workspaceId)}`
+            )
+            if (statusRes.ok) {
+                const data = await statusRes.json()
+                setChangedFiles(data.status ? data.status.split('\n').filter((l: string) => l.trim()).map((l: string) => ({
+                    name: l.substring(3).trim(), status: l.substring(0, 2).trim() || "M"
+                })) : [])
+            }
+        } catch (e) {
+            console.error("Commit failed:", e)
+        } finally {
+            setIsCommitting(false)
+        }
+    }
+
+    const handleInitGit = async () => {
+        if (!workspaceId) return
+        try {
+            await fetch('/api/fs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ operation: 'gitInit', path: '.', workspaceId })
+            })
+            setGitError(null)
+        } catch (e) {
+            console.error("Git init failed:", e)
+        }
+    }
 
     return (
         <div className="h-full flex flex-col bg-[#0d1117]">
@@ -336,11 +432,11 @@ function GitSidebar() {
                     className="w-full bg-[#161b22] border border-[#30363d] rounded-md px-3 py-1.5 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
                 />
                 <button
-                    onClick={() => { setCommitMsg(""); }}
+                    onClick={handleCommit}
                     className="w-full mt-2 py-1.5 rounded-md text-[12px] font-medium bg-[#238636] hover:bg-[#2ea043] text-white transition-colors disabled:opacity-40"
-                    disabled={!commitMsg.trim()}
+                    disabled={!commitMsg.trim() || isCommitting}
                 >
-                    Commit
+                    {isCommitting ? "Committing..." : "Commit"}
                 </button>
             </div>
 
@@ -386,17 +482,26 @@ function GitSidebar() {
 
                 <div className="mt-4 pt-3 border-t border-[#1b1f27]">
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] mb-2">Recent Commits</div>
-                    {["feat: add AI inline completion", "fix: tab strip scroll", "refactor: yjs binding"].map((msg, i) => (
-                        <div key={i} className="flex items-start gap-2 px-1 py-1.5">
+                    {gitError ? (
+                        <div className="text-center py-4">
+                            <p className="text-[13px] text-[#484f58] mb-2">No git repository</p>
+                            <button onClick={handleInitGit} className="px-3 py-1.5 rounded-md text-[12px] bg-[#238636] hover:bg-[#2ea043] text-white transition-colors">
+                                Initialize Repository
+                            </button>
+                        </div>
+                    ) : recentCommits.length > 0 ? recentCommits.map((c, i) => (
+                        <div key={c.hash || i} className="flex items-start gap-2 px-1 py-1.5">
                             <div className="w-5 h-5 rounded-full bg-[#1f6feb] flex items-center justify-center shrink-0 mt-0.5">
-                                <span className="text-[9px] font-bold text-white">{String.fromCharCode(65 + i)}</span>
+                                <span className="text-[9px] font-bold text-white">{c.hash?.charAt(0)?.toUpperCase() || "?"}</span>
                             </div>
                             <div className="min-w-0">
-                                <div className="text-[12px] text-[#c9d1d9] truncate">{msg}</div>
-                                <div className="text-[10px] text-[#484f58]">{i === 0 ? "just now" : `${i * 2}h ago`} · main</div>
+                                <div className="text-[12px] text-[#c9d1d9] truncate">{c.message}</div>
+                                <div className="text-[10px] text-[#484f58]">{c.hash} · {currentBranch}</div>
                             </div>
                         </div>
-                    ))}
+                    )) : (
+                        <div className="text-[13px] text-[#484f58] text-center py-4">No commits yet</div>
+                    )}
                 </div>
             </div>
         </div>
@@ -712,7 +817,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
         }
     }, [projectId])
 
-    const { rootId, activeFileId, openFiles, fileMap, loadProject, openFile, closeFile, setActiveFile, readFile, writeFile } = useFileSystem()
+    const { rootId, activeFileId, openFiles, fileMap, loadProject, openFile, closeFile, setActiveFile, readFile, writeFile, saveProject, workspaceId } = useFileSystem()
 
     const [sidebarView, setSidebarView] = useState<SidebarView>("explorer")
     const [sidebarVisible, setSidebarVisible] = useState(true)
@@ -926,11 +1031,31 @@ export function CodeChamber({ id }: CodeChamberProps) {
                         <span className="text-[#8b949e] truncate max-w-[300px]">{activeFileName || "No file open"}</span>
                     </div>
                     <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-[#8b949e] hover:text-white hover:bg-[#30363d] gap-1.5">
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-[#8b949e] hover:text-white hover:bg-[#30363d] gap-1.5"
+                            onClick={() => { setPanelVisible(true); setPanelView("terminal") }}>
                             <Play className="w-3 h-3 text-emerald-400" />Run
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-[#8b949e] hover:text-white hover:bg-[#30363d] gap-1.5">
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-[#8b949e] hover:text-white hover:bg-[#30363d] gap-1.5"
+                            onClick={async () => {
+                                if (!projectId) return
+                                try {
+                                    const res = await fetch("/api/deploy", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ projectId, environment: "development", buildType: "preview" })
+                                    })
+                                    const data = await res.json()
+                                    if (data.error) alert(`Deploy failed: ${data.error}`)
+                                    else alert(`Deploy initiated: ${data.status || 'success'}`)
+                                } catch (e: any) {
+                                    alert(`Deploy error: ${e.message}`)
+                                }
+                            }}>
                             <Globe className="w-3 h-3 text-[#54aeff]" />Deploy
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-[#8b949e] hover:text-white hover:bg-[#30363d] gap-1.5"
+                            onClick={() => saveProject()}>
+                            <Save className="w-3 h-3 text-amber-400" />Save All
                         </Button>
                     </div>
                 </div>

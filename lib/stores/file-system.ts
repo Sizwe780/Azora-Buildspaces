@@ -19,11 +19,13 @@ interface FileSystemState {
     activeFileId: string | null
     openFiles: string[] // Array of file IDs
     fileMap: Record<string, FileNode> // Quick lookup by ID
+    workspaceId: string | null // The active workspace ID for API calls
 
     // Actions
     createFile: (parentId: string | null, name: string, content?: string) => Promise<string>
     createDirectory: (parentId: string | null, name: string) => Promise<string>
     readFile: (id: string) => string | undefined
+    fetchFileContent: (id: string) => Promise<void>
     writeFile: (id: string, content: string) => Promise<void>
     deleteNode: (id: string) => Promise<void>
     renameNode: (id: string, newName: string) => Promise<void>
@@ -193,52 +195,252 @@ const buildFileMapFromSnapshot = (files: FileSnapshotEntry[]) => {
     return { rootId, fileMap }
 }
 
+/**
+ * Build a fileMap from the /api/fs/tree response format:
+ * [{ path: "src/app/page.tsx", type: "file", size: 1234 }, ...]
+ */
+const buildFileMapFromTree = (entries: { path: string; type: 'file' | 'directory'; size: number }[]) => {
+    const rootId = 'root'
+    const fileMap: Record<string, FileNode> = {
+        [rootId]: {
+            id: rootId,
+            name: 'root',
+            type: 'directory',
+            path: '',
+            children: [],
+            isOpen: true,
+            parentId: null,
+        },
+    }
+
+    for (const entry of entries) {
+        const parts = entry.path.split('/').filter(Boolean)
+        const name = parts.pop()
+        if (!name) continue
+
+        let currentId = rootId
+        let currentPath = ''
+
+        // Traverse / create parent directories
+        for (const part of parts) {
+            const parentNode = fileMap[currentId]
+            let childId = parentNode.children?.find(
+                (id) => fileMap[id]?.name === part && fileMap[id]?.type === 'directory'
+            )
+            if (!childId) {
+                childId = generateId()
+                const newPath = currentPath ? `${currentPath}/${part}` : part
+                fileMap[childId] = {
+                    id: childId,
+                    name: part,
+                    type: 'directory',
+                    path: newPath,
+                    children: [],
+                    parentId: currentId,
+                    isOpen: false,
+                }
+                parentNode.children = [...(parentNode.children || []), childId]
+            }
+            currentId = childId
+            currentPath = fileMap[currentId].path
+        }
+
+        // Create the entry node
+        const nodeId = generateId()
+        const nodePath = currentPath ? `${currentPath}/${name}` : name
+
+        if (entry.type === 'directory') {
+            // Only add if not already created by traversal
+            const existing = fileMap[currentId]?.children?.find(
+                id => fileMap[id]?.name === name && fileMap[id]?.type === 'directory'
+            )
+            if (!existing) {
+                fileMap[nodeId] = {
+                    id: nodeId,
+                    name,
+                    type: 'directory',
+                    path: nodePath,
+                    children: [],
+                    parentId: currentId,
+                    isOpen: false,
+                }
+                fileMap[currentId].children = [...(fileMap[currentId].children || []), nodeId]
+            }
+        } else {
+            fileMap[nodeId] = {
+                id: nodeId,
+                name,
+                type: 'file',
+                path: nodePath,
+                parentId: currentId,
+                // content will be lazy-loaded
+            }
+            fileMap[currentId].children = [...(fileMap[currentId].children || []), nodeId]
+        }
+    }
+
+    return { rootId, fileMap }
+}
+
 export const useFileSystem = create<FileSystemState>((set, get) => ({
     rootId: null,
     activeFileId: null,
     openFiles: [],
     fileMap: {},
     isLoading: false,
+    workspaceId: null,
 
     loadProject: async (_projectId: string) => {
-        set({ isLoading: true })
+        set({ isLoading: true, workspaceId: _projectId })
         try {
-            // 1) Try Firestore snapshot
-            const snapshotRes = await fetch(`/api/projects/${_projectId}/snapshot`)
-            if (snapshotRes.ok) {
-                const snapshot = await snapshotRes.json()
-                if (snapshot?.files && snapshot.files.length > 0) {
-                    const { rootId, fileMap } = buildFileMapFromSnapshot(snapshot.files)
+            // 1) Try loading real file tree from /api/fs/tree (disk-backed workspace)
+            const treeRes = await fetch(`/api/fs/tree?workspaceId=${encodeURIComponent(_projectId)}`)
+            if (treeRes.ok) {
+                const treeData = await treeRes.json()
+
+                if (treeData.exists && treeData.entries && treeData.entries.length > 0) {
+                    const entries: { path: string; type: 'file' | 'directory'; size: number }[] = treeData.entries
+                    const { rootId, fileMap } = buildFileMapFromTree(entries)
                     set({ fileMap, rootId, isLoading: false })
+
+                    // Lazy-load content for small files (< 100KB), cap at 50
+                    const filesToLoad = entries
+                        .filter(e => e.type === 'file' && e.size < 100_000)
+                        .slice(0, 50)
+
+                    const batchSize = 10
+                    for (let i = 0; i < filesToLoad.length; i += batchSize) {
+                        const batch = filesToLoad.slice(i, i + batchSize)
+                        await Promise.all(batch.map(async (entry) => {
+                            try {
+                                const contentRes = await fetch(
+                                    `/api/fs/content?path=${encodeURIComponent(entry.path)}&workspaceId=${encodeURIComponent(_projectId)}`
+                                )
+                                if (contentRes.ok) {
+                                    const { content } = await contentRes.json()
+                                    const state = get()
+                                    const nodeId = Object.keys(state.fileMap).find(
+                                        id => state.fileMap[id]?.path === entry.path
+                                    )
+                                    if (nodeId) {
+                                        set(s => ({
+                                            fileMap: {
+                                                ...s.fileMap,
+                                                [nodeId]: { ...s.fileMap[nodeId], content }
+                                            }
+                                        }))
+                                    }
+                                }
+                            } catch { /* skip */ }
+                        }))
+                    }
                     return
                 }
-            }
-            // Fetch real file tree from orchestrator
-            const res = await fetch('http://localhost:3001/fs/tree');
-            if (!res.ok) throw new Error('Failed to load project');
 
-            const fileMap = await res.json();
-            set({ fileMap, rootId: 'root', isLoading: false })
+                // Workspace doesn't exist yet — scaffold from template if it matches
+                const isTemplate = projectTemplates.some(t => t.id === _projectId)
+                if (isTemplate) {
+                    const scaffoldRes = await fetch('/api/fs/scaffold', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ templateId: _projectId, workspaceId: _projectId })
+                    })
+
+                    if (scaffoldRes.ok) {
+                        // Re-fetch the tree now that files exist
+                        const retryRes = await fetch(`/api/fs/tree?workspaceId=${encodeURIComponent(_projectId)}`)
+                        if (retryRes.ok) {
+                            const retryData = await retryRes.json()
+                            if (retryData.entries?.length > 0) {
+                                const { rootId, fileMap } = buildFileMapFromTree(retryData.entries)
+                                set({ fileMap, rootId, isLoading: false })
+                                // Load file contents
+                                const filesToLoad = retryData.entries
+                                    .filter((e: any) => e.type === 'file' && e.size < 100_000)
+                                    .slice(0, 50)
+                                for (const entry of filesToLoad) {
+                                    try {
+                                        const contentRes = await fetch(
+                                            `/api/fs/content?path=${encodeURIComponent(entry.path)}&workspaceId=${encodeURIComponent(_projectId)}`
+                                        )
+                                        if (contentRes.ok) {
+                                            const { content } = await contentRes.json()
+                                            const state = get()
+                                            const nodeId = Object.keys(state.fileMap).find(
+                                                id => state.fileMap[id]?.path === entry.path
+                                            )
+                                            if (nodeId) {
+                                                set(s => ({
+                                                    fileMap: {
+                                                        ...s.fileMap,
+                                                        [nodeId]: { ...s.fileMap[nodeId], content }
+                                                    }
+                                                }))
+                                            }
+                                        }
+                                    } catch { /* skip */ }
+                                }
+                                return
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2) Firestore snapshot as secondary fallback
+            try {
+                const snapshotRes = await fetch(`/api/projects/${_projectId}/snapshot`)
+                if (snapshotRes.ok) {
+                    const snapshot = await snapshotRes.json()
+                    if (snapshot?.files && snapshot.files.length > 0) {
+                        const { rootId, fileMap } = buildFileMapFromSnapshot(snapshot.files)
+                        set({ fileMap, rootId, isLoading: false })
+                        return
+                    }
+                }
+            } catch { /* Firestore not configured */ }
+
+            // 3) Final fallback: local mock file system for offline/demo
+            console.warn("[file-system] No backend available — using template mock for demo mode")
+            const { rootId, fileMap } = createMockFileSystem()
+            set({ fileMap, rootId, isLoading: false })
         } catch (error) {
-            console.error("Failed to load project from orchestrator:", error)
-            
-            // Fallback to mock file system
-            console.warn("Using mock file system as fallback.");
-            const { rootId, fileMap } = createMockFileSystem();
+            console.error("Failed to load project:", error)
+            const { rootId, fileMap } = createMockFileSystem()
             set({ fileMap, rootId, isLoading: false })
         }
     },
 
     saveProject: async () => {
-        // Sync all dirty files to S3
-        // const state = get()
-        // Implementation would iterate over dirty files and push to API
+        const state = get()
+        const wsId = state.workspaceId
+        if (!wsId) return
+
+        const fileNodes = Object.values(state.fileMap).filter(
+            n => n.type === 'file' && n.content !== undefined
+        )
+        for (const node of fileNodes) {
+            try {
+                await fetch('/api/fs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        operation: 'write',
+                        path: node.path,
+                        content: node.content,
+                        workspaceId: wsId
+                    })
+                })
+            } catch (e) {
+                console.error(`Failed to save ${node.path}:`, e)
+            }
+        }
     },
 
     createFile: async (parentId, name, content = '') => {
         const id = generateId()
         const parent = get().fileMap[parentId || 'root']
-        const path = `${parent.path}/${name}`
+        const filePath = parent.path ? `${parent.path}/${name}` : name
 
         const newNode: FileNode = {
             id,
@@ -246,7 +448,7 @@ export const useFileSystem = create<FileSystemState>((set, get) => ({
             type: 'file',
             content,
             parentId: parentId || 'root',
-            path
+            path: filePath
         }
 
         set(state => {
@@ -258,14 +460,27 @@ export const useFileSystem = create<FileSystemState>((set, get) => ({
             return { fileMap: newFileMap }
         })
 
-        // Sync to backend
+        // Sync to disk
+        const wsId = get().workspaceId
+        if (wsId) {
+            try {
+                await fetch('/api/fs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ operation: 'write', path: filePath, content, workspaceId: wsId })
+                })
+            } catch (e) {
+                console.error("Failed to create file on disk:", e)
+            }
+        }
+
         return id
     },
 
     createDirectory: async (parentId, name) => {
         const id = generateId()
         const parent = get().fileMap[parentId || 'root']
-        const path = `${parent.path}/${name}`
+        const dirPath = parent.path ? `${parent.path}/${name}` : name
 
         const newNode: FileNode = {
             id,
@@ -273,7 +488,7 @@ export const useFileSystem = create<FileSystemState>((set, get) => ({
             type: 'directory',
             children: [],
             parentId: parentId || 'root',
-            path
+            path: dirPath
         }
 
         set(state => {
@@ -285,44 +500,56 @@ export const useFileSystem = create<FileSystemState>((set, get) => ({
             return { fileMap: newFileMap }
         })
 
+        // Sync to disk
+        const wsId = get().workspaceId
+        if (wsId) {
+            try {
+                await fetch('/api/fs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ operation: 'mkdir', path: dirPath, workspaceId: wsId })
+                })
+            } catch (e) {
+                console.error("Failed to create directory on disk:", e)
+            }
+        }
+
         return id
     },
 
     readFile: (id) => {
-        const node = get().fileMap[id];
-        // If content is missing, we should fetch it (async) but this is a sync selector.
-        // For now, assume content is loaded or we trigger a load.
-        // In a real app, we'd have `fetchContent(id)` action.
-        // Let's add a quick fetch if content is undefined? 
-        // No, that causes side effects in render.
-        // We'll rely on loadProject loading tree, but content might be lazy.
-        // For this prototype, we'll assume content is in the map or we need to add a `fetchFileContent` action.
-        return node?.content;
+        const node = get().fileMap[id]
+        return node?.content
     },
 
     fetchFileContent: async (id: string) => {
-        const node = get().fileMap[id];
-        if (!node || node.type !== 'file') return;
+        const node = get().fileMap[id]
+        if (!node || node.type !== 'file') return
+
+        const wsId = get().workspaceId
+        if (!wsId) return
 
         try {
-            const res = await fetch(`http://localhost:3001/fs/content?path=${encodeURIComponent(node.path)}`);
+            const res = await fetch(
+                `/api/fs/content?path=${encodeURIComponent(node.path)}&workspaceId=${encodeURIComponent(wsId)}`
+            )
             if (res.ok) {
-                const { content } = await res.json();
+                const { content } = await res.json()
                 set(state => ({
                     fileMap: {
                         ...state.fileMap,
                         [id]: { ...state.fileMap[id], content }
                     }
-                }));
+                }))
             }
         } catch (e) {
-            console.error("Failed to fetch content:", e);
+            console.error("Failed to fetch content:", e)
         }
     },
 
     writeFile: async (id, content) => {
-        const node = get().fileMap[id];
-        if (!node) return;
+        const node = get().fileMap[id]
+        if (!node) return
 
         set(state => ({
             fileMap: {
@@ -331,24 +558,28 @@ export const useFileSystem = create<FileSystemState>((set, get) => ({
             }
         }))
 
-        // Sync to backend
-        try {
-            await fetch('http://localhost:3001/fs/write', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: node.path, content })
-            });
-        } catch (e) {
-            console.error("Failed to save file:", e);
+        // Sync to disk
+        const wsId = get().workspaceId
+        if (wsId) {
+            try {
+                await fetch('/api/fs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ operation: 'write', path: node.path, content, workspaceId: wsId })
+                })
+            } catch (e) {
+                console.error("Failed to save file:", e)
+            }
         }
     },
 
     deleteNode: async (id) => {
+        const node = get().fileMap[id]
+        const wsId = get().workspaceId
+
         set(state => {
-            const node = state.fileMap[id]
             const newFileMap = { ...state.fileMap }
 
-            // Remove from parent's children
             if (node.parentId && newFileMap[node.parentId]) {
                 const parent = newFileMap[node.parentId]
                 newFileMap[node.parentId] = {
@@ -365,30 +596,60 @@ export const useFileSystem = create<FileSystemState>((set, get) => ({
                 activeFileId: state.activeFileId === id ? null : state.activeFileId
             }
         })
+
+        // Sync to disk
+        if (wsId && node) {
+            try {
+                await fetch('/api/fs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ operation: 'delete', path: node.path, workspaceId: wsId })
+                })
+            } catch (e) {
+                console.error("Failed to delete on disk:", e)
+            }
+        }
     },
 
     renameNode: async (id, newName) => {
-        set(state => {
-            const node = state.fileMap[id]
-            const parent = state.fileMap[node.parentId!]
-            const newPath = `${parent.path}/${newName}`
+        const node = get().fileMap[id]
+        const parent = get().fileMap[node.parentId!]
+        const oldPath = node.path
+        const newPath = parent.path ? `${parent.path}/${newName}` : newName
+        const wsId = get().workspaceId
 
-            return {
-                fileMap: {
-                    ...state.fileMap,
-                    [id]: { ...node, name: newName, path: newPath }
-                }
+        set(state => ({
+            fileMap: {
+                ...state.fileMap,
+                [id]: { ...node, name: newName, path: newPath }
             }
-        })
+        }))
+
+        // Sync to disk
+        if (wsId) {
+            try {
+                await fetch('/api/fs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ operation: 'rename', path: oldPath, oldPath, newPath, workspaceId: wsId })
+                })
+            } catch (e) {
+                console.error("Failed to rename on disk:", e)
+            }
+        }
     },
 
     openFile: (id) => {
-        set(state => {
-            if (!state.openFiles.includes(id)) {
-                return {
-                    openFiles: [...state.openFiles, id],
-                    activeFileId: id
-                }
+        const state = get()
+        const node = state.fileMap[id]
+        // Lazy-load content if not yet fetched
+        if (node && node.type === 'file' && node.content === undefined) {
+            get().fetchFileContent(id)
+        }
+
+        set(s => {
+            if (!s.openFiles.includes(id)) {
+                return { openFiles: [...s.openFiles, id], activeFileId: id }
             }
             return { activeFileId: id }
         })
@@ -401,10 +662,7 @@ export const useFileSystem = create<FileSystemState>((set, get) => ({
             if (state.activeFileId === id) {
                 newActiveId = newOpenFiles.length > 0 ? newOpenFiles[newOpenFiles.length - 1] : null
             }
-            return {
-                openFiles: newOpenFiles,
-                activeFileId: newActiveId
-            }
+            return { openFiles: newOpenFiles, activeFileId: newActiveId }
         })
     },
 

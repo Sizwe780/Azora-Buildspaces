@@ -23,10 +23,11 @@ const serialize = (record: any) => {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { executionId: string } }
+  { params }: { params: Promise<{ executionId: string }> }
 ) {
   try {
-    const record = await loadExecutionState(params.executionId)
+    const { executionId } = await params
+    const record = await loadExecutionState(executionId)
     if (!record) {
       return NextResponse.json({ record: null }, { status: 200 })
     }
