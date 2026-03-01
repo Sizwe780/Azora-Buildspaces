@@ -60,7 +60,30 @@ export function WorkspaceHeader({
   }
 
   const handleRun = () => {
+    // kick off the development server via runtime engine (if available)
+    // and open the terminal so user can see output.
+    // runtimeEngine is a client-side proxy to the WebContainer runtime.
+    import('@/lib/runtime/container').then(({ runtimeEngine }) => {
+      runtimeEngine.startDevServer((output) => {
+        // broadcast output to terminal panel via custom event
+        window.dispatchEvent(new CustomEvent('workspace:terminal-output', { detail: output }))
+      }).catch((err) => {
+        console.error('Failed to start dev server:', err)
+      })
+    })
     onToggleTerminal()
+  }
+
+  const handleSync = async () => {
+    // open terminal then execute git sync commands
+    onToggleTerminal()
+    import('@/lib/runtime/container').then(({ runtimeEngine }) => {
+      runtimeEngine.executeCommand('git pull && git push', (output) => {
+        window.dispatchEvent(new CustomEvent('workspace:terminal-output', { detail: output }))
+      }).catch((e) => {
+        console.error('Sync failed', e)
+      })
+    })
   }
 
   const handleDeploy = async () => {
@@ -194,6 +217,13 @@ export function WorkspaceHeader({
         <Button size="sm" className="h-8 bg-primary text-primary-foreground hover:bg-primary/90 hidden sm:flex gap-1.5" onClick={handleRun} title="Run project">
           <Play className="w-3.5 h-3.5" />
           Run
+        </Button>
+
+        <Button size="sm" variant="outline" className="h-8 hidden sm:flex gap-1.5" onClick={handleSync} title="Sync project (git pull & push)">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 1l4 4m0 0l-4 4m4-4H7m6 18l-4-4m0 0l4-4m-4 4h14" />
+          </svg>
+          Sync
         </Button>
 
         <Button size="sm" variant="outline" className="h-8 hidden sm:flex gap-1.5 bg-transparent" onClick={handleDeploy} title="Deploy project">

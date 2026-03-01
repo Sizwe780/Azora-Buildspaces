@@ -1,53 +1,18 @@
 "use client"
 
-import { useEffect, useRef } from "react"
-import { Terminal } from "xterm"
-import { FitAddon } from "xterm-addon-fit"
-import { WebLinksAddon } from "xterm-addon-web-links"
-import "xterm/css/xterm.css"
+import dynamic from "next/dynamic"
 
-interface XTerminalProps {
+export interface XTerminalProps {
     onData?: (data: string) => void
     socket?: WebSocket | null
 }
 
-export function XTerminal({ onData, socket }: XTerminalProps) {
-    const terminalRef = useRef<HTMLDivElement>(null)
-    const xtermRef = useRef<Terminal | null>(null)
-    const fitAddonRef = useRef<FitAddon | null>(null)
+const XTerminal = dynamic(() => import("./x-terminal-client"), {
+    ssr: false,
+    loading: () => <div className="h-full w-full bg-zinc-950 flex items-center justify-center text-zinc-500 font-mono text-sm">Initializing terminal...</div>
+})
 
-    useEffect(() => {
-        if (!terminalRef.current || xtermRef.current) { return }
-
-        // Initialize Terminal
-        const term = new Terminal({
-            cursorBlink: true,
-            fontSize: 14,
-            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-            theme: {
-                background: "#09090b", // zinc-950
-                foreground: "#fafafa", // zinc-50
-                cursor: "#22d3ee", // cyan-400
-                selectionBackground: "#27272a", // zinc-800
-                black: "#09090b",
-                red: "#ef4444",
-                green: "#22c55e",
-                yellow: "#eab308",
-                blue: "#3b82f6",
-                magenta: "#d946ef",
-                cyan: "#06b6d4",
-                white: "#fafafa",
-                brightBlack: "#52525b",
-                brightRed: "#f87171",
-                brightGreen: "#4ade80",
-                brightYellow: "#facc15",
-                brightBlue: "#60a5fa",
-                brightMagenta: "#e879f9",
-                brightCyan: "#22d3ee",
-                brightWhite: "#ffffff",
-            },
-            allowProposedApi: true,
-        })
+export { XTerminal }
 
         // Load Addons
         const fitAddon = new FitAddon()

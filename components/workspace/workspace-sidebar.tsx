@@ -157,9 +157,9 @@ function FileNode({ node, depth, activeFile, onFileSelect }: FileNodeProps) {
   const isActive = node.name === activeFile
   return (
     <div>
-      <button
+      <div
         onClick={() => (isFolder ? setIsOpen(!isOpen) : onFileSelect(node.name))}
-        className={`w-full flex items-center gap-1.5 px-2 py-1 text-sm rounded-md transition-all group ${
+        className={`w-full flex items-center gap-1.5 px-2 py-1 text-sm rounded-md transition-all group cursor-pointer ${
           isActive ? "bg-primary/10 text-primary" : "text-sidebar-foreground hover:bg-sidebar-accent"
         }`}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
@@ -189,8 +189,10 @@ function FileNode({ node, depth, activeFile, onFileSelect }: FileNodeProps) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                onClick={(e) => e.stopPropagation()}
-                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-muted shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation()
+                }}
+                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-muted shrink-0 transition-opacity"
               >
                 <MoreVertical className="w-3 h-3" />
               </button>
@@ -216,7 +218,7 @@ function FileNode({ node, depth, activeFile, onFileSelect }: FileNodeProps) {
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-      </button>
+      </div>
 
       <AnimatePresence>
         {isFolder && isOpen && node.children && (
