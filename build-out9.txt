@@ -1,0 +1,69 @@
+﻿
+> azora-buildspaces@0.1.0 build C:\Users\Azora Sapiens\azora-buildspaces-standalone
+> next build
+
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   Γû▓ Next.js 16.0.7 (Turbopack)
+   - Environments: .env.local
+   - Experiments (use with caution):
+     ┬╖ serverActions
+
+ ΓÜá The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+   Creating an optimized production build ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+Turbopack build encountered 2 warnings:
+./lib/audit-logger.ts:127:30
+Module not found: Can't resolve '@sentry/node'
+[0m [90m 125 |[39m       [36mtry[39m {
+ [90m 126 |[39m         [90m// @ts-ignore[39m
+[31m[1m>[22m[39m[90m 127 |[39m         [36mconst[39m [33mSentry[39m [33m=[39m [36mawait[39m [36mimport[39m([32m"@sentry/node"[39m)
+ [90m     |[39m                              [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 128 |[39m         [33mSentry[39m[33m.[39mcaptureMessage([32m`[AUDIT] ${auditEntry.severity} - ${auditEntry.eventType}: ${auditEntry.error || ''}`[39m)
+ [90m 129 |[39m       } [36mcatch[39m (err) {
+ [90m 130 |[39m         console[33m.[39merror([32m'[AUDIT] Failed to send to Sentry:'[39m[33m,[39m err)[0m
+System.Management.Automation.RemoteException
+System.Management.Automation.RemoteException
+System.Management.Automation.RemoteException
+Import traces:
+  #1 [App Route]:
+    ./lib/audit-logger.ts
+    ./app/api/fs/route.ts
+System.Management.Automation.RemoteException
+  #2 [App Route]:
+    ./lib/audit-logger.ts
+    ./lib/agents/orchestrator.ts
+    ./app/api/agents/stream/route.ts
+System.Management.Automation.RemoteException
+https://nextjs.org/docs/messages/module-not-found
+System.Management.Automation.RemoteException
+System.Management.Automation.RemoteException
+./lib/runtime/command-runner.ts:21:18
+Module not found: Can't resolve '@webcontainer/api'
+[0m [90m 19 |[39m [36mlet[39m [33mWebContainer[39m[33m:[39m any
+ [90m 20 |[39m [36mtry[39m {
+[31m[1m>[22m[39m[90m 21 |[39m   [33mWebContainer[39m [33m=[39m require([32m'@webcontainer/api'[39m)[33m.[39m[33mWebContainer[39m
+ [90m    |[39m                  [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 22 |[39m } [36mcatch[39m (err) {
+ [90m 23 |[39m   [33mWebContainer[39m [33m=[39m undefined
+ [90m 24 |[39m }[0m
+System.Management.Automation.RemoteException
+System.Management.Automation.RemoteException
+System.Management.Automation.RemoteException
+Import traces:
+  #1 [App Route]:
+    ./lib/runtime/command-runner.ts
+    ./app/api/fs/route.ts
+System.Management.Automation.RemoteException
+  #2 [App Route]:
+    ./lib/runtime/command-runner.ts
+    ./lib/agents/orchestrator.ts
+    ./app/api/agents/stream/route.ts
+System.Management.Automation.RemoteException
+https://nextjs.org/docs/messages/module-not-found
+System.Management.Automation.RemoteException
+System.Management.Automation.RemoteException
+System.Management.Automation.RemoteException
+> Build error occurred
+Error: ENOENT: no such file or directory, open 'C:\Users\Azora Sapiens\azora-buildspaces-standalone\.next\static\VDvyOxMOWh_LMH1n6J_RB\_buildManifest.js.tmp.3aprblzwviz'
+    at ignore-listed frames
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 1.

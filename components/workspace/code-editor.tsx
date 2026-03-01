@@ -3,6 +3,17 @@
 import { useEffect, useRef } from "react"
 import dynamic from "next/dynamic"
 import type { editor } from "monaco-editor"
+import { SUPPORTED_LANGUAGES, LanguageSupport } from "@/lib/languages"
+
+/**
+ * Gets the Monaco language identifier for a given language ID.
+ * @param languageId The ID of the language.
+ * @returns The Monaco language identifier.
+ */
+function getMonacoLanguage(languageId: string): string {
+  const language = SUPPORTED_LANGUAGES.find(lang => lang.id === languageId);
+  return language ? language.monaco : "plaintext";
+}
 
 /**
  * CodeEditor - Real Interactive Monaco Editor Component
@@ -59,6 +70,7 @@ export function CodeEditor({
   options = {},
 }: CodeEditorProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+  const monacoLanguage = getMonacoLanguage(language);
 
   function handleEditorDidMount(editor: editor.IStandaloneCodeEditor) {
     editorRef.current = editor
@@ -106,7 +118,7 @@ export function CodeEditor({
       <MonacoEditor
         height={height}
         width={width}
-        language={language}
+        language={monacoLanguage}
         theme={theme}
         value={value}
         onChange={handleEditorChange}

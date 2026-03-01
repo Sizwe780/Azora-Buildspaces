@@ -175,7 +175,7 @@ export async function listExecutionSessions(limit = 10): Promise<ExecutionRecord
     .orderBy('updatedAt', 'desc')
     .limit(limit)
     .get()
-  return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as ExecutionRecord) }))
+  return snap.docs.map((doc) => ({ ...(doc.data() as ExecutionRecord), id: doc.id }))
 }
 
 export async function syncFileToFirestore(

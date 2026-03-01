@@ -1,8 +1,10 @@
 "use client"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { X, FileCode, ChevronRight, Bot, Users, Wifi, WifiOff } from "lucide-react"
 import dynamic from "next/dynamic"
 import { motion, AnimatePresence } from "framer-motion"
+import { getLanguageByExtension, type LanguageSupport } from "@/lib/languages"
+import { LanguageSelector } from "./language-selector"
 // Yjs imports moved to dynamic import to prevent build hangs
 // import * as Y from "yjs"
 // import { WebsocketProvider } from "y-websocket"
@@ -23,11 +25,22 @@ export function EditorPanel({ activeFile, openFiles, onFileSelect, onCloseFile }
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [collaborators, setCollaborators] = useState<string[]>([])
+  const [overrideLanguage, setOverrideLanguage] = useState<LanguageSupport | null>(null)
 
   const ydocRef = useRef<any | null>(null)
   const providerRef = useRef<any | null>(null)
   const bindingRef = useRef<any | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Detect language from file extension or override
+  const detectedLanguage = useMemo(() => {
+    if (overrideLanguage) return overrideLanguage
+    if (!activeFile) return null
+    const ext = "." + activeFile.split(".").pop()
+    return getLanguageByExtension(ext) || null
+  }, [activeFile, overrideLanguage])
+
+  const monacoLanguage = detectedLanguage?.monaco || "plaintext"
 
   // Fetch file content
   useEffect(() => {
@@ -166,6 +179,12 @@ export function EditorPanel({ activeFile, openFiles, onFileSelect, onCloseFile }
             {isConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
             <span>{isConnected ? 'Connected' : 'Offline'}</span>
           </div>
+          <div className="h-3 w-px bg-border" />
+          <LanguageSelector
+            currentFileName={activeFile}
+            currentLanguageId={overrideLanguage?.id}
+            onLanguageChange={(lang) => setOverrideLanguage(lang)}
+          />
         </div>
       </div>
 
@@ -248,7 +267,7 @@ export function EditorPanel({ activeFile, openFiles, onFileSelect, onCloseFile }
       <div className="flex-1 min-h-0">
         <MonacoEditor
           height="100%"
-          language={activeFile.endsWith(".css") ? "css" : activeFile.endsWith(".json") ? "json" : "typescript"}
+          language={monacoLanguage}
           theme="vs-dark"
           value={code}
           onChange={handleCodeChange}

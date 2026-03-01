@@ -14,7 +14,10 @@ export function Panel({ children }: PanelProps) {
         { view: 'terminal', label: 'TERMINAL' },
         { view: 'output', label: 'OUTPUT' },
         { view: 'problems', label: 'PROBLEMS' },
-        { view: 'debug', label: 'DEBUG CONSOLE' },
+        { view: 'debug', label: 'DEBUG' },
+        { view: 'testing', label: 'TESTING' },
+        { view: 'performance', label: 'PERFORMANCE' },
+        { view: 'code-review', label: 'REVIEW' },
     ]
 
     return (

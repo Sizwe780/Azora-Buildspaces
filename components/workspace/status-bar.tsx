@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { GitBranch, AlertCircle, CheckCircle2, Bell, Wifi, Cpu, Bot, Sparkles } from "lucide-react"
 import { motion } from "framer-motion"
+import { getLanguageByExtension } from "@/lib/languages"
 
 interface StatusBarProps {
   activeFile: string
@@ -12,6 +13,12 @@ interface StatusBarProps {
 
 export function StatusBar({ activeFile, agentCount, activeAgents }: StatusBarProps) {
   const [cpuUsage, setCpuUsage] = useState(45)
+
+  const detectedLang = useMemo(() => {
+    if (!activeFile) return null
+    const ext = "." + activeFile.split(".").pop()
+    return getLanguageByExtension(ext)
+  }, [activeFile])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -72,7 +79,13 @@ export function StatusBar({ activeFile, agentCount, activeAgents }: StatusBarPro
         </div>
 
         <div className="flex items-center gap-1.5 text-muted-foreground">
-          <span>TypeScript React</span>
+          {detectedLang ? (
+            <span style={{ color: detectedLang.color }}>
+              {detectedLang.icon && <>{detectedLang.icon} </>}{detectedLang.name}
+            </span>
+          ) : (
+            <span>Plain Text</span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 text-muted-foreground">

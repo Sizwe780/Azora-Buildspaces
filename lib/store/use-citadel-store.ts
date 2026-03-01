@@ -1,6 +1,7 @@
 // zustand occasionally throws in certain Jest environments (EVAL of mock
 // transforms, or when its default export isn't a function). wrap the import
 // so the rest of the code can fall back to a no-op store during tests.
+import type { create } from 'zustand'
 let createStore: typeof create
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -10,11 +11,11 @@ try {
   }
 } catch (err) {
   console.warn('[use-citadel-store] zustand unavailable, using stubbed store')
-  createStore = <T>(init: any) => {
+  createStore = (<T>(init: any) => {
     // return a hook that provides an empty state and no-op setters
     const state = init(() => {}, () => ({}))
     return () => state as T
-  }
+  }) as any
 }
 
 export interface TraceStep {

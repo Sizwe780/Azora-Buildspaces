@@ -422,10 +422,12 @@ export class FileSystemService extends EventEmitter {
   async gitPush(containerId: string, path: string, remote = 'origin', branch?: string, userId?: string): Promise<void> {
     // Constitutional Guard: Check if user is allowed to push
     const verification = await constitutionalAI.verifyAction({
-      type: 'git_push',
-      resource: `${remote}:${branch || 'main'}`,
+      id: `push-${Date.now()}`,
+      type: UserActionType.PROJECT_PUSH,
       userId: userId || 'system',
-      metadata: { path, containerId }
+      payload: { remote, branch: branch || 'main', path, containerId },
+      timestamp: new Date(),
+      sessionId: containerId,
     })
 
     if (!verification.allowed) {

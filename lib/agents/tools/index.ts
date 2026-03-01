@@ -54,7 +54,7 @@ export function listTools(): Array<{
   return Array.from(registry.values()).map((t) => ({
     name: t.name,
     description: t.description,
-    schema: t.schema ? t.schema.describe() : undefined,
+    schema: t.schema ? { type: 'zod', description: t.schema.description } : undefined,
   }))
 }
 
@@ -168,7 +168,7 @@ registerTool({
   }),
   async execute(input, config) {
     // reuse agent registry logic so there is a single implementation
-    const { executeTool } = await import('@/lib/agents/tools.ts')
+    const { executeTool } = await import('@/lib/agents/tools')
     // note: Agent tool expects camelCase name
     const result = await executeTool('designToCode', input, config as any)
     return typeof result === 'string' ? result : result.output || ''
