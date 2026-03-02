@@ -15,12 +15,56 @@ import {
     Shield,
     Activity,
     Settings,
-    User
+    User,
+    Radio,
+    Sparkles,
+    CheckCircle2,
+    AlertTriangle,
+    XCircle,
+    Cloud,
+    Lock
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWorkspace } from "@/lib/contexts/workspace-context"
+import { NotificationsCenter } from "@/components/workspace/notifications-center"
+import { cn } from "@/lib/utils"
+
+function StatusItem({ children, className, tooltip, tooltipSub, onClick }: {
+    children: React.ReactNode
+    className?: string
+    tooltip?: string
+    tooltipSub?: string
+    onClick?: () => void
+}) {
+    const content = (
+        <div
+            className={cn(
+                "flex items-center gap-1.5 px-2 py-0.5 rounded-sm cursor-default text-xs transition-colors hover:bg-white/10",
+                onClick && "cursor-pointer",
+                className
+            )}
+            onClick={onClick}
+        >
+            {children}
+        </div>
+    )
+
+    if (!tooltip) return content
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>{content}</TooltipTrigger>
+            <TooltipContent side="top" className="bg-popover/95 backdrop-blur-md shadow-xl border-border/60">
+                <div className="text-sm">
+                    <div className="font-semibold">{tooltip}</div>
+                    {tooltipSub && <div className="text-[11px] text-muted-foreground mt-0.5">{tooltipSub}</div>}
+                </div>
+            </TooltipContent>
+        </Tooltip>
+    )
+}
 
 export function StatusBar() {
     const { activeRoom } = useWorkspace()
@@ -29,234 +73,98 @@ export function StatusBar() {
     const [memoryUsage, setMemoryUsage] = useState(67)
     const [currentTime, setCurrentTime] = useState(new Date())
 
-    // Simulate real-time updates
     useEffect(() => {
         const interval = setInterval(() => {
             setCpuUsage(prev => Math.max(20, Math.min(90, prev + (Math.random() - 0.5) * 10)))
             setMemoryUsage(prev => Math.max(30, Math.min(95, prev + (Math.random() - 0.5) * 5)))
             setCurrentTime(new Date())
         }, 5000)
-
         return () => clearInterval(interval)
     }, [])
 
-    const getConnectionColor = () => {
-        switch (connectionStatus) {
-            case 'connected': return 'text-green-500'
-            case 'connecting': return 'text-yellow-500'
-            case 'disconnected': return 'text-red-500'
-        }
-    }
-
-    const getConnectionIcon = () => {
-        switch (connectionStatus) {
-            case 'connected': return <Wifi className="w-3 h-3" />
-            case 'connecting': return <Activity className="w-3 h-3 animate-pulse" />
-            case 'disconnected': return <AlertCircle className="w-3 h-3" />
-        }
-    }
-
     return (
-        <TooltipProvider>
-            <div className="h-7 bg-gradient-to-r from-muted/80 to-muted border-t border-border/50 flex items-center justify-between px-4 text-xs select-none backdrop-blur-sm">
+        <TooltipProvider delayDuration={400}>
+            <div className="h-[22px] bg-[hsl(var(--primary))] text-primary-foreground flex items-center justify-between px-2 text-[11px] select-none font-medium">
                 {/* Left Section */}
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-0.5">
+                    {/* Remote indicator */}
+                    <StatusItem tooltip="Remote Connection" tooltipSub="Connected to Azora Cloud">
+                        <Radio className="w-3 h-3" />
+                    </StatusItem>
+
                     {/* Git Branch */}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className="flex items-center gap-2 hover:bg-accent/50 px-2 py-1 rounded cursor-pointer transition-colors">
-                                <GitBranch className="w-3.5 h-3.5" />
-                                <span className="font-medium">main</span>
-                                <Badge variant="outline" className="text-xs h-4 px-1">↑2 ↓0</Badge>
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <div className="text-sm">
-                                <div className="font-medium">Git Branch: main</div>
-                                <div className="text-xs text-muted-foreground">2 commits ahead, 0 behind</div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
+                    <StatusItem tooltip="Git Branch: main" tooltipSub="2 commits ahead, 0 behind">
+                        <GitBranch className="w-3 h-3" />
+                        <span>main</span>
+                        <span className="opacity-70">↑2</span>
+                    </StatusItem>
 
-                    {/* Issues */}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className="flex items-center gap-3 hover:bg-accent/50 px-2 py-1 rounded cursor-pointer transition-colors">
-                                <div className="flex items-center gap-1">
-                                    <AlertCircle className="w-3.5 h-3.5 text-red-500" />
-                                    <span>0</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <AlertCircle className="w-3.5 h-3.5 text-yellow-500" />
-                                    <span>3</span>
-                                </div>
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <div className="text-sm">
-                                <div className="font-medium">Issues</div>
-                                <div className="text-xs text-muted-foreground">0 errors, 3 warnings</div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
+                    {/* Sync indicator */}
+                    <StatusItem tooltip="Synchronize Changes" tooltipSub="Push 2 commits">
+                        <Cloud className="w-3 h-3" />
+                    </StatusItem>
 
-                    {/* Connection Status */}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className={`flex items-center gap-1 hover:bg-accent/50 px-2 py-1 rounded cursor-pointer transition-colors ${getConnectionColor()}`}>
-                                {getConnectionIcon()}
-                                <span className="capitalize">{connectionStatus}</span>
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <div className="text-sm">
-                                <div className="font-medium">Cloud Connection</div>
-                                <div className="text-xs text-muted-foreground">Connected to Azora Cloud IDE</div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
-                </div>
-
-                {/* Center Section - Current File Info */}
-                <div className="flex items-center gap-4">
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className="hover:bg-accent/50 px-2 py-1 rounded cursor-pointer transition-colors">
-                                Ln 42, Col 18
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <div className="text-sm">
-                                <div className="font-medium">Cursor Position</div>
-                                <div className="text-xs text-muted-foreground">Line 42, Column 18</div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className="hover:bg-accent/50 px-2 py-1 rounded cursor-pointer transition-colors">
-                                UTF-8
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <div className="text-sm">
-                                <div className="font-medium">Encoding</div>
-                                <div className="text-xs text-muted-foreground">Unicode (UTF-8)</div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className="hover:bg-accent/50 px-2 py-1 rounded cursor-pointer transition-colors">
-                                TypeScript React
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <div className="text-sm">
-                                <div className="font-medium">Language Mode</div>
-                                <div className="text-xs text-muted-foreground">TypeScript React (.tsx)</div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
+                    {/* Errors & Warnings */}
+                    <StatusItem tooltip="Problems" tooltipSub="0 errors, 3 warnings">
+                        <XCircle className="w-3 h-3" />
+                        <span>0</span>
+                        <AlertTriangle className="w-3 h-3 ml-0.5" />
+                        <span>3</span>
+                    </StatusItem>
                 </div>
 
                 {/* Right Section */}
-                <div className="flex items-center gap-4">
-                    {/* Performance Metrics */}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className="flex items-center gap-1 hover:bg-accent/50 px-2 py-1 rounded cursor-pointer transition-colors">
-                                <Cpu className="w-3 h-3" />
-                                <span>{cpuUsage}%</span>
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <div className="text-sm">
-                                <div className="font-medium">CPU Usage</div>
-                                <div className="text-xs text-muted-foreground">System performance: {cpuUsage}%</div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
+                <div className="flex items-center gap-0.5">
+                    {/* Cursor Position */}
+                    <StatusItem tooltip="Go to Line/Column" tooltipSub="Ctrl+G">
+                        <span>Ln 42, Col 18</span>
+                    </StatusItem>
 
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className="flex items-center gap-1 hover:bg-accent/50 px-2 py-1 rounded cursor-pointer transition-colors">
-                                <HardDrive className="w-3 h-3" />
-                                <span>{memoryUsage}%</span>
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <div className="text-sm">
-                                <div className="font-medium">Memory Usage</div>
-                                <div className="text-xs text-muted-foreground">RAM usage: {memoryUsage}%</div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
+                    {/* Spaces */}
+                    <StatusItem tooltip="Indentation" tooltipSub="Spaces: 2">
+                        <span>Spaces: 2</span>
+                    </StatusItem>
 
-                    {/* Live Share / Collaboration */}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className="flex items-center gap-1 hover:bg-accent/50 px-2 py-1 rounded cursor-pointer transition-colors">
-                                <User className="w-3 h-3" />
-                                <span>1</span>
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <div className="text-sm">
-                                <div className="font-medium">Live Collaboration</div>
-                                <div className="text-xs text-muted-foreground">1 active user in session</div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
+                    {/* Encoding */}
+                    <StatusItem tooltip="File Encoding">
+                        <span>UTF-8</span>
+                    </StatusItem>
 
-                    {/* Prettier/ESLint Status */}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className="flex items-center gap-1 hover:bg-accent/50 px-2 py-1 rounded cursor-pointer transition-colors text-green-500">
-                                <Check className="w-3 h-3" />
-                                <span>Prettier</span>
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <div className="text-sm">
-                                <div className="font-medium">Code Formatting</div>
-                                <div className="text-xs text-muted-foreground">Prettier enabled, ESLint active</div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
+                    {/* EOL */}
+                    <StatusItem tooltip="End of Line Sequence">
+                        <span>LF</span>
+                    </StatusItem>
 
-                    {/* Time */}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className="flex items-center gap-1 hover:bg-accent/50 px-2 py-1 rounded cursor-pointer transition-colors">
-                                <Clock className="w-3 h-3" />
-                                <span>{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <div className="text-sm">
-                                <div className="font-medium">Local Time</div>
-                                <div className="text-xs text-muted-foreground">{currentTime.toLocaleDateString()}</div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
+                    {/* Language */}
+                    <StatusItem tooltip="Language Mode" tooltipSub="TypeScript React (.tsx)">
+                        <span>TypeScript React</span>
+                    </StatusItem>
+
+                    {/* AI Status */}
+                    <StatusItem tooltip="Azora AI" tooltipSub="AI assistant ready" className="gap-1">
+                        <Sparkles className="w-3 h-3" />
+                        <span>AI</span>
+                    </StatusItem>
+
+                    {/* Formatter */}
+                    <StatusItem tooltip="Formatting" tooltipSub="Prettier active">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Prettier</span>
+                    </StatusItem>
+
+                    {/* Performance */}
+                    <StatusItem tooltip={`CPU: ${Math.round(cpuUsage)}%`} tooltipSub={`Memory: ${Math.round(memoryUsage)}%`}>
+                        <Cpu className="w-3 h-3" />
+                        <span>{Math.round(cpuUsage)}%</span>
+                    </StatusItem>
+
+                    {/* Copilot-style status */}
+                    <StatusItem tooltip="Secure Workspace" tooltipSub="HTTPS · Sandboxed">
+                        <Lock className="w-3 h-3" />
+                    </StatusItem>
 
                     {/* Notifications */}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button variant="ghost" size="sm" className="w-6 h-6 p-0 hover:bg-accent/50">
-                                <Bell className="w-3 h-3" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <div className="text-sm">
-                                <div className="font-medium">Notifications</div>
-                                <div className="text-xs text-muted-foreground">No new notifications</div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
+                    <NotificationsCenter />
                 </div>
             </div>
         </TooltipProvider>

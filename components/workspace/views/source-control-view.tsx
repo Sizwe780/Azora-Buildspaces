@@ -85,6 +85,9 @@ export function SourceControlView() {
     const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [branches, setBranches] = useState<{ name: string; current: boolean }[]>([])
+    const [isPushing, setIsPushing] = useState(false)
+    const [isPulling, setIsPulling] = useState(false)
 
     // Fetch Git status from API
     useEffect(() => {
@@ -130,6 +133,70 @@ export function SourceControlView() {
 
     const stagedChanges = changes.filter(c => c.staged)
     const unstagedChanges = changes.filter(c => !c.staged)
+
+    const fetchCommitLog = async () => {
+        try {
+            const response = await fetch('/api/projects/current/git/log?limit=50')
+            if (response.ok) {
+                const data = await response.json()
+                setCommits((data.commits || []).map((c: any) => ({
+                    id: c.hash?.slice(0, 7) || c.id,
+                    message: c.message,
+                    author: c.author,
+                    date: c.date || c.timestamp,
+                    files: c.filesChanged || 0,
+                })))
+            }
+        } catch { /* non-critical */ }
+    }
+
+    const fetchBranches = async () => {
+        try {
+            const response = await fetch('/api/projects/current/git/branches')
+            if (response.ok) {
+                const data = await response.json()
+                setBranches(data.branches || [])
+            }
+        } catch { /* non-critical */ }
+    }
+
+    useEffect(() => {
+        if (activeTab === 'history') fetchCommitLog()
+    }, [activeTab])
+
+    useEffect(() => { fetchBranches() }, [])
+
+    const handlePush = async () => {
+        setIsPushing(true)
+        try {
+            await fetch('/api/projects/current/git/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'push' }),
+            })
+            await fetchGitStatus()
+        } catch (err) {
+            console.error('Push failed:', err)
+        } finally {
+            setIsPushing(false)
+        }
+    }
+
+    const handlePull = async () => {
+        setIsPulling(true)
+        try {
+            await fetch('/api/projects/current/git/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'pull' }),
+            })
+            await fetchGitStatus()
+        } catch (err) {
+            console.error('Pull failed:', err)
+        } finally {
+            setIsPulling(false)
+        }
+    }
 
     const handleStage = async (changeId: string) => {
         const change = changes.find(c => c.id === changeId)
@@ -220,13 +287,13 @@ export function SourceControlView() {
                                     Merge Branch
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem>
-                                    <RefreshCw className="w-4 h-4 mr-2" />
-                                    Pull
+                                <DropdownMenuItem onClick={handlePull} disabled={isPulling}>
+                                    <RefreshCw className={`w-4 h-4 mr-2 ${isPulling ? 'animate-spin' : ''}`} />
+                                    {isPulling ? 'Pulling...' : 'Pull'}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <GitBranch className="w-4 h-4 mr-2" />
-                                    Push
+                                <DropdownMenuItem onClick={handlePush} disabled={isPushing}>
+                                    <GitBranch className={`w-4 h-4 mr-2`} />
+                                    {isPushing ? 'Pushing...' : 'Push'}
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -347,12 +414,30 @@ export function SourceControlView() {
 
                 <TabsContent value="history" className="flex-1 mt-0">
                     <ScrollArea className="h-full">
-                        <div className="p-3 space-y-3">
-                            <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                                <GitCommit className="w-8 h-8 opacity-20 mb-2" />
-                                <p className="text-sm">Commit history</p>
-                                <p className="text-xs">Git commit log will be displayed here</p>
-                            </div>
+                        <div className="p-3 space-y-2">
+                            {commits.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                                    <GitCommit className="w-8 h-8 opacity-20 mb-2" />
+                                    <p className="text-sm">No commit history yet</p>
+                                    <p className="text-xs">Make a commit to see it here</p>
+                                </div>
+                            ) : (
+                                commits.map((commit) => (
+                                    <div key={commit.id} className="flex items-start gap-3 p-2 rounded hover:bg-muted/50">
+                                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
+                                            <GitCommit className="w-3 h-3 text-primary" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium truncate">{commit.message}</p>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className="text-[10px] text-muted-foreground">{commit.author}</span>
+                                                <span className="text-[10px] text-muted-foreground">·</span>
+                                                <code className="text-[10px] text-primary">{commit.id}</code>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </ScrollArea>
                 </TabsContent>

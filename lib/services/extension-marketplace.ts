@@ -472,6 +472,31 @@ export class ExtensionMarketplaceService {
     }
   }
 
+  // convenience wrappers for API compatibility
+  searchExtensions(query: ExtensionSearchQuery) {
+    return this.search(query)
+  }
+
+  async installExtension(extensionId: string) {
+    // default to system user for now
+    return this.install(extensionId, 'system')
+  }
+
+  async uninstallExtension(extensionId: string) {
+    return this.uninstall(extensionId)
+  }
+
+  rateExtension(extensionId: string, review: ExtensionReview) {
+    // just forward to internal review map
+    const arr = this.reviews.get(extensionId) || []
+    arr.push(review)
+    this.reviews.set(extensionId, arr)
+  }
+
+  getInstalledExtensions(): InstalledExtension[] {
+    return this.getInstalled()
+  }
+
   // ─── Installation ────────────────────────────────────────
 
   async install(extensionId: string, userId: string): Promise<InstalledExtension> {

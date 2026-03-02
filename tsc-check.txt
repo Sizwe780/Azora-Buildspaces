@@ -1,0 +1,170 @@
+﻿app/api/cicd/route.ts(43,27): error TS2339: Property 'cancelRun' does not exist on type 'CICDService'.
+app/api/cicd/route.ts(48,44): error TS2339: Property 'createFromTemplate' does not exist on type 'CICDService'.
+app/api/cicd/route.ts(53,43): error TS2551: Property 'createDeployPreview' does not exist on type 'CICDService'. Did you mean 'createDeploymentPreview'?
+app/api/cloud-emulation/route.ts(10,60): error TS2339: Property 'getSupportedProviders' does not exist on type 'CloudEmulationService'.
+app/api/cloud-emulation/route.ts(12,60): error TS2339: Property 'getRunningEmulators' does not exist on type 'CloudEmulationService'.
+app/api/cloud-emulation/route.ts(18,37): error TS2339: Property 'getEmulatorStatus' does not exist on type 'CloudEmulationService'.
+app/api/cloud-emulation/route.ts(44,47): error TS2551: Property 'startFromPreset' does not exist on type 'CloudEmulationService'. Did you mean 'startPreset'?
+app/api/extensions/route.ts(21,7): error TS2322: Type '"name" | "rating" | "popular" | "recent"' is not assignable to type '"name" | "rating" | "relevance" | "installs" | "publishedDate" | undefined'.
+  Type '"popular"' is not assignable to type '"name" | "rating" | "relevance" | "installs" | "publishedDate" | undefined'.
+app/api/extensions/route.ts(54,11): error TS2353: Object literal may only specify known properties, and 'review' does not exist in type 'ExtensionReview'.
+app/api/live-preview/route.ts(10,54): error TS2339: Property 'getStatus' does not exist on type 'LivePreviewService'.
+app/api/live-preview/route.ts(18,55): error TS2339: Property 'getPerformanceMetrics' does not exist on type 'LivePreviewService'.
+app/api/live-preview/route.ts(32,43): error TS2339: Property 'startPreview' does not exist on type 'LivePreviewService'.
+app/api/live-preview/route.ts(36,27): error TS2339: Property 'stopPreview' does not exist on type 'LivePreviewService'.
+app/api/live-preview/route.ts(39,27): error TS2339: Property 'refreshPreview' does not exist on type 'LivePreviewService'.
+app/api/live-preview/route.ts(43,21): error TS2339: Property 'setDevice' does not exist on type 'LivePreviewService'.
+app/api/live-preview/route.ts(48,21): error TS2339: Property 'setUrl' does not exist on type 'LivePreviewService'.
+app/api/packages/route.ts(10,62): error TS2339: Property 'getSupportedManagers' does not exist on type 'PackageManagementService'.
+app/api/packages/route.ts(13,69): error TS2345: Argument of type 'string' is not assignable to parameter of type 'string[]'.
+app/api/packages/route.ts(18,44): error TS2339: Property 'listDependencies' does not exist on type 'PackageManagementService'.
+app/api/packages/route.ts(23,45): error TS2339: Property 'auditVulnerabilities' does not exist on type 'PackageManagementService'.
+app/api/packages/route.ts(44,48): error TS2339: Property 'installPackages' does not exist on type 'PackageManagementService'.
+app/api/packages/route.ts(49,48): error TS2339: Property 'uninstallPackages' does not exist on type 'PackageManagementService'.
+app/api/packages/route.ts(54,48): error TS2339: Property 'updatePackages' does not exist on type 'PackageManagementService'.
+app/api/projects/current/git/log/route.ts(15,64): error TS2353: Object literal may only specify known properties, and 'limit' does not exist in type '{ maxCount?: number | undefined; filepath?: string | undefined; branch?: string | undefined; since?: Date | undefined; until?: Date | undefined; author?: string | undefined; }'.
+app/api/security/route.ts(12,60): error TS2339: Property 'getAvailablePolicies' does not exist on type 'SecurityService'.
+app/api/security/route.ts(20,59): error TS2339: Property 'getLastScanResults' does not exist on type 'SecurityService'.
+app/api/security/route.ts(34,62): error TS2554: Expected 1 arguments, but got 2.
+app/api/security/route.ts(44,25): error TS2339: Property 'addSecret' does not exist on type 'SecurityService'.
+app/api/security/route.ts(49,25): error TS2339: Property 'removeSecret' does not exist on type 'SecurityService'.
+app/api/security/route.ts(54,41): error TS2339: Property 'checkNetworkAccess' does not exist on type 'SecurityService'.
+app/api/web3/route.ts(10,54): error TS2339: Property 'getSupportedChains' does not exist on type 'Web3ToolingService'.
+app/api/web3/route.ts(16,57): error TS2339: Property 'getContractTemplates' does not exist on type 'Web3ToolingService'.
+app/api/web3/route.ts(35,91): error TS2554: Expected 2-3 arguments, but got 4.
+app/api/web3/route.ts(48,55): error TS2554: Expected 1 arguments, but got 3.
+app/api/web3/route.ts(53,27): error TS2554: Expected 3 arguments, but got 2.
+app/api/workspace-persistence/route.ts(18,65): error TS2339: Property 'getSettings' does not exist on type 'WorkspacePersistenceService'.
+app/api/workspace-persistence/route.ts(47,30): error TS2339: Property 'switchProfile' does not exist on type 'WorkspacePersistenceService'.
+app/api/workspace-persistence/route.ts(52,30): error TS2339: Property 'updateSettings' does not exist on type 'WorkspacePersistenceService'.
+app/api/workspace-persistence/route.ts(53,67): error TS2339: Property 'getSettings' does not exist on type 'WorkspacePersistenceService'.
+app/api/workspace-persistence/route.ts(57,66): error TS2554: Expected 1 arguments, but got 2.
+lib/services/__tests__/deploy-export-api.test.ts(1,55): error TS2307: Cannot find module '@jest/globals' or its corresponding type declarations.
+lib/services/__tests__/file-system-git.test.ts(1,56): error TS2307: Cannot find module '@jest/globals' or its corresponding type declarations.
+lib/services/__tests__/integrated-terminal.test.ts(1,56): error TS2307: Cannot find module '@jest/globals' or its corresponding type declarations.
+lib/services/__tests__/integrated-terminal.test.ts(15,44): error TS2345: Argument of type '{ id: string; containerId: string; userId: string; shell: "bash"; dimensions: { rows: number; cols: number; }; }' is not assignable to parameter of type '{ id: string; theme: { selection: string; cursor: string; background: string; foreground: string; }; userId: string; shell: "bash" | "sh" | "powershell" | "zsh" | "fish" | "cmd"; environment: Record<...>; features: { ...; }; containerId: string; workingDirectory: string; dimensions: { ...; }; }'.
+  Type '{ id: string; containerId: string; userId: string; shell: "bash"; dimensions: { rows: number; cols: number; }; }' is missing the following properties from type '{ id: string; theme: { selection: string; cursor: string; background: string; foreground: string; }; userId: string; shell: "bash" | "sh" | "powershell" | "zsh" | "fish" | "cmd"; environment: Record<...>; features: { ...; }; containerId: string; workingDirectory: string; dimensions: { ...; }; }': theme, environment, features, workingDirectory
+lib/services/__tests__/integrated-terminal.test.ts(42,44): error TS2345: Argument of type '{ id: string; containerId: string; userId: string; shell: "bash"; dimensions: { rows: number; cols: number; }; }' is not assignable to parameter of type '{ id: string; theme: { selection: string; cursor: string; background: string; foreground: string; }; userId: string; shell: "bash" | "sh" | "powershell" | "zsh" | "fish" | "cmd"; environment: Record<...>; features: { ...; }; containerId: string; workingDirectory: string; dimensions: { ...; }; }'.
+  Type '{ id: string; containerId: string; userId: string; shell: "bash"; dimensions: { rows: number; cols: number; }; }' is missing the following properties from type '{ id: string; theme: { selection: string; cursor: string; background: string; foreground: string; }; userId: string; shell: "bash" | "sh" | "powershell" | "zsh" | "fish" | "cmd"; environment: Record<...>; features: { ...; }; containerId: string; workingDirectory: string; dimensions: { ...; }; }': theme, environment, features, workingDirectory
+lib/services/cicd-integration.ts(321,7): error TS2322: Type '"idle"' is not assignable to type 'PipelineStatus'.
+tests/api/agents/workflows-current.test.ts(4,7): error TS2451: Cannot redeclare block-scoped variable 'ns'.
+tests/api/auth/auth-flow-e2e.test.ts(57,15): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+tests/api/auth/auth-flow-e2e.test.ts(81,15): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+tests/api/auth/auth-flow-e2e.test.ts(106,15): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+tests/api/auth/auth-flow-e2e.test.ts(257,9): error TS2322: Type '{ user: {}; expires: string; }' is not assignable to type 'Session'.
+  Types of property 'user' are incompatible.
+    Type '{}' is not assignable to type '{ id: string; role?: string | undefined; } & { name?: string | null | undefined; email?: string | null | undefined; image?: string | null | undefined; }'.
+      Property 'id' is missing in type '{}' but required in type '{ id: string; role?: string | undefined; }'.
+tests/api/auth/auth-flow-e2e.test.ts(261,9): error TS2322: Type '"getSession"' is not assignable to type '"update"'.
+tests/api/auth/auth-flow-e2e.test.ts(319,9): error TS2322: Type '{ user: {}; expires: string; }' is not assignable to type 'Session'.
+  Types of property 'user' are incompatible.
+    Type '{}' is not assignable to type '{ id: string; role?: string | undefined; } & { name?: string | null | undefined; email?: string | null | undefined; image?: string | null | undefined; }'.
+      Property 'id' is missing in type '{}' but required in type '{ id: string; role?: string | undefined; }'.
+tests/api/auth/auth-flow-e2e.test.ts(323,9): error TS2322: Type '"getSession"' is not assignable to type '"update"'.
+tests/api/auth/auth-flow-e2e.test.ts(328,14): error TS18048: 'result.user' is possibly 'undefined'.
+tests/api/auth/auth-flow-e2e.test.ts(328,26): error TS2339: Property 'id' does not exist on type '{ name?: string | null | undefined; email?: string | null | undefined; image?: string | null | undefined; } | ({ id: string; role?: string | undefined; } & { name?: string | null | undefined; email?: string | ... 1 more ... | undefined; image?: string | ... 1 more ... | undefined; })'.
+  Property 'id' does not exist on type '{ name?: string | null | undefined; email?: string | null | undefined; image?: string | null | undefined; }'.
+tests/api/auth/auth-flow-e2e.test.ts(356,9): error TS2322: Type '{ user: {}; expires: string; }' is not assignable to type 'Session'.
+  Types of property 'user' are incompatible.
+    Type '{}' is not assignable to type '{ id: string; role?: string | undefined; } & { name?: string | null | undefined; email?: string | null | undefined; image?: string | null | undefined; }'.
+      Property 'id' is missing in type '{}' but required in type '{ id: string; role?: string | undefined; }'.
+tests/api/auth/auth-flow-e2e.test.ts(360,9): error TS2322: Type '"getSession"' is not assignable to type '"update"'.
+tests/api/auth/auth-flow-e2e.test.ts(364,14): error TS18048: 'result.user' is possibly 'undefined'.
+tests/api/auth/auth-flow-e2e.test.ts(364,26): error TS2339: Property 'id' does not exist on type '{ name?: string | null | undefined; email?: string | null | undefined; image?: string | null | undefined; } | ({ id: string; role?: string | undefined; } & { name?: string | null | undefined; email?: string | ... 1 more ... | undefined; image?: string | ... 1 more ... | undefined; })'.
+  Property 'id' does not exist on type '{ name?: string | null | undefined; email?: string | null | undefined; image?: string | null | undefined; }'.
+tests/api/auth/auth-flow-e2e.test.ts(383,14): error TS18048: 'authOptions.secret' is possibly 'undefined'.
+tests/api/auth/callbacks.test.ts(11,12): error TS18048: 'result' is possibly 'undefined'.
+tests/api/auth/callbacks.test.ts(19,13): error TS18048: 'result' is possibly 'undefined'.
+tests/api/auth/credentials.test.ts(59,57): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(o: {}): string[]', gave the following error.
+    Argument of type 'Provider | undefined' is not assignable to parameter of type '{}'.
+      Type 'undefined' is not assignable to type '{}'.
+  Overload 2 of 2, '(o: object): string[]', gave the following error.
+    Argument of type 'Provider | undefined' is not assignable to parameter of type 'object'.
+      Type 'undefined' is not assignable to type 'object'.
+tests/api/auth/credentials.test.ts(66,23): error TS18048: 'credentialProvider' is possibly 'undefined'.
+tests/api/auth/credentials.test.ts(76,23): error TS18048: 'credentialProvider' is possibly 'undefined'.
+tests/api/auth/credentials.test.ts(83,23): error TS18048: 'credentialProvider' is possibly 'undefined'.
+tests/api/collectibles/collectibles.test.ts(4,7): error TS2451: Cannot redeclare block-scoped variable 'ns'.
+tests/api/collectibles/collectibles.test.ts(11,10): error TS2393: Duplicate function implementation.
+tests/api/collectibles/collectibles.test.ts(15,10): error TS2393: Duplicate function implementation.
+tests/api/design/figma-import.test.ts(6,5): error TS2322: Type 'undefined' is not assignable to type '{ (input: URL | RequestInfo, init?: RequestInit | undefined): Promise<Response>; (input: string | Request | URL, init?: RequestInit | undefined): Promise<...>; }'.
+tests/api/design/figma-import.test.ts(20,5): error TS2322: Type 'Mock<Promise<{ ok: boolean; json: () => Promise<{ name: string; document: { children: number[]; }; }>; }>, [], any>' is not assignable to type '{ (input: URL | RequestInfo, init?: RequestInit | undefined): Promise<Response>; (input: string | Request | URL, init?: RequestInit | undefined): Promise<...>; }'.
+  Type 'Promise<{ ok: boolean; json: () => Promise<{ name: string; document: { children: number[]; }; }>; }>' is not assignable to type 'Promise<Response>'.
+    Type '{ ok: boolean; json: () => Promise<{ name: string; document: { children: number[]; }; }>; }' is missing the following properties from type 'Response': headers, redirected, status, statusText, and 10 more.
+tests/api/design/frames.test.ts(10,23): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+tests/api/design/frames.test.ts(14,16): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+tests/api/design/frames.test.ts(31,16): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+tests/api/design/frames.test.ts(48,16): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+tests/api/design/frames.test.ts(65,16): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+tests/api/design/frames.test.ts(67,16): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+tests/api/design/frames.test.ts(83,16): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+tests/api/design/frames.test.ts(94,16): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+tests/api/design/frames.test.ts(107,16): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+tests/api/health.test.ts(107,24): error TS2367: This comparison appears to be unintentional because the types '"unhealthy"' and '"healthy"' have no overlap.
+tests/api/health.test.ts(107,53): error TS2367: This comparison appears to be unintentional because the types '"unhealthy"' and '"degraded"' have no overlap.
+tests/api/knowledge/scan-files.test.ts(16,27): error TS2345: Argument of type 'Request' is not assignable to parameter of type 'NextRequest'.
+  Type 'Request' is missing the following properties from type 'NextRequest': cookies, nextUrl, page, ua
+tests/api/theater/theater.test.ts(4,7): error TS2451: Cannot redeclare block-scoped variable 'ns'.
+tests/api/theater/theater.test.ts(27,10): error TS2393: Duplicate function implementation.
+tests/api/theater/theater.test.ts(31,10): error TS2393: Duplicate function implementation.
+tests/e2e/auth.spec.ts(41,59): error TS2769: No overload matches this call.
+  Overload 1 of 5, '(condition: boolean, description?: string | undefined): void', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type 'boolean'.
+  Overload 2 of 5, '(callback: (args: PlaywrightTestArgs & PlaywrightTestOptions & PlaywrightWorkerArgs & PlaywrightWorkerOptions) => boolean, description?: string | undefined): void', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type '(args: PlaywrightTestArgs & PlaywrightTestOptions & PlaywrightWorkerArgs & PlaywrightWorkerOptions) => boolean'.
+tests/e2e/launch-verification.spec.ts(9,24): error TS2724: '"@playwright/test"' has no exported member named 'page'. Did you mean 'Page'?
+tests/lib/agents/stream-route.test.ts(1,55): error TS2307: Cannot find module '@jest/globals' or its corresponding type declarations.
+tests/lib/ai-router-circuit-breaker.test.ts(8,8): error TS2307: Cannot find module '../../../../packages/shared-api/ai-router' or its corresponding type declarations.
+tests/lib/ai-router-failover.test.ts(3,49): error TS2307: Cannot find module '../../../../packages/shared-api/ai-router' or its corresponding type declarations.
+tests/lib/design-to-code.test.ts(1,55): error TS2307: Cannot find module '@jest/globals' or its corresponding type declarations.
+tests/lib/design-to-code.test.ts(57,42): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+tests/lib/design-to-code.test.ts(58,58): error TS2345: Argument of type '{ figmaUrl: string; filePath: string; }' is not assignable to parameter of type 'boolean'.
+tests/lib/file-system.git.test.ts(13,30): error TS2339: Property 'mock' does not exist on type '{ (input: URL | RequestInfo, init?: RequestInit | undefined): Promise<Response>; (input: string | Request | URL, init?: RequestInit | undefined): Promise<...>; }'.
+tests/lib/file-system.git.test.ts(24,35): error TS2339: Property 'mock' does not exist on type '{ (input: URL | RequestInfo, init?: RequestInit | undefined): Promise<Response>; (input: string | Request | URL, init?: RequestInit | undefined): Promise<...>; }'.
+tests/lib/orchestrator-real.test.ts(26,13): error TS2339: Property 'FieldValue' does not exist on type 'Mock<{ collection: Mock<{ doc: Mock<{ set: Mock<Promise<void>, [u: any, o: any], any>; get: Mock<Promise<{ exists: boolean; data: () => Record<string, any>; }>, [], any>; }, [], any>; }, [], any>; FieldValue: { ...; }; Timestamp: { ...; }; }, [], any>'.
+tests/lib/orchestrator-real.test.ts(27,13): error TS2339: Property 'Timestamp' does not exist on type 'Mock<{ collection: Mock<{ doc: Mock<{ set: Mock<Promise<void>, [u: any, o: any], any>; get: Mock<Promise<{ exists: boolean; data: () => Record<string, any>; }>, [], any>; }, [], any>; }, [], any>; FieldValue: { ...; }; Timestamp: { ...; }; }, [], any>'.
+tests/lib/orchestrator-real.test.ts(36,49): error TS2307: Cannot find module '@jest/globals' or its corresponding type declarations.
+tests/lib/orchestrator-real.test.ts(451,45): error TS2345: Argument of type '{ jsonrpc: string; method: string; params: { query: string; limit: number; }; id: number; }' is not assignable to parameter of type 'MCPRequest'.
+  Types of property 'jsonrpc' are incompatible.
+    Type 'string' is not assignable to type '"2.0"'.
+tests/lib/persistence.test.ts(1,44): error TS2307: Cannot find module '@jest/globals' or its corresponding type declarations.
+tests/lib/persistence.test.ts(5,45): error TS7006: Parameter 'x' implicitly has an 'any' type.
+tests/lib/persistence.test.ts(18,29): error TS7006: Parameter 'u' implicitly has an 'any' type.
+tests/lib/persistence.test.ts(18,32): error TS7006: Parameter 'o' implicitly has an 'any' type.
+tests/lib/persistence.test.ts(35,29): error TS7006: Parameter 'u' implicitly has an 'any' type.
+tests/lib/persistence.test.ts(35,32): error TS7006: Parameter 'o' implicitly has an 'any' type.
+tests/lib/persistence.test.ts(42,33): error TS7006: Parameter 'u' implicitly has an 'any' type.
+tests/lib/persistence.test.ts(42,36): error TS7006: Parameter 'o' implicitly has an 'any' type.
+tests/lib/persistence.test.ts(101,41): error TS2345: Argument of type '{ timestamp: string; type: string; content: string; metadata: { tokensUsed: number; model: string; }; }' is not assignable to parameter of type 'PersistenceStep'.
+  Types of property 'type' are incompatible.
+    Type 'string' is not assignable to type '"error" | "action" | "result" | "thought" | "observation"'.
+tests/lib/services/agent-orchestrator.test.ts(10,20): error TS2345: Argument of type 'typeof AgentOrchestrator' is not assignable to parameter of type 'typeof AgentOrchestrator & (new (...args: any[]) => any)'.
+  Type 'typeof AgentOrchestrator' is not assignable to type 'new (...args: any[]) => any'.
+    Cannot assign a 'private' constructor type to a 'public' constructor type.
+tests/lib/services/agent-orchestrator.test.ts(15,20): error TS2345: Argument of type 'typeof AgentOrchestrator' is not assignable to parameter of type 'typeof AgentOrchestrator & (new (...args: any[]) => any)'.
+  Type 'typeof AgentOrchestrator' is not assignable to type 'new (...args: any[]) => any'.
+    Cannot assign a 'private' constructor type to a 'public' constructor type.
+tests/lib/services/constitutional-core.test.ts(10,20): error TS2345: Argument of type 'typeof ConstitutionalCore' is not assignable to parameter of type 'typeof ConstitutionalCore & (new (...args: any[]) => any)'.
+  Type 'typeof ConstitutionalCore' is not assignable to type 'new (...args: any[]) => any'.
+    Cannot assign a 'private' constructor type to a 'public' constructor type.
+tests/lib/services/constitutional-core.test.ts(15,20): error TS2345: Argument of type 'typeof ConstitutionalCore' is not assignable to parameter of type 'typeof ConstitutionalCore & (new (...args: any[]) => any)'.
+  Type 'typeof ConstitutionalCore' is not assignable to type 'new (...args: any[]) => any'.
+    Cannot assign a 'private' constructor type to a 'public' constructor type.
+tests/lib/services/container-orchestration.test.ts(11,15): error TS2741: Property 'visibility' is missing in type '{ internal: number; external: number; protocol: "tcp"; }' but required in type '{ internal: number; external: number; protocol: "tcp" | "udp"; visibility: "private" | "organization" | "public"; label?: string | undefined; }'.
+tests/lib/services/container-orchestration.test.ts(13,17): error TS2741: Property 'type' is missing in type '{ host: string; container: string; readonly: false; }' but required in type '{ host: string; type: "bind" | "volume" | "tmpfs"; container: string; readonly: boolean; }'.
+tests/lib/services/security-layer.test.ts(10,20): error TS2345: Argument of type 'typeof SecurityLayer' is not assignable to parameter of type 'typeof SecurityLayer & (new (...args: any[]) => any)'.
+  Type 'typeof SecurityLayer' is not assignable to type 'new (...args: any[]) => any'.
+    Cannot assign a 'private' constructor type to a 'public' constructor type.
+tests/lib/services/security-layer.test.ts(15,20): error TS2345: Argument of type 'typeof SecurityLayer' is not assignable to parameter of type 'typeof SecurityLayer & (new (...args: any[]) => any)'.
+  Type 'typeof SecurityLayer' is not assignable to type 'new (...args: any[]) => any'.
+    Cannot assign a 'private' constructor type to a 'public' constructor type.
+tests/lib/services/security-layer.test.ts(105,22): error TS2345: Argument of type 'typeof SecurityLayer' is not assignable to parameter of type 'typeof SecurityLayer & (new (...args: any[]) => any)'.
+  Type 'typeof SecurityLayer' is not assignable to type 'new (...args: any[]) => any'.
+    Cannot assign a 'private' constructor type to a 'public' constructor type.
+tests/lib/services/workspace-manager.test.ts(10,20): error TS2345: Argument of type 'typeof WorkspaceManager' is not assignable to parameter of type 'typeof WorkspaceManager & (new (...args: any[]) => any)'.
+  Type 'typeof WorkspaceManager' is not assignable to type 'new (...args: any[]) => any'.
+    Cannot assign a 'private' constructor type to a 'public' constructor type.
+tests/lib/services/workspace-manager.test.ts(15,20): error TS2345: Argument of type 'typeof WorkspaceManager' is not assignable to parameter of type 'typeof WorkspaceManager & (new (...args: any[]) => any)'.
+  Type 'typeof WorkspaceManager' is not assignable to type 'new (...args: any[]) => any'.
+    Cannot assign a 'private' constructor type to a 'public' constructor type.

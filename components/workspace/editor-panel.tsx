@@ -5,6 +5,7 @@ import dynamic from "next/dynamic"
 import { motion, AnimatePresence } from "framer-motion"
 import { getLanguageByExtension, type LanguageSupport } from "@/lib/languages"
 import { LanguageSelector } from "./language-selector"
+import { cn } from "@/lib/utils"
 // Yjs imports moved to dynamic import to prevent build hangs
 // import * as Y from "yjs"
 // import { WebsocketProvider } from "y-websocket"
@@ -160,26 +161,34 @@ export function EditorPanel({ activeFile, openFiles, onFileSelect, onCloseFile }
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-background">
       {/* Breadcrumb */}
-      <div className="flex items-center justify-between px-4 py-1 text-xs text-muted-foreground border-b border-border bg-muted/20">
-        <div className="flex items-center gap-1">
-          <span>app</span>
-          <ChevronRight className="w-3 h-3" />
-          <span className="text-foreground">{activeFile}</span>
+      <div className="flex items-center justify-between px-3 py-1 text-[11px] text-muted-foreground border-b border-border/20 bg-background/50">
+        <div className="flex items-center gap-1 min-w-0 overflow-hidden">
+          {activeFile.split('/').map((segment, i, arr) => (
+            <span key={i} className="flex items-center gap-1 shrink-0">
+              {i > 0 && <ChevronRight className="w-3 h-3 opacity-40" />}
+              <span className={cn(
+                "hover:text-foreground cursor-pointer transition-colors truncate",
+                i === arr.length - 1 && "text-foreground font-medium"
+              )}>{segment}</span>
+            </span>
+          ))}
         </div>
 
         {/* Collaboration Status */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0 ml-3">
           {collaborators.length > 0 && (
-            <div className="flex items-center gap-1 text-green-400">
+            <div className="flex items-center gap-1 text-emerald-500 text-[10px]">
               <Users className="w-3 h-3" />
-              <span>{collaborators.length + 1}</span>
+              <span>{collaborators.length + 1} online</span>
             </div>
           )}
-          <div className={`flex items-center gap-1 ${isConnected ? 'text-green-400' : 'text-yellow-400'}`}>
+          <div className={cn(
+            "flex items-center gap-1 text-[10px]",
+            isConnected ? 'text-emerald-500' : 'text-amber-500'
+          )}>
             {isConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-            <span>{isConnected ? 'Connected' : 'Offline'}</span>
           </div>
-          <div className="h-3 w-px bg-border" />
+          <div className="h-3 w-px bg-border/40" />
           <LanguageSelector
             currentFileName={activeFile}
             currentLanguageId={overrideLanguage?.id}
@@ -189,29 +198,41 @@ export function EditorPanel({ activeFile, openFiles, onFileSelect, onCloseFile }
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center border-b border-border bg-muted/30 overflow-x-auto">
-        {openFiles.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => onFileSelect(tab)}
-            className={`group flex items-center gap-2 px-4 py-2 text-sm border-r border-border transition-colors ${activeFile === tab
-              ? "bg-background text-foreground border-t-2 border-t-primary -mb-px"
-              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-              }`}
-          >
-            <FileCode className={`w-4 h-4 ${getFileIcon(tab)}`} />
-            <span>{tab}</span>
+      <div className="flex items-center border-b border-border/30 bg-muted/10 overflow-x-auto scrollbar-hide">
+        {openFiles.map((tab) => {
+          const isActive = activeFile === tab
+          const fileName = tab.split('/').pop() || tab
+          const ext = '.' + fileName.split('.').pop()
+          return (
             <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onCloseFile(tab)
-              }}
-              className="ml-1 p-0.5 rounded hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+              key={tab}
+              onClick={() => onFileSelect(tab)}
+              className={cn(
+                "group flex items-center gap-1.5 pl-3 pr-2 h-[35px] text-[13px] border-r border-border/20 transition-all relative whitespace-nowrap",
+                isActive
+                  ? "bg-background text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+              )}
             >
-              <X className="w-3 h-3" />
+              {/* Active tab top highlight */}
+              {isActive && <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />}
+              {/* Inactive tab bottom border covers panel border */}
+              {!isActive && <div className="absolute bottom-0 left-0 right-0 h-px bg-border/20" />}
+
+              <FileCode className={cn("w-3.5 h-3.5 shrink-0", getFileIcon(tab))} />
+              <span className={cn("truncate max-w-[120px]", isActive && "font-medium")}>{fileName}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onCloseFile(tab)
+                }}
+                className="ml-1 p-0.5 rounded-sm hover:bg-muted/80 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="w-3 h-3" />
+              </button>
             </button>
-          </button>
-        ))}
+          )
+        })}
       </div>
 
       {/* AI Suggestion Banner */}
@@ -284,19 +305,39 @@ export function EditorPanel({ activeFile, openFiles, onFileSelect, onCloseFile }
             initBinding();
           }}
           options={{
-            minimap: { enabled: false },
+            minimap: { enabled: true, scale: 1, showSlider: 'mouseover', renderCharacters: false },
             fontSize: 13,
+            lineHeight: 20,
             lineNumbers: "on",
             scrollBeyondLastLine: false,
             automaticLayout: true,
             tabSize: 2,
             wordWrap: "on",
-            padding: { top: 16 },
-            fontFamily: "var(--font-jetbrains-mono), monospace",
+            padding: { top: 12, bottom: 12 },
+            fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace",
+            fontLigatures: true,
             cursorBlinking: "smooth",
+            cursorSmoothCaretAnimation: "on",
             smoothScrolling: true,
             renderLineHighlight: "all",
+            renderLineHighlightOnlyWhenFocus: false,
             bracketPairColorization: { enabled: true },
+            guides: { bracketPairs: true, indentation: true, highlightActiveIndentation: true },
+            stickyScroll: { enabled: true },
+            suggest: { preview: true, showMethods: true, showFunctions: true, showStatusBar: true },
+            inlineSuggest: { enabled: true },
+            parameterHints: { enabled: true },
+            folding: true,
+            foldingStrategy: "indentation",
+            showFoldingControls: "mouseover",
+            overviewRulerLanes: 3,
+            colorDecorators: true,
+            contextmenu: true,
+            mouseWheelZoom: true,
+            linkedEditing: true,
+            occurrencesHighlight: "singleFile",
+            selectionHighlight: true,
+            codeLens: true,
           }}
         />
       </div>

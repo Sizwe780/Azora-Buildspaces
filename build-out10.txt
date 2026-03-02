@@ -1,4 +1,0 @@
-﻿
-> azora-buildspaces@0.1.0 build C:\Users\Azora Sapiens\azora-buildspaces-standalone
-> next build
-

@@ -83,7 +83,7 @@ class ExecutionEnvironmentService {
       },
       runtime: 'docker',
       extensions: devContainerConfig.customizations?.vscode?.extensions || [],
-    } as ContainerConfig;
+    } as unknown as ContainerConfig;
   }
 }
 
