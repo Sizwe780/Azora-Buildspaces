@@ -15,7 +15,8 @@ import {
     ChevronDown, ChevronRight
 } from "lucide-react";
 import * as Y from "yjs";
-import { WebsocketProvider } from "y-websocket";
+// Dynamic import for browser-only module
+const getWebsocketProvider = () => import("y-websocket").then(m => m.WebsocketProvider);
 
 interface Task {
     id: string;
@@ -34,7 +35,7 @@ interface Task {
 
 interface TaskBoardProps {
     ydoc: Y.Doc;
-    provider: WebsocketProvider;
+    provider: any;
 }
 
 const COLUMNS: { id: Task["status"]; title: string; accent: string; dot: string }[] = [
@@ -60,8 +61,21 @@ export default function TaskBoard({ ydoc, provider }: TaskBoardProps) {
     const [editTitle, setEditTitle] = useState("");
     const [editDesc, setEditDesc] = useState("");
     const [newComment, setNewComment] = useState("");
+    const sharedComments = ydoc.getMap<string[]>("task-comments");
     const [comments, setComments] = useState<Record<string, string[]>>({});
     const sharedTasks = ydoc.getMap<Task>("tasks-map");
+
+    // Sync comments from Yjs shared map
+    useEffect(() => {
+        const updateComments = () => {
+            const c: Record<string, string[]> = {};
+            sharedComments.forEach((val, key) => { c[key] = val; });
+            setComments(c);
+        };
+        sharedComments.observe(updateComments);
+        updateComments();
+        return () => sharedComments.unobserve(updateComments);
+    }, [ydoc]);
 
     useEffect(() => {
         const update = () => setTasks(Array.from(sharedTasks.values()));
@@ -312,10 +326,8 @@ export default function TaskBoard({ ydoc, provider }: TaskBoardProps) {
                                         onChange={e => setNewComment(e.target.value)}
                                         onKeyDown={e => {
                                             if (e.key === "Enter" && newComment.trim()) {
-                                                setComments(prev => ({
-                                                    ...prev,
-                                                    [selectedTask.id]: [...(prev[selectedTask.id] || []), newComment.trim()]
-                                                }));
+                                                const existing = sharedComments.get(selectedTask.id) || [];
+                                                sharedComments.set(selectedTask.id, [...existing, newComment.trim()]);
                                                 setNewComment("");
                                             }
                                         }}

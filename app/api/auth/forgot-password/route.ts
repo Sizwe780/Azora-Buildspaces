@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/database/client';
-import crypto from 'crypto';
 import { logAuthEvent } from '@/lib/auth-audit';
 
 /**
  * POST /api/auth/forgot-password
  * 
  * Initiates password reset flow.
- * Generates a temporary reset token and sends email (simulated).
  * 
  * Constitutional Alignment:
  * - User Sovereignty: Users can recover their accounts
@@ -16,6 +14,13 @@ import { logAuthEvent } from '@/lib/auth-audit';
  */
 export async function POST(req: Request) {
   try {
+    if (process.env.AUTH_PASSWORD_RESET_ENABLED !== 'true') {
+      return NextResponse.json(
+        { error: 'Password reset is not configured in this environment' },
+        { status: 503 }
+      )
+    }
+
     const { email } = await req.json();
 
     if (!email) {
@@ -50,38 +55,21 @@ export async function POST(req: Request) {
       });
     }
 
-    // Generate reset token
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
-    const resetTokenExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
-
-    // Store reset token in database
-    // Note: passwordResetToken/passwordResetExpires fields pending schema migration
-    // await prisma.user.update({
-    //   where: { id: user.id },
-    //   data: {
-    //     passwordResetToken: resetTokenHash,
-    //     passwordResetExpires: resetTokenExpires
-    //   }
-    // });
-
-    const resetLink = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/auth/reset-password?token=${resetToken}`;
-
-    // Audit the password reset request
+    // Token persistence/email delivery are schema/provider dependent and must be wired before use.
     await logAuthEvent({
       action: 'PASSWORD_RESET',
       userId: user.id,
       userEmail: normalizedEmail,
       ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
       userAgent: req.headers.get('user-agent') || undefined,
-      success: true,
-      metadata: { tokenExpires: resetTokenExpires.toISOString() },
+      success: false,
+      reason: 'Password reset requested but reset-token persistence is unavailable',
     });
 
-    return NextResponse.json({
-      success: true,
-      message: 'Password reset link has been sent to your email. Please check your inbox and spam folder.'
-    });
+    return NextResponse.json(
+      { error: 'Password reset backend is unavailable: reset-token persistence schema is not configured' },
+      { status: 503 }
+    );
 
   } catch (error) {
     console.error('[AUTH] Forgot password error:', error);

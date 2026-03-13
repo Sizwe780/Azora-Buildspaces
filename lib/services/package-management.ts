@@ -1,3 +1,5 @@
+import fs from 'fs/promises'
+import path from 'path'
 /**
  * Package Management Service (Task 15)
  * 
@@ -123,23 +125,86 @@ class PackageManagementService {
     return cmds[pm]?.trim() || `${pm} install ${packageName}`
   }
 
-  // Search packages (simulated — in production calls registry APIs)
+  // Search packages using provider-backed registry APIs
   async searchPackages(query: string, registry: PackageManager = 'npm'): Promise<PackageSearchResult[]> {
-    // Simulated search results
-    return [
-      { name: query, version: '1.0.0', description: `A package for ${query}`, keywords: [query], downloads: 10000, score: 0.9, license: 'MIT', lastUpdated: new Date().toISOString() },
-    ]
+    const text = query.trim()
+    if (!text) return []
+
+    // Use npm registry search for JS package managers
+    if (['npm', 'pnpm', 'yarn', 'bun'].includes(registry)) {
+      try {
+        const res = await fetch(`https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(text)}&size=12`)
+        if (!res.ok) return []
+        const data = await res.json()
+        const objects = Array.isArray(data?.objects) ? data.objects : []
+        return objects.map((obj: any) => ({
+          name: obj.package?.name || text,
+          version: obj.package?.version || 'latest',
+          description: obj.package?.description || '',
+          keywords: obj.package?.keywords || [],
+          downloads: obj.score?.detail?.popularity ? Math.round(obj.score.detail.popularity * 1_000_000) : 0,
+          score: typeof obj.score?.final === 'number' ? obj.score.final : 0,
+          license: obj.package?.license || 'UNKNOWN',
+          lastUpdated: obj.package?.date || new Date().toISOString(),
+        }))
+      } catch {
+        return []
+      }
+    }
+
+    return []
   }
 
   // Get dependency tree
   async getDependencyTree(projectPath: string): Promise<DependencyNode> {
-    return {
-      name: 'root',
-      version: '0.0.0',
-      children: [],
-      isDev: false,
-      hasVulnerability: false,
-      depth: 0,
+    const resolvedProjectPath = path.isAbsolute(projectPath)
+      ? projectPath
+      : path.resolve(process.cwd(), projectPath)
+
+    const packageJsonPath = path.join(resolvedProjectPath, 'package.json')
+
+    try {
+      const raw = await fs.readFile(packageJsonPath, 'utf-8')
+      const packageJson = JSON.parse(raw)
+      const dependencies = packageJson.dependencies || {}
+      const devDependencies = packageJson.devDependencies || {}
+
+      const children: DependencyNode[] = [
+        ...Object.entries(dependencies).map(([name, version]) => ({
+          name,
+          version: String(version),
+          children: [],
+          isDev: false,
+          hasVulnerability: false,
+          depth: 1,
+        })),
+        ...Object.entries(devDependencies).map(([name, version]) => ({
+          name,
+          version: String(version),
+          children: [],
+          isDev: true,
+          hasVulnerability: false,
+          depth: 1,
+        })),
+      ]
+
+      return {
+        name: packageJson.name || 'root',
+        version: packageJson.version || '0.0.0',
+        children,
+        isDev: false,
+        hasVulnerability: false,
+        depth: 0,
+      }
+    } catch {
+      return {
+        name: 'root',
+        version: '0.0.0',
+        children: [],
+        isDev: false,
+        hasVulnerability: false,
+        depth: 0,
+      }
     }
   }
 

@@ -14,6 +14,44 @@ const VALID_BUILD_TYPES = ['production', 'preview', 'debug'] as const
 type DeployEnvironment = typeof VALID_ENVIRONMENTS[number]
 type BuildType = typeof VALID_BUILD_TYPES[number]
 
+interface DeployPayload {
+  environment: string
+  buildType: string
+  projectName?: string
+  projectId?: string
+}
+
+function normalizeDeployPayload(input: Record<string, unknown>): DeployPayload {
+  const projectId = typeof input.projectId === 'string' ? input.projectId.trim() : ''
+  const projectName = typeof input.projectName === 'string' ? input.projectName.trim() : ''
+  const environment = typeof input.environment === 'string' && input.environment.trim()
+    ? input.environment.trim().toLowerCase()
+    : 'staging'
+  const buildType = typeof input.buildType === 'string' && input.buildType.trim()
+    ? input.buildType.trim().toLowerCase()
+    : 'production'
+
+  return {
+    environment,
+    buildType,
+    projectName: projectName || projectId || undefined,
+    projectId: projectId || undefined,
+  }
+}
+
+function buildDeployReadiness() {
+  return {
+    workspaceCommandsEnabled: process.env.WORKSPACE_COMMANDS_ENABLED === 'true',
+    providerAdapterConfigured: false,
+    deployEndpoint: '/api/deploy',
+    presetDeploymentEndpoint: '/api/deployment',
+  }
+}
+
+function isDeployBackendReadinessError(message: string): boolean {
+  return /workspace command backend is not configured|requires provider adapter integration/i.test(message)
+}
+
 /**
  * Pre-flight validation results.
  */
@@ -104,8 +142,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}))
-    const { environment = 'staging', buildType = 'production', projectName } = body
+    const payload = normalizeDeployPayload(body)
+    const { environment, buildType, projectName, projectId } = payload
     const userId = (session.user as any).id;
+
+    if (String(body.action || '').toLowerCase() === 'status') {
+      return NextResponse.json({
+        ready: false,
+        readiness: buildDeployReadiness(),
+      })
+    }
 
     // ── Pre-flight validation ────────────────────────────────────────
     const preflight = runPreflightChecks(environment, buildType, projectName)
@@ -173,10 +219,45 @@ export async function POST(request: NextRequest) {
 
     // ── Execute deployment ───────────────────────────────────────────
     const wm = WorkspaceManager.getInstance()
-    const deployResult = await wm.executeCommand({ type: 'deploy', parameters: { environment, buildType, projectName } })
+    let deployResult: any
+    try {
+      deployResult = await wm.executeCommand({ type: 'deploy', parameters: { environment, buildType, projectName, projectId } })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Workspace deployment backend is unavailable'
+      if (isDeployBackendReadinessError(message)) {
+        await auditLogger.log({
+          severity: 'WARNING',
+          category: 'DEPLOYMENT',
+          action: 'DEPLOY_BACKEND_NOT_READY',
+          userId: action.userId,
+          metadata: {
+            environment,
+            buildType,
+            projectName,
+            projectId,
+            message,
+            readiness: buildDeployReadiness(),
+          },
+          constitutionalScore: verification.score,
+          constitutionalAllowed: verification.allowed,
+        })
+
+        return NextResponse.json({
+          success: false,
+          status: 'not_ready',
+          message,
+          preflight,
+          constitutional: { score: verification.score, auditId: verification.auditId },
+          readiness: buildDeployReadiness(),
+        }, { status: 503 })
+      }
+
+      throw error
+    }
 
     return NextResponse.json({
       success: true,
+      status: 'started',
       preflight,
       constitutional: { score: verification.score, auditId: verification.auditId },
       deployResult,

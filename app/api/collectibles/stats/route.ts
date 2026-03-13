@@ -17,31 +17,14 @@ const TIER_WEIGHTS: Record<string, number> = {
   mythical: 32,
 }
 
-// In-memory aggregate stats (keyed by tier)
-// In production these would be DB aggregates
-const mockStats = {
-  totalCards: 28,
-  mintedCards: 0,
-  totalPowerDistributed: 0,
-  tierBreakdown: {
-    common: 8,
-    uncommon: 9,
-    rare: 7,
-    epic: 3,
-    legendary: 1,
-    mythical: 0,
-  },
-  topAchievements: [
-    { id: "constitutional", name: "Constitutional Developer", power: 10000, unlockCount: 0 },
-    { id: "polymath", name: "Polymath", power: 5000, unlockCount: 0 },
-    { id: "zen-master", name: "Zen Master", power: 2500, unlockCount: 0 },
-    { id: "ai-whisperer", name: "AI Whisperer", power: 2000, unlockCount: 0 },
-    { id: "velocity-king", name: "Velocity King", power: 1500, unlockCount: 0 },
-  ],
-  activeUsers: 0,
-  lastUpdated: new Date().toISOString(),
-}
-
 export async function GET() {
-  return NextResponse.json({ stats: mockStats })
+  void TIER_WEIGHTS
+  return NextResponse.json(
+    {
+      error: "Collectible stats aggregation backend is not configured",
+      success: false,
+      required: ["database aggregate queries", "minted-card index", "achievement unlock counters"],
+    },
+    { status: 503 }
+  )
 }

@@ -1,9 +1,11 @@
 'use client'
 
-import AIStudio from '@/components/rooms/ai-studio'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Sparkles, Lock, Zap, Brain, MessageSquare } from 'lucide-react'
 import Link from 'next/link'
+
+const AIStudio = dynamic(() => import('@/components/rooms/ai-studio'), { ssr: false })
 
 export default function DemoAIStudioPage() {
     return (

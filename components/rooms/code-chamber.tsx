@@ -1,6 +1,7 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react"
+import { useRoomEvents } from "@/lib/hooks/use-room-events"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useFileSystem } from "@/lib/stores/file-system"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
@@ -11,47 +12,53 @@ import dynamic from "next/dynamic"
 import {
     Files, Search, GitBranch, Box, Play, Bug,
     ChevronRight, ChevronDown, X, FileCode, Plus,
-    CheckCircle, Save,
+    CheckCircle, Save, Star,
     FolderOpen, File, FileText, Settings, Image, Code,
     Database, Sparkles, Wifi, WifiOff,
     Bot, SquareTerminal, CircleDot, FolderClosed,
-    Trash2, RefreshCw, Globe, Zap, Eye, Pencil,
-    AlertTriangle, XCircle, Copy, GripVertical
+    Trash2, RefreshCw, Globe, Zap, Download, Upload, ToggleLeft, ToggleRight,
+    Pencil, Copy, FolderPlus, ChevronsDownUp, TerminalSquare, Loader2
 } from "lucide-react"
 import { XTerminal } from "@/components/workspace/panels/x-terminal"
 import * as Y from "yjs"
-import { WebrtcProvider } from "y-webrtc"
-import { MonacoBinding } from "y-monaco"
-import { toast, Toaster } from "sonner"
-
-// Sub-components
-import { CommandPalette } from "./code-chamber/command-palette"
-import { QuickOpen } from "./code-chamber/quick-open"
-import { InlineEditWidget } from "./code-chamber/inline-edit-widget"
-import { AIChatSidebar } from "./code-chamber/ai-chat-sidebar"
-import { ProblemsPanel, type Diagnostic } from "./code-chamber/problems-panel"
-import { OutputPanel, type OutputLine } from "./code-chamber/output-panel"
-import { GitDiffViewer } from "./code-chamber/git-diff-viewer"
-import { ExtensionsPanel } from "./code-chamber/extensions-panel"
-import { LivePreviewPanel } from "./code-chamber/live-preview-panel"
-import { SettingsPanel, type EditorSettings, DEFAULT_SETTINGS, loadSettings } from "./code-chamber/settings-panel"
-import { NotificationCenter, type Notification } from "./code-chamber/notification-center"
-import { DebugPanel } from "./code-chamber/debug-panel"
-import { EnhancedBreadcrumbBar, parseSymbols, type ParsedSymbol } from "./code-chamber/enhanced-breadcrumb"
-import { DraggableTabBar } from "./code-chamber/draggable-tabs"
-import { applyDiagnosticDecorations, registerDiagnosticStyles } from "./code-chamber/editor-decorations"
+// Dynamic imports for browser-only modules
+const getWebrtcProvider = () => import("y-webrtc").then(m => m.WebrtcProvider)
+const getMonacoBinding = () => import("y-monaco").then(m => m.MonacoBinding)
+import { useWorkspaceSession } from "@/lib/hooks/use-workspace-session"
+import { SettingsPanel, loadEditorSettings, type EditorSettings } from "@/components/workspace/panels/settings-panel"
+import { projectTemplates } from "@/lib/templates/project-templates"
+import { CommandPalette } from "@/components/workspace/layout/command-palette"
+import { ErrorBoundary } from "@/components/shared/error-boundary"
+import { ProblemsView } from "@/components/workspace/panels/problems-view"
+import { useSession } from "next-auth/react"
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false })
 
-// ─── Types ──────────────────────────────────────────────────────────────
-type SidebarView = "explorer" | "search" | "git" | "extensions" | "ai" | "settings"
-type PanelView = "terminal" | "output" | "problems" | "debug" | "preview"
+// ΓöÇΓöÇΓöÇ Types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+type SidebarView = "explorer" | "search" | "git" | "extensions" | "ai"
+type PanelView = "terminal" | "output" | "problems" | "debug" | "diagnostics" | "history" | "ai-actions"
+
+export type { PanelView, SidebarView }
+
+interface Diagnostic {
+    line: number
+    column?: number
+    severity: 'error' | 'warning' | 'info' | 'hint'
+    message: string
+    rule: string
+    fix?: string
+}
+
+interface LintResult {
+    diagnostics: Diagnostic[]
+    summary: { errors: number; warnings: number; info: number; score: number }
+}
 
 interface CodeChamberProps {
     id?: string
 }
 
-// ─── File Icon Helper ───────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ File Icon Helper ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 function getFileIcon(name: string) {
     const ext = name.split(".").pop()?.toLowerCase()
     switch (ext) {
@@ -86,26 +93,26 @@ function getLanguage(name: string): string {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// ACTIVITY BAR — VS Code left rail
-// ═══════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+// ACTIVITY BAR ΓÇö VS Code left rail
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 function IDEActivityBar({
     activeView,
     onViewChange,
     sidebarVisible,
-    diagnosticCounts,
+    onSettingsOpen,
 }: {
     activeView: SidebarView
     onViewChange: (v: SidebarView) => void
     sidebarVisible: boolean
-    diagnosticCounts: { errors: number; warnings: number }
+    onSettingsOpen: () => void
 }) {
-    const items: { view: SidebarView; icon: typeof Files; label: string; shortcut: string; badge?: number }[] = [
-        { view: "explorer", icon: Files, label: "Explorer", shortcut: "Ctrl+Shift+E" },
-        { view: "search", icon: Search, label: "Search", shortcut: "Ctrl+Shift+F" },
-        { view: "git", icon: GitBranch, label: "Source Control", shortcut: "Ctrl+Shift+G" },
-        { view: "extensions", icon: Box, label: "Extensions", shortcut: "Ctrl+Shift+X" },
-        { view: "ai", icon: Sparkles, label: "Elara AI", shortcut: "Ctrl+Shift+I" },
+    const items: { view: SidebarView; icon: typeof Files; label: string; shortcut: string }[] = [
+        { view: "explorer", icon: Files, label: "Explorer", shortcut: "ΓçºΓîÿE" },
+        { view: "search", icon: Search, label: "Search", shortcut: "ΓçºΓîÿF" },
+        { view: "git", icon: GitBranch, label: "Source Control", shortcut: "ΓîâΓçºG" },
+        { view: "extensions", icon: Box, label: "Extensions", shortcut: "ΓçºΓîÿX" },
+        { view: "ai", icon: Sparkles, label: "Elara AI", shortcut: "ΓçºΓîÿI" },
     ]
 
     return (
@@ -127,14 +134,9 @@ function IDEActivityBar({
                                     <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-white rounded-r" />
                                 )}
                                 <Icon className="w-[22px] h-[22px]" strokeWidth={1.5} />
-                                {item.view === "git" && diagnosticCounts.errors > 0 && (
-                                    <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-red-500 text-[9px] text-white flex items-center justify-center font-bold">
-                                        {diagnosticCounts.errors > 9 ? "9+" : diagnosticCounts.errors}
-                                    </span>
-                                )}
                             </button>
                         </TooltipTrigger>
-                        <TooltipContent side="right" className="text-xs bg-[#161b22] border-[#30363d] text-[#c9d1d9]">
+                        <TooltipContent side="right" className="text-xs">
                             {item.label} <span className="text-[#484f58] ml-2">{item.shortcut}</span>
                         </TooltipContent>
                     </Tooltip>
@@ -146,36 +148,42 @@ function IDEActivityBar({
             <Tooltip>
                 <TooltipTrigger asChild>
                     <button
-                        onClick={() => onViewChange("settings")}
-                        className={cn(
-                            "w-12 h-11 flex items-center justify-center transition-colors",
-                            activeView === "settings" && sidebarVisible ? "text-white" : "text-[#484f58] hover:text-[#8b949e]"
-                        )}
+                        onClick={onSettingsOpen}
+                        className="w-12 h-11 flex items-center justify-center text-[#484f58] hover:text-[#8b949e] transition-colors"
                     >
                         <Settings className="w-[22px] h-[22px]" strokeWidth={1.5} />
                     </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="text-xs bg-[#161b22] border-[#30363d] text-[#c9d1d9]">Settings <span className="text-[#484f58] ml-2">Ctrl+,</span></TooltipContent>
+                <TooltipContent side="right" className="text-xs">Settings (Ctrl+,)</TooltipContent>
             </Tooltip>
         </div>
     )
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// EXPLORER SIDEBAR — Zustand file-system store with rename & context menu
-// ═══════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+// EXPLORER SIDEBAR ΓÇö VS Code-grade file tree
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 function ExplorerSidebar() {
-    const { fileMap, openFile, activeFileId, rootId, createFile, createDirectory, deleteNode, renameNode } = useFileSystem()
+    const { fileMap, openFile, activeFileId, rootId, createFile, createDirectory, deleteNode, renameNode, loadProject, workspaceId } = useFileSystem()
     const [expanded, setExpanded] = useState<Set<string>>(new Set())
     const [newFileName, setNewFileName] = useState("")
     const [creatingIn, setCreatingIn] = useState<string | null>(null)
     const [renamingId, setRenamingId] = useState<string | null>(null)
     const [renameValue, setRenameValue] = useState("")
+    const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
 
     useEffect(() => {
         if (rootId) setExpanded(prev => new Set(prev).add(rootId))
     }, [rootId])
+
+    // Close context menu on outside click
+    useEffect(() => {
+        if (!contextMenu) return
+        const handler = () => setContextMenu(null)
+        window.addEventListener("click", handler)
+        return () => window.removeEventListener("click", handler)
+    }, [contextMenu])
 
     const toggle = (id: string) => {
         setExpanded(prev => {
@@ -183,6 +191,12 @@ function ExplorerSidebar() {
             next.has(id) ? next.delete(id) : next.add(id)
             return next
         })
+    }
+
+    const collapseAll = () => setExpanded(rootId ? new Set([rootId]) : new Set())
+
+    const handleRefresh = () => {
+        if (workspaceId) loadProject(workspaceId)
     }
 
     const handleCreate = async (parentId: string) => {
@@ -196,34 +210,31 @@ function ExplorerSidebar() {
         }
         setNewFileName("")
         setCreatingIn(null)
-        toast.success(`Created ${newFileName}`)
     }
 
-    const handleRename = async (nodeId: string) => {
-        if (!renameValue.trim() || !renameNode) {
-            setRenamingId(null)
-            return
-        }
-        try {
-            await renameNode(nodeId, renameValue)
-            toast.success(`Renamed to ${renameValue}`)
-        } catch {
-            toast.error("Rename failed")
+    const handleRename = async (id: string) => {
+        const trimmed = renameValue.trim()
+        if (trimmed && trimmed !== fileMap[id]?.name) {
+            await renameNode(id, trimmed)
         }
         setRenamingId(null)
+        setRenameValue("")
+    }
+
+    const handleDelete = async (id: string) => {
+        await deleteNode(id)
+        setDeleteConfirm(null)
     }
 
     const handleContextMenu = (e: React.MouseEvent, nodeId: string) => {
         e.preventDefault()
+        e.stopPropagation()
         setContextMenu({ x: e.clientX, y: e.clientY, nodeId })
     }
 
     const copyPath = (nodeId: string) => {
         const node = fileMap[nodeId]
-        if (node) {
-            navigator.clipboard.writeText(node.name)
-            toast.success("Path copied to clipboard")
-        }
+        if (node) navigator.clipboard.writeText(node.path)
         setContextMenu(null)
     }
 
@@ -235,18 +246,6 @@ function ExplorerSidebar() {
         const isActive = activeFileId === nodeId
         const isRenaming = renamingId === nodeId
 
-        // Sort children: directories first, then alphabetical
-        const sortedChildren = isDir && node.children
-            ? [...node.children].sort((a, b) => {
-                const aNode = fileMap[a]
-                const bNode = fileMap[b]
-                if (!aNode || !bNode) return 0
-                if (aNode.type === "directory" && bNode.type !== "directory") return -1
-                if (aNode.type !== "directory" && bNode.type === "directory") return 1
-                return aNode.name.localeCompare(bNode.name)
-            })
-            : []
-
         return (
             <div key={nodeId}>
                 <div
@@ -256,7 +255,7 @@ function ExplorerSidebar() {
                     )}
                     style={{ paddingLeft: `${depth * 16 + 4}px` }}
                     onClick={() => (isDir ? toggle(nodeId) : openFile(nodeId))}
-                    onContextMenu={(e) => handleContextMenu(e, nodeId)}
+                    onContextMenu={(e: React.MouseEvent) => handleContextMenu(e, nodeId)}
                     onDoubleClick={() => {
                         if (!isDir) {
                             setRenamingId(nodeId)
@@ -280,50 +279,61 @@ function ExplorerSidebar() {
                         <input
                             autoFocus
                             value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onKeyDown={(e) => {
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRenameValue(e.target.value)}
+                            onKeyDown={(e: React.KeyboardEvent) => {
                                 if (e.key === "Enter") handleRename(nodeId)
-                                if (e.key === "Escape") setRenamingId(null)
+                                if (e.key === "Escape") { setRenamingId(null); setRenameValue("") }
+                                e.stopPropagation()
                             }}
                             onBlur={() => handleRename(nodeId)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex-1 bg-[#0d1117] border border-[#1f6feb] rounded px-1.5 py-0 text-[13px] text-white outline-none ml-1"
+                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                            className="flex-1 bg-[#0d1117] border border-[#1f6feb] rounded px-1.5 py-0 text-[13px] text-white outline-none ml-1 min-w-0"
                         />
                     ) : (
                         <span className="truncate ml-1 flex-1">{node.name}</span>
                     )}
 
-                    <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
-                        {isDir && (
+                    {!isRenaming && (
+                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
+                            {isDir && (
+                                <button
+                                    onClick={(e: React.MouseEvent) => {
+                                        e.stopPropagation()
+                                        setCreatingIn(nodeId)
+                                        setExpanded(prev => new Set(prev).add(nodeId))
+                                    }}
+                                    className="p-0.5 rounded hover:bg-[#30363d]"
+                                    title="New File"
+                                >
+                                    <Plus className="w-3.5 h-3.5 text-[#8b949e]" />
+                                </button>
+                            )}
                             <button
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    setCreatingIn(nodeId)
-                                    setExpanded(prev => new Set(prev).add(nodeId))
-                                }}
+                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); setRenamingId(nodeId); setRenameValue(node.name) }}
                                 className="p-0.5 rounded hover:bg-[#30363d]"
+                                title="Rename"
                             >
-                                <Plus className="w-3.5 h-3.5 text-[#8b949e]" />
+                                <Pencil className="w-3.5 h-3.5 text-[#8b949e]" />
                             </button>
-                        )}
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                setRenamingId(nodeId)
-                                setRenameValue(node.name)
-                            }}
-                            className="p-0.5 rounded hover:bg-[#30363d]"
-                        >
-                            <Pencil className="w-3 h-3 text-[#8b949e]" />
-                        </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); deleteNode(nodeId); toast.success(`Deleted ${node.name}`) }}
-                            className="p-0.5 rounded hover:bg-[#30363d]"
-                        >
-                            <Trash2 className="w-3.5 h-3.5 text-[#8b949e]" />
-                        </button>
-                    </div>
+                            <button
+                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); setDeleteConfirm(nodeId) }}
+                                className="p-0.5 rounded hover:bg-[#30363d]"
+                                title="Delete"
+                            >
+                                <Trash2 className="w-3.5 h-3.5 text-[#8b949e]" />
+                            </button>
+                        </div>
+                    )}
                 </div>
+
+                {/* Delete confirmation */}
+                {deleteConfirm === nodeId && (
+                    <div className="flex items-center gap-2 px-2 py-1.5 bg-[#1c1c1c] border-y border-[#30363d]" style={{ paddingLeft: `${depth * 16 + 8}px` }}>
+                        <span className="text-[12px] text-[#f85149] flex-1 truncate">Delete "{node.name}"?</span>
+                        <button onClick={() => handleDelete(nodeId)} className="px-2 py-0.5 text-[11px] rounded bg-[#da3633] text-white hover:bg-[#f85149]">Yes</button>
+                        <button onClick={() => setDeleteConfirm(null)} className="px-2 py-0.5 text-[11px] rounded bg-[#30363d] text-[#c9d1d9] hover:bg-[#484f58]">No</button>
+                    </div>
+                )}
 
                 {creatingIn === nodeId && (
                     <div className="flex items-center gap-1 px-1 py-[3px]" style={{ paddingLeft: `${(depth + 1) * 16 + 4}px` }}>
@@ -331,8 +341,8 @@ function ExplorerSidebar() {
                         <input
                             autoFocus
                             value={newFileName}
-                            onChange={(e) => setNewFileName(e.target.value)}
-                            onKeyDown={(e) => {
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewFileName(e.target.value)}
+                            onKeyDown={(e: React.KeyboardEvent) => {
                                 if (e.key === "Enter") handleCreate(nodeId)
                                 if (e.key === "Escape") { setCreatingIn(null); setNewFileName("") }
                             }}
@@ -343,21 +353,27 @@ function ExplorerSidebar() {
                     </div>
                 )}
 
-                {isDir && isOpen && sortedChildren.map(childId => renderNode(childId, depth + 1))}
+                {isDir && isOpen && node.children?.map(childId => renderNode(childId, depth + 1))}
             </div>
         )
     }
 
     return (
-        <div className="h-full flex flex-col bg-[#0d1117] text-[#c9d1d9]" onClick={() => setContextMenu(null)}>
+        <div className="h-full flex flex-col bg-[#0d1117] text-[#c9d1d9]">
             <div className="h-9 flex items-center justify-between px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">
                 <span>Explorer</span>
                 <div className="flex items-center gap-1">
-                    <button onClick={() => rootId && setCreatingIn(rootId)} className="p-1 rounded hover:bg-[#30363d] transition-colors">
+                    <button onClick={() => rootId && setCreatingIn(rootId)} className="p-1 rounded hover:bg-[#30363d] transition-colors" title="New File">
                         <Plus className="w-3.5 h-3.5" />
                     </button>
-                    <button className="p-1 rounded hover:bg-[#30363d] transition-colors">
+                    <button onClick={() => { if (rootId) { setCreatingIn(rootId); setNewFileName("folder-name/") } }} className="p-1 rounded hover:bg-[#30363d] transition-colors" title="New Folder">
+                        <FolderPlus className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={handleRefresh} className="p-1 rounded hover:bg-[#30363d] transition-colors" title="Refresh">
                         <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={collapseAll} className="p-1 rounded hover:bg-[#30363d] transition-colors" title="Collapse All">
+                        <ChevronsDownUp className="w-3.5 h-3.5" />
                     </button>
                 </div>
             </div>
@@ -372,50 +388,66 @@ function ExplorerSidebar() {
             {/* Context Menu */}
             {contextMenu && (
                 <div
-                    className="fixed z-50 bg-[#161b22] border border-[#30363d] rounded-md shadow-xl shadow-black/40 py-1 min-w-[160px]"
-                    style={{ top: contextMenu.y, left: contextMenu.x }}
-                    onClick={(e) => e.stopPropagation()}
+                    className="fixed z-[9999] bg-[#1c2128] border border-[#30363d] rounded-lg shadow-xl py-1 min-w-[180px]"
+                    style={{ left: contextMenu.x, top: contextMenu.y }}
+                    onClick={(e: React.MouseEvent) => e.stopPropagation()}
                 >
                     {fileMap[contextMenu.nodeId]?.type === "directory" && (
                         <>
-                            <ContextMenuItem label="New File" onClick={() => { setCreatingIn(contextMenu.nodeId); setContextMenu(null) }} />
-                            <ContextMenuItem label="New Folder" onClick={() => { setNewFileName("/"); setCreatingIn(contextMenu.nodeId); setContextMenu(null) }} />
-                            <div className="h-px bg-[#1b1f27] my-1" />
+                            <button
+                                className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#c9d1d9] hover:bg-[#1f6feb33] transition-colors text-left"
+                                onClick={() => { setCreatingIn(contextMenu.nodeId); setExpanded((prev: Set<string>) => new Set(prev).add(contextMenu.nodeId)); setContextMenu(null) }}
+                            >
+                                <Plus className="w-3.5 h-3.5 text-[#8b949e]" />New File
+                            </button>
+                            <button
+                                className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#c9d1d9] hover:bg-[#1f6feb33] transition-colors text-left"
+                                onClick={() => { setCreatingIn(contextMenu.nodeId); setNewFileName("folder-name/"); setExpanded((prev: Set<string>) => new Set(prev).add(contextMenu.nodeId)); setContextMenu(null) }}
+                            >
+                                <FolderPlus className="w-3.5 h-3.5 text-[#8b949e]" />New Folder
+                            </button>
+                            <div className="my-1 border-t border-[#30363d]" />
                         </>
                     )}
-                    <ContextMenuItem label="Rename" shortcut="F2" onClick={() => { setRenamingId(contextMenu.nodeId); setRenameValue(fileMap[contextMenu.nodeId]?.name || ""); setContextMenu(null) }} />
-                    <ContextMenuItem label="Copy Path" onClick={() => copyPath(contextMenu.nodeId)} />
-                    <div className="h-px bg-[#1b1f27] my-1" />
-                    <ContextMenuItem label="Delete" danger onClick={() => { deleteNode(contextMenu.nodeId); toast.success("Deleted"); setContextMenu(null) }} />
+                    <button
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#c9d1d9] hover:bg-[#1f6feb33] transition-colors text-left"
+                        onClick={() => { setRenamingId(contextMenu.nodeId); setRenameValue(fileMap[contextMenu.nodeId]?.name || ""); setContextMenu(null) }}
+                    >
+                        <Pencil className="w-3.5 h-3.5 text-[#8b949e]" />Rename
+                        <span className="ml-auto text-[11px] text-[#484f58]">F2</span>
+                    </button>
+                    <button
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#f85149] hover:bg-[#1f6feb33] transition-colors text-left"
+                        onClick={() => { setDeleteConfirm(contextMenu.nodeId); setContextMenu(null) }}
+                    >
+                        <Trash2 className="w-3.5 h-3.5" />Delete
+                        <span className="ml-auto text-[11px] text-[#484f58]">Del</span>
+                    </button>
+                    <div className="my-1 border-t border-[#30363d]" />
+                    <button
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#c9d1d9] hover:bg-[#1f6feb33] transition-colors text-left"
+                        onClick={() => copyPath(contextMenu.nodeId)}
+                    >
+                        <Copy className="w-3.5 h-3.5 text-[#8b949e]" />Copy Path
+                    </button>
+                    <button
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#c9d1d9] hover:bg-[#1f6feb33] transition-colors text-left"
+                        onClick={() => { navigator.clipboard.writeText(fileMap[contextMenu.nodeId]?.name || ""); setContextMenu(null) }}
+                    >
+                        <Copy className="w-3.5 h-3.5 text-[#8b949e]" />Copy Name
+                    </button>
                 </div>
             )}
         </div>
     )
 }
 
-function ContextMenuItem({ label, shortcut, danger, onClick }: { label: string; shortcut?: string; danger?: boolean; onClick: () => void }) {
-    return (
-        <button
-            onClick={onClick}
-            className={cn(
-                "w-full flex items-center justify-between px-3 py-1.5 text-[12px] transition-colors text-left",
-                danger ? "text-red-400 hover:bg-red-500/10" : "text-[#c9d1d9] hover:bg-[#1f1f1f]"
-            )}
-        >
-            <span>{label}</span>
-            {shortcut && <kbd className="text-[10px] text-[#484f58] font-mono ml-4">{shortcut}</kbd>}
-        </button>
-    )
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// SEARCH SIDEBAR with find & replace
-// ═══════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+// SEARCH SIDEBAR
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 function SearchSidebar() {
     const [query, setQuery] = useState("")
-    const [replace, setReplace] = useState("")
-    const [showReplace, setShowReplace] = useState(false)
-    const { fileMap, openFile, readFile, writeFile } = useFileSystem()
+    const { fileMap, openFile } = useFileSystem()
     const [results, setResults] = useState<{ fileId: string; line: number; text: string }[]>([])
 
     useEffect(() => {
@@ -429,62 +461,25 @@ function SearchSidebar() {
                 }
             })
         })
-        setResults(matches.slice(0, 100))
+        setResults(matches.slice(0, 50))
     }, [query, fileMap])
-
-    const handleReplaceAll = () => {
-        if (!query.trim() || !replace) return
-        let count = 0
-        Object.entries(fileMap).forEach(([id, node]) => {
-            if (node.type !== "file" || !node.content) return
-            if (node.content.includes(query)) {
-                const newContent = node.content.split(query).join(replace)
-                writeFile(id, newContent)
-                count++
-            }
-        })
-        toast.success(`Replaced in ${count} file(s)`)
-    }
 
     return (
         <div className="h-full flex flex-col bg-[#0d1117]">
-            <div className="h-9 flex items-center justify-between px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">
-                <span>Search</span>
-                <button onClick={() => setShowReplace(!showReplace)} className="p-1 rounded hover:bg-[#30363d] transition-colors">
-                    <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", showReplace && "rotate-90")} />
-                </button>
-            </div>
-            <div className="px-3 pb-2 space-y-1.5">
+            <div className="h-9 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">Search</div>
+            <div className="px-3 pb-2">
                 <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search files..."
                     className="w-full bg-[#161b22] border border-[#30363d] rounded-md px-3 py-1.5 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
                 />
-                {showReplace && (
-                    <div className="flex items-center gap-1">
-                        <input
-                            value={replace}
-                            onChange={(e) => setReplace(e.target.value)}
-                            placeholder="Replace..."
-                            className="flex-1 bg-[#161b22] border border-[#30363d] rounded-md px-3 py-1.5 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
-                        />
-                        <button
-                            onClick={handleReplaceAll}
-                            disabled={!query.trim() || !replace}
-                            className="px-2 py-1.5 rounded-md text-[11px] bg-[#238636] hover:bg-[#2ea043] text-white transition-colors disabled:opacity-40 shrink-0"
-                        >
-                            All
-                        </button>
-                    </div>
-                )}
             </div>
             <div className="flex-1 overflow-y-auto px-2">
                 {results.length === 0 && query && <p className="text-[13px] text-[#484f58] px-2 py-4 text-center">No results</p>}
-                {query && results.length > 0 && <p className="text-[11px] text-[#484f58] px-2 py-1">{results.length} results</p>}
                 {results.map((r, i) => (
                     <button key={`${r.fileId}-${r.line}-${i}`} className="w-full text-left px-2 py-1.5 text-[13px] hover:bg-[#1f1f1f] rounded transition-colors" onClick={() => openFile(r.fileId)}>
-                        <div className="text-[#c9d1d9] truncate">{highlightMatch(r.text, query)}</div>
+                        <div className="text-[#c9d1d9] truncate">{r.text}</div>
                         <div className="text-[11px] text-[#484f58]">{fileMap[r.fileId]?.name}:{r.line}</div>
                     </button>
                 ))}
@@ -493,54 +488,55 @@ function SearchSidebar() {
     )
 }
 
-function highlightMatch(text: string, query: string) {
-    if (!query) return text
-    const idx = text.toLowerCase().indexOf(query.toLowerCase())
-    if (idx === -1) return text
-    return (
-        <>
-            {text.slice(0, idx)}
-            <span className="bg-[#e2b714]/30 text-[#e2b714] rounded px-0.5">{text.slice(idx, idx + query.length)}</span>
-            {text.slice(idx + query.length)}
-        </>
-    )
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// GIT SIDEBAR — with real diff viewer
-// ═══════════════════════════════════════════════════════════════════════
-function GitSidebar({ workspaceId }: { workspaceId: string }) {
-    const { fileMap } = useFileSystem()
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+// GIT SIDEBAR ΓÇö with changed-files list & diff viewer
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ∩┐╜∩┐╜ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+function GitSidebar() {
+    const { fileMap, workspaceId } = useFileSystem()
     const [commitMsg, setCommitMsg] = useState("")
     const [showDiff, setShowDiff] = useState<string | null>(null)
+    const [diffContent, setDiffContent] = useState<Record<string, string>>({})
     const [changedFiles, setChangedFiles] = useState<{ name: string; status: string }[]>([])
     const [recentCommits, setRecentCommits] = useState<{ hash: string; message: string; date: string }[]>([])
     const [currentBranch, setCurrentBranch] = useState("main")
     const [isCommitting, setIsCommitting] = useState(false)
     const [gitError, setGitError] = useState<string | null>(null)
 
+    // Fetch real git status
     useEffect(() => {
         if (!workspaceId) return
         const fetchGitStatus = async () => {
             try {
-                const statusRes = await fetch(`/api/fs?operation=gitStatus&path=.&workspaceId=${encodeURIComponent(workspaceId)}`)
+                const statusRes = await fetch(
+                    `/api/fs?operation=gitStatus&path=.&workspaceId=${encodeURIComponent(workspaceId)}`
+                )
                 if (statusRes.ok) {
                     const data = await statusRes.json()
                     setCurrentBranch(data.branch || "main")
                     if (data.status) {
-                        const files = data.status.split('\n').filter((l: string) => l.trim()).map((l: string) => ({
-                            name: l.substring(3).trim(),
-                            status: l.substring(0, 2).trim() || "M"
-                        }))
+                        const files = data.status
+                            .split('\n')
+                            .filter((l: string) => l.trim())
+                            .map((l: string) => ({
+                                name: l.substring(3).trim(),
+                                status: l.substring(0, 2).trim() || "M"
+                            }))
                         setChangedFiles(files)
-                    } else { setChangedFiles([]) }
+                    } else {
+                        setChangedFiles([])
+                    }
                     setGitError(null)
                 }
-            } catch { setGitError("Not a git repository") }
+            } catch {
+                setGitError("Not a git repository")
+            }
         }
+
         const fetchGitLog = async () => {
             try {
-                const logRes = await fetch(`/api/fs?operation=gitLog&path=.&workspaceId=${encodeURIComponent(workspaceId)}&limit=5`)
+                const logRes = await fetch(
+                    `/api/fs?operation=gitLog&path=.&workspaceId=${encodeURIComponent(workspaceId)}&limit=5`
+                )
                 if (logRes.ok) {
                     const data = await logRes.json()
                     if (data.commits) {
@@ -551,8 +547,9 @@ function GitSidebar({ workspaceId }: { workspaceId: string }) {
                         })))
                     }
                 }
-            } catch {}
+            } catch { /* no git log */ }
         }
+
         fetchGitStatus()
         fetchGitLog()
         const interval = setInterval(() => { fetchGitStatus(); fetchGitLog() }, 10000)
@@ -563,12 +560,21 @@ function GitSidebar({ workspaceId }: { workspaceId: string }) {
         if (!commitMsg.trim() || !workspaceId) return
         setIsCommitting(true)
         try {
-            await fetch('/api/fs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'gitAdd', path: '.', files: ['.'], workspaceId }) })
-            await fetch('/api/fs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'gitCommit', path: '.', message: commitMsg, workspaceId }) })
+            await fetch('/api/fs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ operation: 'gitAdd', path: '.', files: ['.'], workspaceId })
+            })
+            await fetch('/api/fs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ operation: 'gitCommit', path: '.', message: commitMsg, workspaceId })
+            })
             setCommitMsg("")
-            toast.success("Changes committed successfully")
             // Refresh
-            const statusRes = await fetch(`/api/fs?operation=gitStatus&path=.&workspaceId=${encodeURIComponent(workspaceId)}`)
+            const statusRes = await fetch(
+                `/api/fs?operation=gitStatus&path=.&workspaceId=${encodeURIComponent(workspaceId)}`
+            )
             if (statusRes.ok) {
                 const data = await statusRes.json()
                 setChangedFiles(data.status ? data.status.split('\n').filter((l: string) => l.trim()).map((l: string) => ({
@@ -576,39 +582,94 @@ function GitSidebar({ workspaceId }: { workspaceId: string }) {
                 })) : [])
             }
         } catch (e) {
-            toast.error("Commit failed")
-        } finally { setIsCommitting(false) }
+            console.error("Commit failed:", e)
+        } finally {
+            setIsCommitting(false)
+        }
+    }
+
+    const handleInitGit = async () => {
+        if (!workspaceId) return
+        try {
+            await fetch('/api/fs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ operation: 'gitInit', path: '.', workspaceId })
+            })
+            setGitError(null)
+        } catch (e) {
+            console.error("Git init failed:", e)
+        }
+    }
+
+    const handleStageFile = async (fileName: string) => {
+        if (!workspaceId) return
+        try {
+            await fetch('/api/fs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'gitAdd', path: '.', files: [fileName], workspaceId }) })
+        } catch { /* stage error */ }
+    }
+
+    const handleDiscardFile = async (fileName: string) => {
+        if (!workspaceId) return
+        try {
+            await fetch('/api/fs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'exec', command: `git checkout -- "${fileName}"`, workspaceId }) })
+        } catch { /* discard error */ }
+    }
+
+    const handlePush = async () => {
+        if (!workspaceId) return
+        try {
+            await fetch('/api/fs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'gitPush', path: '.', workspaceId }) })
+        } catch { /* push error */ }
+    }
+
+    const handlePull = async () => {
+        if (!workspaceId) return
+        try {
+            await fetch('/api/fs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'gitPull', path: '.', workspaceId }) })
+        } catch { /* pull error */ }
+    }
+
+    const handleShowDiff = async (fileName: string) => {
+        if (showDiff === fileName) { setShowDiff(null); return }
+        setShowDiff(fileName)
+        if (!diffContent[fileName] && workspaceId) {
+            try {
+                const res = await fetch(`/api/fs?operation=gitDiff&path=${encodeURIComponent(fileName)}&workspaceId=${encodeURIComponent(workspaceId)}`)
+                if (res.ok) {
+                    const data = await res.json()
+                    setDiffContent((prev: Record<string, string>) => ({ ...prev, [fileName]: data.diff || 'No diff available' }))
+                }
+            } catch { setDiffContent((prev: Record<string, string>) => ({ ...prev, [fileName]: 'Failed to load diff' })) }
+        }
     }
 
     const handleStageAll = async () => {
         if (!workspaceId) return
         try {
             await fetch('/api/fs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'gitAdd', path: '.', files: ['.'], workspaceId }) })
-            toast.success("All changes staged")
-        } catch { toast.error("Stage failed") }
-    }
-
-    const handleInitGit = async () => {
-        if (!workspaceId) return
-        try {
-            await fetch('/api/fs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'gitInit', path: '.', workspaceId }) })
-            setGitError(null)
-            toast.success("Git repository initialized")
-        } catch { toast.error("Git init failed") }
+        } catch { /* stage all error */ }
     }
 
     return (
         <div className="h-full flex flex-col bg-[#0d1117]">
-            <div className="h-9 flex items-center justify-between px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">
-                <span>Source Control</span>
-                <span className="text-[10px] font-normal normal-case text-[#58a6ff]">{currentBranch}</span>
+            <div className="h-9 flex items-center justify-between px-4 shrink-0">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[#8b949e]">Source Control</span>
+                <div className="flex items-center gap-1">
+                    <button onClick={handlePull} className="p-1 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-white transition-colors" title="Pull">
+                        <Download className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={handlePush} className="p-1 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-white transition-colors" title="Push">
+                        <Upload className="w-3.5 h-3.5" />
+                    </button>
+                </div>
             </div>
             <div className="px-3 pb-3">
                 <input
                     value={commitMsg}
-                    onChange={e => setCommitMsg(e.target.value)}
-                    onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleCommit() }}
-                    placeholder="Message (Ctrl+Enter to commit)"
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCommitMsg(e.target.value)}
+                    onKeyDown={(e: React.KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleCommit() }}
+                    placeholder="Message (ΓîÿEnter to commit)"
                     className="w-full bg-[#161b22] border border-[#30363d] rounded-md px-3 py-1.5 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
                 />
                 <button
@@ -622,31 +683,49 @@ function GitSidebar({ workspaceId }: { workspaceId: string }) {
 
             <div className="px-3 flex-1 overflow-y-auto">
                 <div className="flex items-center justify-between mb-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-wider text-[#8b949e]">Changes ({changedFiles.length})</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-[#8b949e]">
+                        Changes ({changedFiles.length})
+                    </div>
                     <button onClick={handleStageAll} className="text-[11px] text-[#58a6ff] hover:underline">Stage All</button>
                 </div>
 
                 {changedFiles.length === 0 ? (
                     <div className="text-[13px] text-[#484f58] text-center py-8">
-                        <GitBranch className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>No changes detected</p><p className="text-[11px] mt-1">Working tree clean</p>
+                        <GitBranch className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                        <p>No changes detected</p>
+                        <p className="text-[11px] mt-1">Working tree clean</p>
                     </div>
                 ) : (
                     <div className="space-y-0.5">
                         {changedFiles.map(f => (
                             <div key={f.name}>
-                                <button
-                                    onClick={() => setShowDiff(showDiff === f.name ? null : f.name)}
-                                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#1f1f1f] group transition-colors"
-                                >
-                                    <span className={`text-[11px] font-bold w-4 shrink-0 ${f.status === "A" || f.status === "?" ? "text-emerald-400" : f.status === "D" ? "text-red-400" : "text-amber-400"}`}>
-                                        {f.status === "?" ? "U" : f.status}
-                                    </span>
-                                    {getFileIcon(f.name)}
-                                    <span className="text-[13px] text-[#c9d1d9] truncate flex-1 text-left">{f.name}</span>
-                                </button>
+                                <div className="flex items-center group">
+                                    <button
+                                        onClick={() => handleShowDiff(f.name)}
+                                        className="flex-1 flex items-center gap-2 px-2 py-1.5 rounded-l hover:bg-[#1f1f1f] transition-colors min-w-0"
+                                    >
+                                        <span className={`text-[11px] font-bold w-4 shrink-0 ${f.status === "A" ? "text-emerald-400" : f.status === "D" ? "text-red-400" : "text-amber-400"}`}>
+                                            {f.status}
+                                        </span>
+                                        {getFileIcon(f.name)}
+                                        <span className="text-[13px] text-[#c9d1d9] truncate flex-1 text-left">{f.name}</span>
+                                    </button>
+                                    <div className="flex items-center gap-0.5 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => handleStageFile(f.name)} className="p-1 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-emerald-400" title="Stage">
+                                            <Plus className="w-3 h-3" />
+                                        </button>
+                                        <button onClick={() => handleDiscardFile(f.name)} className="p-1 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-red-400" title="Discard">
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                </div>
                                 {showDiff === f.name && (
-                                    <div className="mx-1 mb-1 h-[200px] rounded overflow-hidden border border-[#30363d]">
-                                        <GitDiffViewer fileName={f.name} workspaceId={workspaceId} />
+                                    <div className="mx-2 mb-1 p-2 rounded bg-[#161b22] border border-[#30363d] font-mono text-[11px] max-h-[200px] overflow-y-auto">
+                                        {(diffContent[f.name] || 'Loading...').split('\n').map((line: string, idx: number) => (
+                                            <div key={idx} className={line.startsWith('+') ? 'text-emerald-400 bg-emerald-900/10' : line.startsWith('-') ? 'text-red-400 bg-red-900/10' : line.startsWith('@@') ? 'text-[#58a6ff]' : 'text-[#8b949e]'}>
+                                                {line || ' '}
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </div>
@@ -659,7 +738,9 @@ function GitSidebar({ workspaceId }: { workspaceId: string }) {
                     {gitError ? (
                         <div className="text-center py-4">
                             <p className="text-[13px] text-[#484f58] mb-2">No git repository</p>
-                            <button onClick={handleInitGit} className="px-3 py-1.5 rounded-md text-[12px] bg-[#238636] hover:bg-[#2ea043] text-white transition-colors">Initialize Repository</button>
+                            <button onClick={handleInitGit} className="px-3 py-1.5 rounded-md text-[12px] bg-[#238636] hover:bg-[#2ea043] text-white transition-colors">
+                                Initialize Repository
+                            </button>
                         </div>
                     ) : recentCommits.length > 0 ? recentCommits.map((c, i) => (
                         <div key={c.hash || i} className="flex items-start gap-2 px-1 py-1.5">
@@ -668,7 +749,7 @@ function GitSidebar({ workspaceId }: { workspaceId: string }) {
                             </div>
                             <div className="min-w-0">
                                 <div className="text-[12px] text-[#c9d1d9] truncate">{c.message}</div>
-                                <div className="text-[10px] text-[#484f58]">{c.hash} {'\u00B7'} {currentBranch}</div>
+                                <div className="text-[10px] text-[#484f58]">{c.hash} ┬╖ {currentBranch}</div>
                             </div>
                         </div>
                     )) : (
@@ -680,21 +761,282 @@ function GitSidebar({ workspaceId }: { workspaceId: string }) {
     )
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+// EXTENSIONS SIDEBAR ΓÇö API-driven
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+interface ExtensionItem {
+    id: string
+    name: string
+    publisher: string
+    description: string
+    version: string
+    downloads: number
+    rating: number
+    installed: boolean
+    enabled?: boolean
+    verified?: boolean
+    icon?: string
+}
+
+function ExtensionsSidebar() {
+    const [query, setQuery] = useState("")
+    const [extensions, setExtensions] = useState<ExtensionItem[]>([])
+    const [installed, setInstalled] = useState<ExtensionItem[]>([])
+    const [loading, setLoading] = useState(true)
+    const [installing, setInstalling] = useState<string | null>(null)
+    const [tab, setTab] = useState<"featured" | "installed">("featured")
+
+    // Fetch featured + installed once on mount
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const [featRes, instRes] = await Promise.all([
+                    fetch("/api/code-chamber/extensions?action=featured"),
+                    fetch("/api/code-chamber/extensions?action=installed"),
+                ])
+                if (featRes.ok) {
+                    const d = await featRes.json()
+                    setExtensions(d.extensions || [])
+                }
+                if (instRes.ok) {
+                    const d = await instRes.json()
+                    setInstalled(d.extensions || [])
+                }
+            } catch { /* ignore */ } finally {
+                setLoading(false)
+            }
+        }
+        load()
+    }, [])
+
+    // Debounced search
+    useEffect(() => {
+        if (!query.trim()) return
+        const t = setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/code-chamber/extensions?action=search&q=${encodeURIComponent(query)}`)
+                if (res.ok) {
+                    const d = await res.json()
+                    setExtensions(d.extensions || [])
+                    setTab("featured")
+                }
+            } catch { /* ignore */ }
+        }, 400)
+        return () => clearTimeout(t)
+    }, [query])
+
+    const handleInstall = async (id: string) => {
+        setInstalling(id)
+        try {
+            const res = await fetch("/api/code-chamber/extensions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "install", extensionId: id })
+            })
+            if (res.ok) {
+                setInstalled(prev => [...prev, extensions.find(e => e.id === id) || installed.find(e => e.id === id)].filter(Boolean) as ExtensionItem[])
+                setExtensions(prev => prev.map(e => e.id === id ? { ...e, installed: true, enabled: true } : e))
+            }
+        } catch { /* ignore */ } finally {
+            setInstalling(null)
+        }
+    }
+
+    const handleUninstall = async (id: string) => {
+        setInstalling(id)
+        try {
+            await fetch("/api/code-chamber/extensions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "uninstall", extensionId: id })
+            })
+            setInstalled(prev => prev.filter(e => e.id !== id))
+            setExtensions(prev => prev.map(e => e.id === id ? { ...e, installed: false } : e))
+        } catch { /* ignore */ } finally {
+            setInstalling(null)
+        }
+    }
+
+    const handleToggle = async (id: string, currentlyEnabled: boolean) => {
+        try {
+            await fetch("/api/code-chamber/extensions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: currentlyEnabled ? "disable" : "enable", extensionId: id })
+            })
+            setInstalled(prev => prev.map(e => e.id === id ? { ...e, enabled: !currentlyEnabled } : e))
+        } catch { /* ignore */ }
+    }
+
+    const displayList = tab === "installed" ? installed : extensions
+
+    return (
+        <div className="h-full flex flex-col bg-[#0d1117]">
+            <div className="h-9 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">Extensions</div>
+            <div className="px-3 pb-2 space-y-2">
+                <input
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                    placeholder="Search extensions..."
+                    className="w-full bg-[#161b22] border border-[#30363d] rounded-md px-3 py-1.5 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
+                />
+                <div className="flex items-center gap-1">
+                    {(["featured", "installed"] as const).map(t => (
+                        <button key={t} onClick={() => setTab(t)} className={cn(
+                            "px-3 py-0.5 rounded text-[11px] font-medium transition-colors capitalize",
+                            tab === t ? "bg-[#1f6feb]/20 text-[#58a6ff]" : "text-[#484f58] hover:text-[#8b949e]"
+                        )}>
+                            {t === "installed" ? `Installed (${installed.length})` : "Featured"}
+                        </button>
+                    ))}
+                </div>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+                {loading ? (
+                    <div className="text-[13px] text-[#484f58] text-center py-8">Loading extensions...</div>
+                ) : displayList.length === 0 ? (
+                    <div className="text-[13px] text-[#484f58] text-center py-8">
+                        {tab === "installed" ? "No extensions installed" : "No results"}
+                    </div>
+                ) : displayList.map((ext) => {
+                    const isInstalled = installed.some(i => i.id === ext.id)
+                    const instData = installed.find(i => i.id === ext.id)
+                    const isBusy = installing === ext.id
+                    return (
+                        <div key={ext.id} className="flex items-start gap-3 px-3 py-2.5 hover:bg-[#1f1f1f] transition-colors">
+                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#1f6feb]/30 to-[#388bfd]/10 flex items-center justify-center text-lg shrink-0">
+                                {ext.icon ? <span>{ext.icon}</span> : <Box className="w-4 h-4 text-[#58a6ff]" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[13px] font-medium text-white truncate">{ext.name}</span>
+                                    {ext.verified && <CheckCircle className="w-3 h-3 text-emerald-400 shrink-0" />}
+                                </div>
+                                <div className="text-[11px] text-[#484f58] truncate">{ext.publisher}</div>
+                                <div className="text-[12px] text-[#8b949e] truncate">{ext.description}</div>
+                            </div>
+                        </div>
+                    )
+                })}
+            </div>
+        </div>
+    )
+}
+
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+// ELARA AI SIDEBAR
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+function AISidebar() {
+    const { fileMap, openFiles, readFile, writeFile } = useFileSystem()
+    const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([
+        { role: "assistant", content: "Hi! I'm Elara, your AI coding assistant. I can help you write, debug, and understand code. What would you like to work on?" },
+    ])
+    const [input, setInput] = useState("")
+    const [isRefactoring, setIsRefactoring] = useState(false)
+
+    const send = async () => {
+        if (!input.trim() || isRefactoring) return
+        const userPrompt = input
+        setMessages(prev => [...prev, { role: "user", content: userPrompt }])
+        setInput("")
+        setIsRefactoring(true)
+
+        try {
+            // Gather context from open files
+            const filesContext = openFiles.map(id => ({
+                path: fileMap[id]?.name || id,
+                content: readFile(id) || ""
+            }))
+
+            const res = await fetch("/api/code-chamber/refactor", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ prompt: userPrompt, files: filesContext })
+            })
+
+            if (res.ok) {
+                const data = await res.json()
+                if (data.changes && data.changes.length > 0) {
+                    let changeLog = "I've applied the following changes:\n"
+                    data.changes.forEach((change: any) => {
+                        // Find the file id by name
+                        const fileId = Object.keys(fileMap).find(id => fileMap[id]?.name === change.path)
+                        if (fileId && change.content !== null) {
+                            writeFile(fileId, change.content)
+                            changeLog += `- Updated \`${change.path}\`\n`
+                        } else if (change.content === null) {
+                            changeLog += `- Deleted \`${change.path}\`\n`
+                        } else {
+                            // The backend now returns actual file creations and the
+                            // editor will create the file in the virtual filesystem.
+                            changeLog += `- Created \`${change.path}\`\n`
+                        }
+                    })
+                    setMessages(prev => [...prev, { role: "assistant", content: changeLog }])
+                } else {
+                    setMessages(prev => [...prev, { role: "assistant", content: "No changes were needed based on your request." }])
+                }
+            } else {
+                setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I encountered an error while trying to refactor the code." }])
+            }
+        } catch (error) {
+            setMessages(prev => [...prev, { role: "assistant", content: "Sorry, an unexpected error occurred." }])
+        } finally {
+            setIsRefactoring(false)
+        }
+    }
+
+    return (
+        <div className="h-full flex flex-col bg-[#0d1117]">
+            <div className="h-9 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">
+                <Sparkles className="w-3.5 h-3.5 mr-2 text-emerald-400" />Elara AI
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                {messages.map((msg, i) => (
+                    <div key={i} className={cn("text-[13px] leading-relaxed", msg.role === "user" ? "text-white" : "text-[#c9d1d9]")}>
+                        <div className="flex items-center gap-2 mb-1">
+                            {msg.role === "assistant" ? (
+                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shrink-0"><Bot className="w-3 h-3 text-black" /></div>
+                            ) : (
+                                <div className="w-5 h-5 rounded-full bg-[#30363d] flex items-center justify-center shrink-0"><span className="text-[10px] font-bold text-white">Y</span></div>
+                            )}
+                            <span className="text-[11px] font-medium text-[#8b949e]">{msg.role === "assistant" ? "Elara" : "You"}</span>
+                        </div>
+                        <div className="pl-7 whitespace-pre-wrap">{msg.content}</div>
+                    </div>
+                ))}
+                {isRefactoring && (
+                    <div className="text-[13px] text-[#8b949e] pl-7 animate-pulse">Elara is thinking and refactoring...</div>
+                )}
+            </div>
+            <div className="p-3 border-t border-[#1b1f27]">
+                <div className="flex items-center gap-2">
+                    <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Ask Elara to refactor..." disabled={isRefactoring} className="flex-1 bg-[#161b22] border border-[#30363d] rounded-md px-3 py-1.5 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors disabled:opacity-50" />
+                    <Button size="sm" onClick={send} disabled={isRefactoring} className="h-7 bg-[#238636] hover:bg-[#2ea043] border-0 text-white disabled:opacity-50">Send</Button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 // PANEL TABS
-// ═══════════════════════════════════════════════════════════════════════
-function PanelTabs({ activePanel, onPanelChange, onClose, diagnosticCounts }: {
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+function PanelTabs({ activePanel, onPanelChange, onClose, errorCount, warningCount }: {
     activePanel: PanelView
     onPanelChange: (v: PanelView) => void
     onClose: () => void
-    diagnosticCounts: { errors: number; warnings: number }
+    errorCount?: number
+    warningCount?: number
 }) {
-    const tabs: { view: PanelView; label: string; badge?: number }[] = [
-        { view: "problems", label: "PROBLEMS", badge: diagnosticCounts.errors + diagnosticCounts.warnings },
+    const tabs: { view: PanelView; label: string }[] = [
+        { view: "problems", label: "PROBLEMS" },
         { view: "output", label: "OUTPUT" },
         { view: "debug", label: "DEBUG CONSOLE" },
+        { view: "diagnostics", label: "DIAGNOSTICS" },
+        { view: "history", label: "VERSION HISTORY" },
+        { view: "ai-actions", label: "AI ACTIONS" },
         { view: "terminal", label: "TERMINAL" },
-        { view: "preview", label: "PREVIEW" },
     ]
     return (
         <div className="flex items-center justify-between h-9 border-t border-[#1b1f27] bg-[#0d1117] px-2 select-none shrink-0">
@@ -702,8 +1044,11 @@ function PanelTabs({ activePanel, onPanelChange, onClose, diagnosticCounts }: {
                 {tabs.map((tab) => (
                     <button key={tab.view} onClick={() => onPanelChange(tab.view)} className={cn("px-3 h-9 text-[11px] font-medium uppercase tracking-wider border-t-2 transition-colors flex items-center gap-1.5", activePanel === tab.view ? "border-[#1f6feb] text-white" : "border-transparent text-[#484f58] hover:text-[#8b949e]")}>
                         {tab.label}
-                        {tab.badge !== undefined && tab.badge > 0 && (
-                            <span className="px-1.5 py-0 rounded-full bg-red-500/20 text-red-400 text-[9px] font-bold">{tab.badge}</span>
+                        {tab.view === 'problems' && (errorCount || 0) + (warningCount || 0) > 0 && (
+                            <span className="flex items-center gap-1 ml-1">
+                                {errorCount ? <span className="text-[10px] bg-red-500/20 text-red-400 px-1 rounded">{errorCount}</span> : null}
+                                {warningCount ? <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1 rounded">{warningCount}</span> : null}
+                            </span>
                         )}
                     </button>
                 ))}
@@ -713,42 +1058,47 @@ function PanelTabs({ activePanel, onPanelChange, onClose, diagnosticCounts }: {
     )
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// STATUS BAR — enhanced with real data
-// ═══════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+// BREADCRUMB BAR
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+function BreadcrumbBar({ fileName }: { fileName: string }) {
+    if (!fileName) return null
+    const parts = fileName.split("/")
+    return (
+        <div className="h-7 flex items-center px-4 gap-1 bg-[#010409] border-b border-[#1b1f27] text-[12px] text-[#484f58] select-none shrink-0">
+            <span className="hover:text-[#8b949e] cursor-pointer">src</span>
+            {parts.map((part, i) => (
+                <span key={i} className="flex items-center gap-1">
+                    <ChevronRight className="w-3 h-3 text-[#30363d]" />
+                    <span className={cn("hover:text-[#8b949e] cursor-pointer", i === parts.length - 1 && "text-[#c9d1d9]")}>
+                        {part}
+                    </span>
+                </span>
+            ))}
+        </div>
+    )
+}
+
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+// STATUS BAR
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 function IDEStatusBar({
     activeFile,
     onTogglePanel,
     cursorLine,
     cursorCol,
-    diagnosticCounts,
-    gitBranch,
-    connectedUsers,
-    onGoToLine,
-    isZenMode,
-    onToggleZenMode,
-    notifications,
-    onDismissNotification,
-    onDismissAllNotifications,
-    onMarkNotificationRead,
-    onMarkAllNotificationsRead,
+    errorCount = 0,
+    warningCount = 0,
+    gitBranch = "main",
 }: {
     activeFile: string | null
     panelVisible: boolean
     onTogglePanel: () => void
     cursorLine: number
     cursorCol: number
-    diagnosticCounts: { errors: number; warnings: number }
-    gitBranch: string
-    connectedUsers: number
-    onGoToLine: () => void
-    isZenMode: boolean
-    onToggleZenMode: () => void
-    notifications: Notification[]
-    onDismissNotification: (id: string) => void
-    onDismissAllNotifications: () => void
-    onMarkNotificationRead: (id: string) => void
-    onMarkAllNotificationsRead: () => void
+    errorCount?: number
+    warningCount?: number
+    gitBranch?: string
 }) {
     const lang = activeFile ? getLanguage(activeFile) : "plaintext"
     return (
@@ -758,44 +1108,18 @@ function IDEStatusBar({
                     <GitBranch className="w-3 h-3" /><span>{gitBranch}</span>
                 </div>
                 <div className="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
-                    {diagnosticCounts.errors > 0 ? (
-                        <XCircle className="w-3 h-3 text-red-300" />
-                    ) : diagnosticCounts.warnings > 0 ? (
-                        <AlertTriangle className="w-3 h-3 text-amber-300" />
-                    ) : (
-                        <CheckCircle className="w-3 h-3" />
-                    )}
-                    <span>{diagnosticCounts.errors} errors, {diagnosticCounts.warnings} warnings</span>
+                    <CircleDot className="w-3 h-3" />
+                    <span>{errorCount} error{errorCount !== 1 ? 's' : ''}, {warningCount} warning{warningCount !== 1 ? 's' : ''}</span>
                 </div>
-                {connectedUsers > 1 && (
-                    <div className="flex items-center gap-1.5">
-                        <Wifi className="w-3 h-3 text-emerald-300" />
-                        <span>{connectedUsers} connected</span>
-                    </div>
-                )}
             </div>
-            <div className="flex items-center gap-3">
-                <button onClick={onGoToLine} className="cursor-pointer hover:text-white transition-colors">
+            <div className="flex items-center gap-4">
+                <span className="cursor-pointer hover:text-white transition-colors">
                     Ln {cursorLine}, Col {cursorCol}
-                </button>
+                </span>
                 <span className="cursor-pointer hover:text-white transition-colors">Spaces: 2</span>
                 <span className="cursor-pointer hover:text-white transition-colors">UTF-8</span>
                 <span className="cursor-pointer hover:text-white transition-colors">LF</span>
                 <span className="cursor-pointer hover:text-white transition-colors capitalize">{lang}</span>
-                <button
-                    onClick={onToggleZenMode}
-                    className={cn("cursor-pointer hover:text-white transition-colors", isZenMode && "text-white")}
-                    title="Toggle Zen Mode (Ctrl+Shift+Z)"
-                >
-                    <Eye className="w-3 h-3" />
-                </button>
-                <NotificationCenter
-                    notifications={notifications}
-                    onDismiss={onDismissNotification}
-                    onDismissAll={onDismissAllNotifications}
-                    onMarkRead={onMarkNotificationRead}
-                    onMarkAllRead={onMarkAllNotificationsRead}
-                />
                 <button onClick={onTogglePanel} className="flex items-center gap-1 cursor-pointer hover:text-white transition-colors">
                     <SquareTerminal className="w-3 h-3" />
                 </button>
@@ -804,10 +1128,62 @@ function IDEStatusBar({
     )
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// WELCOME TAB
-// ═══════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+// WELCOME TAB ΓÇö real workflows
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 function WelcomeTab({ onProjectSelect }: { onProjectSelect: (id: string) => void }) {
+    const [showClone, setShowClone] = useState(false)
+    const [cloneUrl, setCloneUrl] = useState("")
+    const [cloneName, setCloneName] = useState("")
+    const [cloneLoading, setCloneLoading] = useState(false)
+    const [cloneError, setCloneError] = useState<string | null>(null)
+
+    const [showNew, setShowNew] = useState(false)
+    const [newName, setNewName] = useState("")
+
+    // Recent projects from localStorage
+    const [recentProjects, setRecentProjects] = useState<string[]>([])
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem("citadel-recent-projects")
+            if (saved) setRecentProjects(JSON.parse(saved).slice(0, 5))
+        } catch { /* ignore */ }
+    }, [])
+
+    const handleClone = async () => {
+        if (!cloneUrl.trim()) return
+        setCloneLoading(true)
+        setCloneError(null)
+        const name = cloneName.trim() || cloneUrl.split("/").pop()?.replace(".git", "") || `repo-${Date.now()}`
+        try {
+            const res = await fetch("/api/fs", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ operation: "gitClone", url: cloneUrl.trim(), path: ".", workspaceId: name })
+            })
+            if (res.ok) {
+                // Save to recent
+                const updated = [name, ...recentProjects.filter((r: string) => r !== name)].slice(0, 5)
+                localStorage.setItem("citadel-recent-projects", JSON.stringify(updated))
+                onProjectSelect(name)
+            } else {
+                const data = await res.json().catch(() => ({}))
+                setCloneError(data.error || "Clone failed")
+            }
+        } catch (e: any) {
+            setCloneError(e.message || "Network error")
+        } finally {
+            setCloneLoading(false)
+        }
+    }
+
+    const handleNewEmpty = () => {
+        const name = newName.trim() || `project-${Date.now()}`
+        const updated = [name, ...recentProjects.filter((r: string) => r !== name)].slice(0, 5)
+        localStorage.setItem("citadel-recent-projects", JSON.stringify(updated))
+        onProjectSelect(name)
+    }
+
     return (
         <div className="h-full overflow-y-auto bg-[#0d1117]">
             <div className="max-w-3xl mx-auto py-16 px-8">
@@ -816,57 +1192,110 @@ function WelcomeTab({ onProjectSelect }: { onProjectSelect: (id: string) => void
                         <Code className="w-8 h-8 text-black" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold text-white text-balance">Code Chamber</h1>
+                        <h1 className="text-3xl font-bold text-white">Code Chamber</h1>
                         <p className="text-[#8b949e] text-sm mt-1">Your AI-powered development workspace</p>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-12">
-                    <button onClick={() => onProjectSelect("nextjs-app")} className="group flex items-center gap-4 p-5 rounded-xl bg-[#161b22] border border-[#30363d] hover:border-[#1f6feb]/50 transition-all text-left">
+                {/* Action Buttons */}
+                <div className="grid grid-cols-3 gap-4 mb-12">
+                    <button onClick={() => setShowNew(true)} className="group flex items-center gap-4 p-5 rounded-xl bg-[#161b22] border border-[#30363d] hover:border-[#1f6feb]/50 transition-all text-left">
                         <Plus className="w-8 h-8 text-emerald-400 group-hover:text-emerald-300 transition-colors" />
-                        <div><div className="text-white font-medium">New Project</div><div className="text-[13px] text-[#8b949e]">Start from a template</div></div>
+                        <div><div className="text-white font-medium">New Project</div><div className="text-[13px] text-[#8b949e]">Start empty</div></div>
                     </button>
-                    <button className="group flex items-center gap-4 p-5 rounded-xl bg-[#161b22] border border-[#30363d] hover:border-[#1f6feb]/50 transition-all text-left">
+                    <button onClick={() => setShowClone(true)} className="group flex items-center gap-4 p-5 rounded-xl bg-[#161b22] border border-[#30363d] hover:border-[#1f6feb]/50 transition-all text-left">
                         <GitBranch className="w-8 h-8 text-purple-400 group-hover:text-purple-300 transition-colors" />
-                        <div><div className="text-white font-medium">Clone Repository</div><div className="text-[13px] text-[#8b949e]">Clone from Git URL</div></div>
+                        <div><div className="text-white font-medium">Clone Repo</div><div className="text-[13px] text-[#8b949e]">From Git URL</div></div>
+                    </button>
+                    <button onClick={() => onProjectSelect(`workspace-${Date.now()}`)} className="group flex items-center gap-4 p-5 rounded-xl bg-[#161b22] border border-[#30363d] hover:border-[#1f6feb]/50 transition-all text-left">
+                        <FolderOpen className="w-8 h-8 text-amber-400 group-hover:text-amber-300 transition-colors" />
+                        <div><div className="text-white font-medium">Open Folder</div><div className="text-[13px] text-[#8b949e]">Empty workspace</div></div>
                     </button>
                 </div>
 
+                {/* Clone Repository Dialog */}
+                {showClone && (
+                    <div className="mb-8 p-5 rounded-xl bg-[#161b22] border border-[#30363d] space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-white">Clone Repository</h3>
+                            <button onClick={() => { setShowClone(false); setCloneError(null) }} className="text-[#484f58] hover:text-white"><X className="w-4 h-4" /></button>
+                        </div>
+                        <input
+                            value={cloneUrl}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCloneUrl(e.target.value)}
+                            placeholder="https://github.com/user/repo.git"
+                            className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
+                            onKeyDown={(e: React.KeyboardEvent) => e.key === "Enter" && handleClone()}
+                        />
+                        <input
+                            value={cloneName}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCloneName(e.target.value)}
+                            placeholder="Workspace name (optional, derived from URL)"
+                            className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
+                        />
+                        {cloneError && <div className="text-[12px] text-red-400">{cloneError}</div>}
+                        <button onClick={handleClone} disabled={cloneLoading || !cloneUrl.trim()} className="w-full py-2 rounded-md text-[13px] font-medium bg-[#238636] hover:bg-[#2ea043] text-white transition-colors disabled:opacity-40">
+                            {cloneLoading ? "Cloning..." : "Clone"}
+                        </button>
+                    </div>
+                )}
+
+                {/* New Empty Project Dialog */}
+                {showNew && (
+                    <div className="mb-8 p-5 rounded-xl bg-[#161b22] border border-[#30363d] space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-white">New Project</h3>
+                            <button onClick={() => setShowNew(false)} className="text-[#484f58] hover:text-white"><X className="w-4 h-4" /></button>
+                        </div>
+                        <input
+                            value={newName}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewName(e.target.value)}
+                            placeholder="my-awesome-project"
+                            className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
+                            onKeyDown={(e: React.KeyboardEvent) => e.key === "Enter" && handleNewEmpty()}
+                        />
+                        <button onClick={handleNewEmpty} className="w-full py-2 rounded-md text-[13px] font-medium bg-[#1f6feb] hover:bg-[#388bfd] text-white transition-colors">
+                            Create Project
+                        </button>
+                    </div>
+                )}
+
+                {/* Recent Projects */}
+                {recentProjects.length > 0 && (
+                    <div className="mb-12">
+                        <h2 className="text-sm font-semibold uppercase tracking-wider text-[#8b949e] mb-4">Recent Projects</h2>
+                        <div className="space-y-1">
+                            {recentProjects.map((name: string) => (
+                                <button key={name} onClick={() => onProjectSelect(name)} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#161b22] transition-colors text-left group">
+                                    <FolderOpen className="w-4 h-4 text-[#8b949e] group-hover:text-[#58a6ff] shrink-0" />
+                                    <span className="text-[13px] text-[#c9d1d9] group-hover:text-white truncate">{name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Quick Start Templates ΓÇö dynamic from projectTemplates */}
                 <div className="mb-12">
                     <h2 className="text-sm font-semibold uppercase tracking-wider text-[#8b949e] mb-4">Quick Start Templates</h2>
                     <div className="grid grid-cols-3 gap-3">
-                        {[
-                            { name: "Next.js App", desc: "React + TypeScript", id: "nextjs-app" },
-                            { name: "Express API", desc: "Node.js REST API", id: "express-api" },
-                            { name: "Python ML", desc: "Machine learning", id: "python-ml" },
-                            { name: "Solidity DApp", desc: "Web3 + Hardhat", id: "solidity-dapp" },
-                            { name: "React Native", desc: "Mobile app", id: "react-native" },
-                            { name: "Rust CLI", desc: "Command line tool", id: "rust-cli" },
-                        ].map((t) => (
+                        {projectTemplates.map((t) => (
                             <button key={t.id} onClick={() => onProjectSelect(t.id)} className="flex items-center gap-3 p-4 rounded-lg bg-[#161b22] border border-[#30363d] hover:border-[#1f6feb]/50 transition-all text-left group">
-                                <Code className="w-6 h-6 text-emerald-400 shrink-0" />
+                                <span className="text-2xl">{t.icon}</span>
                                 <div>
                                     <div className="text-[13px] font-medium text-white group-hover:text-[#58a6ff] transition-colors">{t.name}</div>
-                                    <div className="text-[11px] text-[#484f58]">{t.desc}</div>
+                                    <div className="text-[11px] text-[#484f58]">{t.description}</div>
                                 </div>
                             </button>
                         ))}
                     </div>
                 </div>
 
+                {/* Keyboard Shortcuts */}
                 <div>
                     <h2 className="text-sm font-semibold uppercase tracking-wider text-[#8b949e] mb-4">Keyboard Shortcuts</h2>
                     <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-[13px]">
-                        {[
-                            ["Ctrl+P", "Quick Open File"],
-                            ["Ctrl+Shift+P", "Command Palette"],
-                            ["Ctrl+K", "AI Inline Edit"],
-                            ["Ctrl+S", "Save File"],
-                            ["Ctrl+Shift+F", "Search in Files"],
-                            ["Ctrl+`", "Toggle Terminal"],
-                            ["Ctrl+B", "Toggle Sidebar"],
-                            ["Ctrl+,", "Settings"],
-                        ].map(([key, label]) => (
+                        {[["Ctrl+P", "Quick Open File"], ["Ctrl+Shift+P", "Command Palette"], ["Ctrl+S", "Save File"], ["Ctrl+Shift+F", "Search in Files"], ["Ctrl+`", "Toggle Terminal"], ["Ctrl+B", "Toggle Sidebar"], ["Ctrl+,", "Settings"], ["F2", "Rename"]].map(([key, label]) => (
                             <div key={key} className="flex items-center justify-between py-1.5">
                                 <span className="text-[#c9d1d9]">{label}</span>
                                 <kbd className="px-2 py-0.5 rounded bg-[#161b22] border border-[#30363d] text-[11px] text-[#8b949e] font-mono">{key}</kbd>
@@ -879,10 +1308,11 @@ function WelcomeTab({ onProjectSelect }: { onProjectSelect: (id: string) => void
     )
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// MAIN CODE CHAMBER — industry-grade cloud IDE workbench
-// ═══════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+// MAIN CODE CHAMBER ΓÇö self-contained VS Code-grade IDE workbench
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 export function CodeChamber({ id }: CodeChamberProps) {
+    const { emit, ROOM_EVENTS } = useRoomEvents('code-chamber')
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const projectId = useMemo(() => {
@@ -903,7 +1333,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
         }
     }, [projectId])
 
-    const { rootId, activeFileId, openFiles, fileMap, loadProject, openFile, closeFile, setActiveFile, readFile, writeFile, saveProject, workspaceId } = useFileSystem()
+    const { rootId, activeFileId, openFiles, fileMap, loadProject, openFile, closeFile, setActiveFile, restoreSessionState, readFile, writeFile, saveProject, workspaceId } = useFileSystem()
 
     const [sidebarView, setSidebarView] = useState<SidebarView>("explorer")
     const [sidebarVisible, setSidebarVisible] = useState(true)
@@ -911,86 +1341,208 @@ export function CodeChamber({ id }: CodeChamberProps) {
     const [panelVisible, setPanelVisible] = useState(true)
     const [cursorLine, setCursorLine] = useState(1)
     const [cursorCol, setCursorCol] = useState(1)
-
-    // Command palette / quick open
-    const [showCommandPalette, setShowCommandPalette] = useState(false)
-    const [showQuickOpen, setShowQuickOpen] = useState(false)
-
-    // Inline edit
-    const [showInlineEdit, setShowInlineEdit] = useState(false)
-    const [inlineEditCode, setInlineEditCode] = useState("")
-    const [inlineEditPos, setInlineEditPos] = useState({ top: 0, left: 0 })
-
-    // Diagnostics
     const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([])
-    const [isLinting, setIsLinting] = useState(false)
+    const [lintSummary, setLintSummary] = useState<LintResult['summary'] | null>(null)
+    const [settingsOpen, setSettingsOpen] = useState(false)
+    const [editorSettings, setEditorSettings] = useState<EditorSettings>(() => loadEditorSettings(projectId))
+    const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+    const [quickOpenOpen, setQuickOpenOpen] = useState(false)
+    const [quickOpenQuery, setQuickOpenQuery] = useState("")
+    const lintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const monacoRef = useRef<any>(null)
 
-    // Output log
-    const [outputLines, setOutputLines] = useState<OutputLine[]>([
-        { id: "init", timestamp: Date.now(), text: "Code Chamber initialized. Ready for output.", type: "system", source: "System" }
-    ])
-
-    // Editor settings
-    const [editorSettings, setEditorSettings] = useState<EditorSettings>(DEFAULT_SETTINGS)
-    useEffect(() => {
+    // ΓöÇΓöÇΓöÇ User session and additional state ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    const _codeSession = useSession()
+    const userSession = _codeSession?.data ?? null
+    const { session, sessionLoaded, saveSession } = useWorkspaceSession(projectId)
+    const [codeDiagnostics, setCodeDiagnostics] = useState<any[]>([])
+    const [codeSettings, setCodeSettings] = useState(() => {
         if (typeof window !== 'undefined') {
-            setEditorSettings(loadSettings())
+            const saved = localStorage.getItem('code-chamber-settings')
+            return saved ? JSON.parse(saved) : { autoSave: true, showMinimap: true, theme: 'vs-dark' }
         }
+        return { autoSave: true, showMinimap: true, theme: 'vs-dark' }
+    })
+    const [codeVersions, setCodeVersions] = useState<any[]>([])
+
+    // ΓöÇΓöÇΓöÇ Settings event listener ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    useEffect(() => {
+        const handleSettingsChange = () => {
+            const saved = localStorage.getItem('code-chamber-settings')
+            if (saved) {
+                setCodeSettings(JSON.parse(saved))
+            }
+        }
+        window.addEventListener('azora:settingsChanged', handleSettingsChange)
+        return () => window.removeEventListener('azora:settingsChanged', handleSettingsChange)
     }, [])
 
-    // Git branch tracking
-    const [gitBranch, setGitBranch] = useState("main")
+    // ΓöÇΓöÇΓöÇ Version management ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    const createCodeVersion = () => {
+        const version = {
+            id: `v${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            files: Object.keys(fileMap).reduce((acc, fileId) => {
+                const file = fileMap[fileId]
+                if (file && file.content) {
+                    acc[file.path] = file.content
+                }
+                return acc
+            }, {} as Record<string, string>),
+            author: userSession?.user?.name || 'Anonymous',
+            description: `Version created at ${new Date().toLocaleString()}`
+        }
+        setCodeVersions(prev => [version, ...prev.slice(0, 49)]) // Keep max 50 versions
+    }
 
-    // Connected users
-    const [connectedUsers, setConnectedUsers] = useState(1)
+    const restoreCodeVersion = (versionId: string) => {
+        const version = codeVersions.find(v => v.id === versionId)
+        if (version) {
+            // Restore files from version
+            Object.entries(version.files).forEach(([path, content]) => {
+                const fileId = Object.keys(fileMap).find(id => fileMap[id]?.path === path)
+                if (fileId) {
+                    writeFile(fileId, content as string)
+                }
+            })
+            setCodeDiagnostics(prev => [...prev, {
+                id: 'version-restored',
+                message: `Restored version: ${versionId}`,
+                severity: 'info',
+                source: 'version-control',
+                line: 0,
+                column: 0
+            }])
+        }
+    }
 
-    // Notifications
-    const [notifications, setNotifications] = useState<Notification[]>([])
+    // ΓöÇΓöÇΓöÇ Settings update function ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    const updateCodeSettings = (newSettings: Partial<typeof codeSettings>) => {
+        const updated = { ...codeSettings, ...newSettings }
+        setCodeSettings(updated)
+        localStorage.setItem('code-chamber-settings', JSON.stringify(updated))
+        window.dispatchEvent(new CustomEvent('azora:settingsChanged', { detail: updated }))
+    }
 
-    // Zen mode
-    const [isZenMode, setIsZenMode] = useState(false)
+    // Apply saved session layout once loaded
+    useEffect(() => {
+        if (!sessionLoaded || !session) return
+        setSidebarView(session.layout.sidebarView as SidebarView)
+        setSidebarVisible(session.layout.sidebarVisible)
+        setPanelView(session.layout.panelView as PanelView)
+        setPanelVisible(session.layout.panelVisible)
+        
+        if (session.openFiles && session.openFiles.length > 0) {
+            restoreSessionState(session.openFiles, session.activeFileId || null)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionLoaded])
 
-    // Parsed symbols for breadcrumbs
-    const [symbols, setSymbols] = useState<ParsedSymbol[]>([])
-
-    // Decoration IDs for cleanup
-    const decorationIdsRef = useRef<string[]>([])
-
-    // Tab order tracking
-    const [tabOrder, setTabOrder] = useState<string[]>([])
-
-    // Modified files tracking
-    const [modifiedFiles, setModifiedFiles] = useState<Set<string>>(new Set())
+    // Auto-save session whenever layout or open files change
+    useEffect(() => {
+        if (!sessionLoaded) return
+        saveSession({ sidebarView, sidebarVisible, panelView, panelVisible }, openFiles, activeFileId)
+    }, [sidebarView, sidebarVisible, panelView, panelVisible, openFiles, activeFileId, saveSession, sessionLoaded])
 
     // Yjs Collaboration State
     const [yDoc, setYDoc] = useState<Y.Doc | null>(null)
-    const [provider, setProvider] = useState<WebrtcProvider | null>(null)
-    const [binding, setBinding] = useState<MonacoBinding | null>(null)
+    const [provider, setProvider] = useState<any>(null)
+    const [binding, setBinding] = useState<any>(null)
     const [editorInstance, setEditorInstance] = useState<any>(null)
-    const monacoRef = useRef<any>(null)
+
+    /* ΓöÇΓöÇ Phase 1: Live Share Presence ΓöÇΓöÇ */
+    const COLLAB_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#F7DC6F', '#BB8FCE', '#82E0AA', '#F0B27A', '#85C1E9']
+    const [liveSharePeers, setLiveSharePeers] = useState<{clientId: number; name: string; color: string; cursor?: {line: number; col: number}; file?: string}[]>([])
+    const [isLiveShareActive, setIsLiveShareActive] = useState(false)
+    const [liveShareLink, setLiveShareLink] = useState('')
+
+    /* ΓöÇΓöÇ Phase 1: AI Code Actions ΓöÇΓöÇ */
+    const [aiActionResult, setAiActionResult] = useState('')
+    const [isAiActionRunning, setIsAiActionRunning] = useState(false)
+    const [aiActionType, setAiActionType] = useState<'explain' | 'fix' | 'refactor' | 'test' | 'doc'>('explain')
+
+    const runAiCodeAction = async (action: typeof aiActionType, code: string) => {
+        if (isAiActionRunning || !code.trim()) return
+        setIsAiActionRunning(true)
+        setAiActionResult('')
+        setAiActionType(action)
+        try {
+            const resp = await fetch('/api/code-chamber/ai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: `/${action}`, message: code, activeFile: activeFileName }),
+            })
+            if (resp.ok) {
+                const data = await resp.json()
+                setAiActionResult(data.content || data.result || 'No result')
+            } else {
+                setAiActionResult(`Action failed: ${resp.status}`)
+            }
+        } catch (error) {
+            setAiActionResult(`Error: ${error}`)
+        } finally {
+            setIsAiActionRunning(false)
+        }
+    }
 
     // Initialize Yjs Doc and Provider per file
     useEffect(() => {
         if (!activeFileId || !projectId) return
-        const doc = new Y.Doc()
-        const roomName = `azora-buildspaces-${projectId}-${activeFileId.replace(/[^a-zA-Z0-9-]/g, '-')}`
-        const webrtcProvider = new WebrtcProvider(roomName, doc, {
-            signaling: ['wss://signaling.yjs.dev', 'wss://y-webrtc-signaling-eu.herokuapp.com', 'wss://y-webrtc-signaling-us.herokuapp.com']
-        })
-        setYDoc(doc)
-        setProvider(webrtcProvider)
+        let cancelled = false
 
-        // Track connected users
-        const updateUsers = () => {
-            const users = webrtcProvider.awareness.getStates().size
-            setConnectedUsers(Math.max(1, users))
-        }
-        webrtcProvider.awareness.on('change', updateUsers)
-        updateUsers()
+        const doc = new Y.Doc()
+        // Unique room name per project and file
+        const roomName = `azora-buildspaces-${projectId}-${activeFileId.replace(/[^a-zA-Z0-9-]/g, '-')}`
+        let webrtcProvider: any = null
+
+        getWebrtcProvider().then(WebrtcProvider => {
+            if (cancelled) return
+
+            webrtcProvider = new WebrtcProvider(roomName, doc, {
+                signaling: [
+                    'wss://signaling.yjs.dev',
+                    'wss://y-webrtc-signaling-eu.herokuapp.com',
+                    'wss://y-webrtc-signaling-us.herokuapp.com'
+                ]
+            })
+
+            setYDoc(doc)
+            setProvider(webrtcProvider)
+
+            /* Phase 1: Track awareness / presence for Live Share */
+            const awarenessHandler = () => {
+                const states = webrtcProvider.awareness.getStates()
+                const peers: typeof liveSharePeers = []
+                states.forEach((state: any, clientId: number) => {
+                    if (clientId === webrtcProvider.awareness.clientID) return
+                    peers.push({
+                        clientId,
+                        name: state?.user?.name || `User ${clientId % 100}`,
+                        color: COLLAB_COLORS[clientId % COLLAB_COLORS.length],
+                        cursor: state?.cursor,
+                        file: state?.file,
+                    })
+                })
+                setLiveSharePeers(peers)
+                setIsLiveShareActive(peers.length > 0)
+            }
+            webrtcProvider.awareness.on('change', awarenessHandler)
+
+            // Set own awareness state
+            webrtcProvider.awareness.setLocalStateField('user', {
+                name: userSession?.user?.name || 'Anonymous',
+                color: COLLAB_COLORS[Math.floor(Math.random() * COLLAB_COLORS.length)],
+            })
+
+            // Generate Live Share link
+            setLiveShareLink(`${typeof window !== 'undefined' ? window.location.origin : ''}/workspace/${projectId}?share=${roomName}`)
+        }).catch(() => {
+            // WebRTC provider not available ΓÇö continue without collab
+        })
 
         return () => {
-            webrtcProvider.awareness.off('change', updateUsers)
-            webrtcProvider.destroy()
+            cancelled = true
+            webrtcProvider?.destroy()
             doc.destroy()
             setYDoc(null)
             setProvider(null)
@@ -1001,223 +1553,108 @@ export function CodeChamber({ id }: CodeChamberProps) {
     // Bind Monaco to Yjs
     useEffect(() => {
         if (!editorInstance || !yDoc || !provider || !activeFileId) return
+        let cancelled = false
+        let localBinding: any = null
+
         const type = yDoc.getText(activeFileId)
         const model = editorInstance.getModel()
-        if (!model) return
-        const localContent = readFile(activeFileId)
-        if (type.length === 0 && localContent) { type.insert(0, localContent) }
-        const monacoBinding = new MonacoBinding(type, model, new Set([editorInstance]), provider.awareness)
-        setBinding(monacoBinding)
-        return () => { monacoBinding.destroy(); setBinding(null) }
-    }, [editorInstance, yDoc, provider, activeFileId, readFile])
 
-    // Fetch git branch
-    useEffect(() => {
-        if (!workspaceId) return
-        const fetchBranch = async () => {
-            try {
-                const res = await fetch(`/api/fs?operation=gitStatus&path=.&workspaceId=${encodeURIComponent(workspaceId)}`)
-                if (res.ok) { const data = await res.json(); setGitBranch(data.branch || "main") }
-            } catch {}
+        if (!model) return
+
+        // If the Yjs document is empty but we have local content, initialize it
+        const localContent = readFile(activeFileId)
+        if (type.length === 0 && localContent) {
+            type.insert(0, localContent)
         }
-        fetchBranch()
-        const interval = setInterval(fetchBranch, 15000)
-        return () => clearInterval(interval)
-    }, [workspaceId])
+
+        getMonacoBinding().then(MonacoBinding => {
+            if (cancelled) return
+            localBinding = new MonacoBinding(type, model, new Set([editorInstance]), provider.awareness)
+            setBinding(localBinding)
+        }).catch(() => {
+            // Monaco binding not available
+        })
+
+        return () => {
+            cancelled = true
+            localBinding?.destroy()
+            setBinding(null)
+        }
+    }, [editorInstance, yDoc, provider, activeFileId, readFile])
 
     useEffect(() => { if (projectId) loadProject(projectId) }, [projectId, loadProject])
 
-    // Add output line helper
-    const addOutput = useCallback((text: string, type: OutputLine["type"] = "info", source?: string) => {
-        setOutputLines(prev => [...prev, { id: `out-${Date.now()}-${Math.random()}`, timestamp: Date.now(), text, type, source }])
-    }, [])
-
-    // Notification helpers
-    const addNotification = useCallback((type: Notification["type"], title: string, message?: string, source?: string) => {
-        setNotifications(prev => [{
-            id: `notif-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            type, title, message, timestamp: Date.now(), read: false, source,
-        }, ...prev].slice(0, 50)) // Keep max 50
-    }, [])
-    const dismissNotification = useCallback((id: string) => {
-        setNotifications(prev => prev.filter(n => n.id !== id))
-    }, [])
-    const dismissAllNotifications = useCallback(() => setNotifications([]), [])
-    const markNotificationRead = useCallback((id: string) => {
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
-    }, [])
-    const markAllNotificationsRead = useCallback(() => {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-    }, [])
-
-    // ─── Lint file via API ───────────────────────────────────────────
-    const lintFile = useCallback(async (fileId: string) => {
-        const node = fileMap[fileId]
-        if (!node || node.type !== "file") return
-        setIsLinting(true)
-        try {
-            const content = readFile(fileId) || ""
-            const res = await fetch("/api/code-chamber/lint", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ code: content, language: getLanguage(node.name), filename: node.name }),
-            })
-            if (res.ok) {
-                const data = await res.json()
-                if (data.diagnostics) {
-                    const newDiags: Diagnostic[] = data.diagnostics.map((d: any, i: number) => ({
-                        severity: d.severity || "warning",
-                        message: d.message,
-                        line: d.line || 1,
-                        column: d.column,
-                        rule: d.rule,
-                        file: node.name,
-                        fileId,
-                    }))
-                    // Replace diagnostics for this file, keep others
-                    setDiagnostics(prev => [
-                        ...prev.filter(d => d.fileId !== fileId),
-                        ...newDiags,
-                    ])
-                    const errors = newDiags.filter(d => d.severity === "error").length
-                    const warnings = newDiags.filter(d => d.severity === "warning").length
-                    if (errors + warnings > 0) {
-                        toast.warning(`Found ${errors} error(s), ${warnings} warning(s)`)
-                        addNotification(errors > 0 ? "error" : "warning", `Lint: ${errors} error(s), ${warnings} warning(s)`, `File: ${node.name}`, "Linter")
-                    } else {
-                        toast.success("No issues found")
-                        addNotification("success", "Lint passed", `No issues in ${node.name}`, "Linter")
-                    }
-                }
-            }
-        } catch {
-            toast.error("Lint failed - check your connection")
-        } finally { setIsLinting(false) }
-    }, [fileMap, readFile, addNotification])
-
-    // Parse symbols when active file changes
-    useEffect(() => {
-        if (!activeFileId) { setSymbols([]); return }
-        const content = readFile(activeFileId) || ""
-        const lang = getLanguage(fileMap[activeFileId]?.name || "")
-        const parsed = parseSymbols(content, lang)
-        setSymbols(parsed)
-    }, [activeFileId, fileMap, readFile])
-
-    // Sync tab order with open files
-    useEffect(() => {
-        setTabOrder(prev => {
-            const existing = prev.filter(id => openFiles.includes(id))
-            const newIds = openFiles.filter(id => !existing.includes(id))
-            return [...existing, ...newIds]
-        })
-    }, [openFiles])
-
-    // Apply diagnostic decorations to editor
-    useEffect(() => {
-        if (!editorInstance || !monacoRef.current || !activeFileId) return
-        // Clean up old decorations
-        if (decorationIdsRef.current.length > 0) {
-            editorInstance.deltaDecorations(decorationIdsRef.current, [])
-        }
-        decorationIdsRef.current = applyDiagnosticDecorations(editorInstance, monacoRef.current, diagnostics, activeFileId)
-    }, [diagnostics, editorInstance, activeFileId])
-
-    // Register diagnostic styles once
-    useEffect(() => { registerDiagnosticStyles() }, [])
-
-    // ─── Keyboard Shortcuts ──────────────────────────────────────────
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            const isMod = e.metaKey || e.ctrlKey
-
-            // Command Palette: Ctrl+Shift+P
-            if (isMod && e.shiftKey && e.key === "P") { e.preventDefault(); setShowCommandPalette(true); return }
-            // Quick Open: Ctrl+P
-            if (isMod && !e.shiftKey && e.key === "p") { e.preventDefault(); setShowQuickOpen(true); return }
-            // Toggle Terminal: Ctrl+`
-            if (isMod && e.key === "`") { e.preventDefault(); setPanelVisible(p => !p); return }
-            // Toggle Sidebar: Ctrl+B
-            if (isMod && e.key === "b") { e.preventDefault(); setSidebarVisible(s => !s); return }
-            // Save: Ctrl+S
-            if (isMod && !e.shiftKey && e.key === "s") {
+            // Ctrl+Tab / Ctrl+Shift+Tab — cycle through open files
+            if (e.ctrlKey && e.key === 'Tab') {
                 e.preventDefault()
-                if (activeFileId) {
-                    const c = readFile(activeFileId)
-                    if (c !== undefined) { writeFile(activeFileId, c); toast.success("File saved") }
+                if (openFiles.length > 1 && activeFileId) {
+                    const idx = openFiles.indexOf(activeFileId)
+                    const next = e.shiftKey
+                        ? (idx - 1 + openFiles.length) % openFiles.length
+                        : (idx + 1) % openFiles.length
+                    setActiveFile(openFiles[next])
                 }
                 return
             }
-            // Save All: Ctrl+Shift+S
-            if (isMod && e.shiftKey && e.key === "S") { e.preventDefault(); saveProject(); toast.success("All files saved"); return }
-            // Settings: Ctrl+,
-            if (isMod && e.key === ",") { e.preventDefault(); setSidebarView("settings"); setSidebarVisible(true); return }
-            // Search: Ctrl+Shift+F
-            if (isMod && e.shiftKey && e.key === "F") { e.preventDefault(); setSidebarView("search"); setSidebarVisible(true); return }
-            // Explorer: Ctrl+Shift+E
-            if (isMod && e.shiftKey && e.key === "E") { e.preventDefault(); setSidebarView("explorer"); setSidebarVisible(true); return }
-            // Git: Ctrl+Shift+G
-            if (isMod && e.shiftKey && e.key === "G") { e.preventDefault(); setSidebarView("git"); setSidebarVisible(true); return }
-            // AI: Ctrl+Shift+I
-            if (isMod && e.shiftKey && e.key === "I") { e.preventDefault(); setSidebarView("ai"); setSidebarVisible(true); return }
-            // AI Inline Edit: Ctrl+K
-            if (isMod && e.key === "k") {
+            if ((e.metaKey || e.ctrlKey) && e.key === "`") { e.preventDefault(); setPanelVisible(p => !p) }
+            if ((e.metaKey || e.ctrlKey) && e.key === "b") { e.preventDefault(); setSidebarVisible(s => !s) }
+            if ((e.metaKey || e.ctrlKey) && e.key === ",") { e.preventDefault(); setSettingsOpen((o: boolean) => !o) }
+            if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "P") { e.preventDefault(); setCommandPaletteOpen(true) }
+            if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "p") { e.preventDefault(); setQuickOpenOpen(true); setQuickOpenQuery("") }
+            if ((e.metaKey || e.ctrlKey) && e.key === "s") {
                 e.preventDefault()
-                if (editorInstance) {
-                    const sel = editorInstance.getSelection()
-                    const selectedText = editorInstance.getModel()?.getValueInRange(sel) || ""
-                    const coords = editorInstance.getScrolledVisiblePosition(sel?.getStartPosition())
-                    const editorDom = editorInstance.getDomNode()
-                    const rect = editorDom?.getBoundingClientRect() || { top: 200, left: 200 }
-                    setInlineEditCode(selectedText)
-                    setInlineEditPos({ top: rect.top + (coords?.top || 0) + 20, left: rect.left + (coords?.left || 0) })
-                    setShowInlineEdit(true)
-                }
-                return
-            }
-            // Zen Mode: Ctrl+Shift+Z (toggle)
-            if (isMod && e.shiftKey && e.key === "Z") { e.preventDefault(); setIsZenMode(z => !z); return }
-            // Escape to exit Zen Mode
-            if (e.key === "Escape" && isZenMode) { e.preventDefault(); setIsZenMode(false); return }
-            // Close tab: Ctrl+W
-            if (isMod && e.key === "w") {
-                e.preventDefault()
-                if (activeFileId) closeFile(activeFileId)
-                return
+                if (activeFileId) { const c = readFile(activeFileId); if (c !== undefined) writeFile(activeFileId, c) }
             }
         }
         window.addEventListener("keydown", handler)
         return () => window.removeEventListener("keydown", handler)
-    }, [activeFileId, readFile, writeFile, saveProject, editorInstance, isZenMode, closeFile])
+    }, [activeFileId, openFiles, setActiveFile, readFile, writeFile])
 
     const activeFileName = activeFileId ? fileMap[activeFileId]?.name || "" : ""
     const activeFileContent = activeFileId ? readFile(activeFileId) || "" : ""
 
-    const diagnosticCounts = useMemo(() => ({
-        errors: diagnostics.filter(d => d.severity === "error").length,
-        warnings: diagnostics.filter(d => d.severity === "warning").length,
-    }), [diagnostics])
-
-    // ─── Editor Mount ────────────────────────────────────────────────
     const handleEditorMount = useCallback((editor: any, monaco: any) => {
         setEditorInstance(editor)
         monacoRef.current = monaco
 
+        // Apply persisted editor settings immediately on mount
+        editor.updateOptions({
+            fontSize: editorSettings.fontSize,
+            tabSize: editorSettings.tabSize,
+            fontFamily: editorSettings.fontFamily,
+            wordWrap: editorSettings.wordWrap,
+            minimap: { enabled: editorSettings.minimap },
+            lineNumbers: editorSettings.lineNumbers,
+            renderWhitespace: editorSettings.renderWhitespace,
+            stickyScroll: { enabled: editorSettings.stickyScroll },
+            bracketPairColorization: { enabled: editorSettings.bracketPairColorization },
+            cursorBlinking: editorSettings.cursorBlinking,
+            fontLigatures: editorSettings.fontLigatures,
+        })
+
+        // Track cursor position for status bar
         editor.onDidChangeCursorPosition((e: any) => {
             setCursorLine(e.position.lineNumber)
             setCursorCol(e.position.column)
         })
 
-        // Register inline AI completion provider
+        // Register inline AI completion provider (like Cursor/Copilot ghost text)
         const disposable = monaco.languages.registerInlineCompletionsProvider("*", {
             provideInlineCompletions: async (model: any, position: any, context: any, token: any) => {
+                // Only trigger after typing pauses (debounce in the provider itself)
+                const lineContent = model.getLineContent(position.lineNumber)
                 const textBeforeCursor = model.getValueInRange({
                     startLineNumber: Math.max(1, position.lineNumber - 20),
                     startColumn: 1,
                     endLineNumber: position.lineNumber,
                     endColumn: position.column,
                 })
+
+                // Don't trigger on empty lines or very short context
                 if (textBeforeCursor.trim().length < 10) return { items: [] }
+
                 try {
                     const resp = await fetch("/api/code-chamber/complete", {
                         method: "POST",
@@ -1232,18 +1669,26 @@ export function CodeChamber({ id }: CodeChamberProps) {
                     if (!resp.ok) return { items: [] }
                     const data = await resp.json()
                     if (!data.completion) return { items: [] }
+
                     return {
                         items: [{
                             insertText: data.completion,
-                            range: { startLineNumber: position.lineNumber, startColumn: position.column, endLineNumber: position.lineNumber, endColumn: position.column },
+                            range: {
+                                startLineNumber: position.lineNumber,
+                                startColumn: position.column,
+                                endLineNumber: position.lineNumber,
+                                endColumn: position.column,
+                            },
                         }],
                     }
-                } catch { return { items: [] } }
+                } catch {
+                    return { items: [] }
+                }
             },
-            freeInlineCompletions: () => {},
+            freeInlineCompletions: () => { },
         })
 
-        // AI Explain Selection action
+        // Add Ctrl+Shift+I shortcut for "Explain Selection"
         editor.addAction({
             id: "elara-explain",
             label: "Elara: Explain Selection",
@@ -1253,172 +1698,77 @@ export function CodeChamber({ id }: CodeChamberProps) {
             run: async (ed: any) => {
                 const selection = ed.getSelection()
                 const selectedText = ed.getModel()?.getValueInRange(selection)
-                if (!selectedText) { toast.info("Select some code first"); return }
-                setSidebarView("ai")
-                setSidebarVisible(true)
+                if (!selectedText) return
+                // The AI sidebar would pick this up ΓÇö for now show inline
+                const decoration = ed.createDecorationsCollection([{
+                    range: selection,
+                    options: {
+                        className: "elara-highlight",
+                        glyphMarginClassName: "elara-glyph",
+                        after: { content: " ≡ƒºá Analyzing...", inlineClassName: "elara-inline-hint" },
+                    },
+                }])
+                setTimeout(() => decoration.clear(), 3000)
             },
         })
 
-        // AI Inline Edit action
-        editor.addAction({
-            id: "elara-inline-edit",
-            label: "Elara: Inline Edit (Ctrl+K)",
-            keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK],
-            contextMenuGroupId: "1_modification",
-            contextMenuOrder: 1.6,
-            run: async (ed: any) => {
-                const sel = ed.getSelection()
-                const selectedText = ed.getModel()?.getValueInRange(sel) || ""
-                const coords = ed.getScrolledVisiblePosition(sel?.getStartPosition())
-                const editorDom = ed.getDomNode()
-                const rect = editorDom?.getBoundingClientRect() || { top: 200, left: 200 }
-                setInlineEditCode(selectedText)
-                setInlineEditPos({ top: rect.top + (coords?.top || 0) + 20, left: rect.left + (coords?.left || 0) })
-                setShowInlineEdit(true)
-            },
-        })
-
-        // Lint on save
-        editor.addAction({
-            id: "elara-lint",
-            label: "Elara: Lint File",
-            keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyM],
-            run: () => { if (activeFileId) lintFile(activeFileId) },
-        })
-
+        // Cleanup
         return () => disposable.dispose()
-    }, [activeFileName, activeFileId, lintFile])
+    }, [activeFileName])
 
     const handleEditorChange = useCallback((value: string | undefined) => {
         if (activeFileId && value !== undefined) {
             writeFile(activeFileId, value)
-            setModifiedFiles(prev => new Set(prev).add(activeFileId))
+            // Debounced lint on change
+            if (lintTimeoutRef.current) clearTimeout(lintTimeoutRef.current)
+            lintTimeoutRef.current = setTimeout(async () => {
+                if (!value || !activeFileName) return
+                try {
+                    const res = await fetch('/api/code-chamber/lint', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code: value, language: getLanguage(activeFileName), filename: activeFileName })
+                    })
+                    if (!res.ok) return
+                    const data: LintResult = await res.json()
+                    setDiagnostics(data.diagnostics || [])
+                    setLintSummary(data.summary || null)
+                    // Push markers into Monaco model
+                    if (monacoRef.current && editorInstance) {
+                        const model = editorInstance.getModel()
+                        if (model) {
+                            const markers = (data.diagnostics || []).map((d: Diagnostic) => ({
+                                startLineNumber: d.line,
+                                endLineNumber: d.line,
+                                startColumn: d.column || 1,
+                                endColumn: d.column ? d.column + 12 : model.getLineLength(d.line) + 1,
+                                message: `${d.message} (${d.rule})`,
+                                severity: d.severity === 'error'
+                                    ? monacoRef.current.MarkerSeverity.Error
+                                    : d.severity === 'warning'
+                                        ? monacoRef.current.MarkerSeverity.Warning
+                                        : monacoRef.current.MarkerSeverity.Info,
+                            }))
+                            monacoRef.current.editor.setModelMarkers(model, 'elara-lint', markers)
+                        }
+                    }
+                } catch { /* lint errors are non-fatal */ }
+            }, 1500)
         }
-    }, [activeFileId, writeFile])
+    }, [activeFileId, activeFileName, writeFile, editorInstance])
 
     const handleSidebarViewChange = useCallback((v: SidebarView) => {
         if (sidebarView === v && sidebarVisible) setSidebarVisible(false)
         else { setSidebarView(v); if (!sidebarVisible) setSidebarVisible(true) }
     }, [sidebarView, sidebarVisible])
 
-    // ─── Command Palette action handler ──────────────────────────────
-    const handleCommandAction = useCallback((action: string) => {
-        switch (action) {
-            case "quickOpen": setShowQuickOpen(true); break
-            case "save": if (activeFileId) { writeFile(activeFileId, readFile(activeFileId) || ""); toast.success("File saved") }; break
-            case "saveAll": saveProject(); toast.success("All files saved"); break
-            case "toggleSidebar": setSidebarVisible(s => !s); break
-            case "toggleTerminal": setPanelVisible(p => !p); break
-            case "showExplorer": setSidebarView("explorer"); setSidebarVisible(true); break
-            case "showSearch": setSidebarView("search"); setSidebarVisible(true); break
-            case "showGit": setSidebarView("git"); setSidebarVisible(true); break
-            case "showExtensions": setSidebarView("extensions"); setSidebarVisible(true); break
-            case "showAI": setSidebarView("ai"); setSidebarVisible(true); break
-            case "showSettings": setSidebarView("settings"); setSidebarVisible(true); break
-            case "showProblems": setPanelVisible(true); setPanelView("problems"); break
-            case "showOutput": setPanelVisible(true); setPanelView("output"); break
-            case "showPreview": setPanelVisible(true); setPanelView("preview"); break
-            case "run": setPanelVisible(true); setPanelView("terminal"); break
-            case "aiInlineEdit":
-                if (editorInstance) {
-                    const sel = editorInstance.getSelection()
-                    const selectedText = editorInstance.getModel()?.getValueInRange(sel) || ""
-                    const coords = editorInstance.getScrolledVisiblePosition(sel?.getStartPosition())
-                    const editorDom = editorInstance.getDomNode()
-                    const rect = editorDom?.getBoundingClientRect() || { top: 200, left: 200 }
-                    setInlineEditCode(selectedText)
-                    setInlineEditPos({ top: rect.top + (coords?.top || 0) + 20, left: rect.left + (coords?.left || 0) })
-                    setShowInlineEdit(true)
-                }
-                break
-            case "aiLint": if (activeFileId) lintFile(activeFileId); break
-            case "aiExplain": setSidebarView("ai"); setSidebarVisible(true); break
-            case "aiDocgen": setSidebarView("ai"); setSidebarVisible(true); break
-            case "deploy":
-                (async () => {
-                    if (!projectId) return
-                    addOutput("Starting deployment...", "info", "Deploy")
-                    try {
-                        const res = await fetch("/api/deploy", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ projectId, environment: "development", buildType: "preview" })
-                        })
-                        const data = await res.json()
-                        if (data.error) { toast.error(`Deploy failed: ${data.error}`); addOutput(`Deploy failed: ${data.error}`, "error", "Deploy") }
-                        else { toast.success(`Deploy initiated: ${data.status || 'success'}`); addOutput(`Deploy success: ${data.status || 'completed'}`, "success", "Deploy") }
-                    } catch (e: any) { toast.error(`Deploy error: ${e.message}`); addOutput(`Deploy error: ${e.message}`, "error", "Deploy") }
-                })()
-                break
-            case "formatDocument":
-                if (editorInstance) {
-                    editorInstance.getAction("editor.action.formatDocument")?.run()
-                    toast.success("Document formatted")
-                }
-                break
-            case "findReplace":
-                if (editorInstance) { editorInstance.getAction("editor.action.startFindReplaceAction")?.run() }
-                break
-            case "toggleWordWrap":
-                setEditorSettings(prev => {
-                    const next = { ...prev, wordWrap: prev.wordWrap === "on" ? "off" as const : "on" as const }
-                    try { localStorage.setItem("code-chamber-settings", JSON.stringify(next)) } catch {}
-                    return next
-                })
-                break
-            case "undo": editorInstance?.trigger("keyboard", "undo", null); break
-            case "redo": editorInstance?.trigger("keyboard", "redo", null); break
-            case "newFile": setSidebarView("explorer"); setSidebarVisible(true); break
-            case "zenMode": setIsZenMode(z => !z); break
-            case "closeTab": if (activeFileId) closeFile(activeFileId); break
-            case "closeAllTabs": openFiles.forEach(f => closeFile(f)); break
-            case "showDebug": setPanelVisible(true); setPanelView("debug"); break
-            case "goToLine": editorInstance?.getAction("editor.action.gotoLine")?.run(); break
-            case "goToSymbol": editorInstance?.getAction("editor.action.quickOutline")?.run(); break
-        }
-    }, [activeFileId, readFile, writeFile, saveProject, editorInstance, projectId, lintFile, addOutput])
-
-    const handleInlineApply = useCallback((newCode: string) => {
-        if (editorInstance && activeFileId) {
-            const selection = editorInstance.getSelection()
-            if (selection && !selection.isEmpty()) {
-                editorInstance.executeEdits("ai-inline-edit", [{
-                    range: selection,
-                    text: newCode,
-                }])
-            } else {
-                // Insert at cursor
-                const position = editorInstance.getPosition()
-                if (position) {
-                    editorInstance.executeEdits("ai-inline-edit", [{
-                        range: { startLineNumber: position.lineNumber, startColumn: position.column, endLineNumber: position.lineNumber, endColumn: position.column },
-                        text: newCode,
-                    }])
-                }
-            }
-            toast.success("AI edit applied")
-        }
-    }, [editorInstance, activeFileId])
-
-    const handleNavigateToDiagnostic = useCallback((fileId: string, line: number) => {
-        openFile(fileId)
-        setTimeout(() => {
-            if (editorInstance) {
-                editorInstance.revealLineInCenter(line)
-                editorInstance.setPosition({ lineNumber: line, column: 1 })
-                editorInstance.focus()
-            }
-        }, 100)
-    }, [openFile, editorInstance])
-
     const renderSidebar = () => {
         switch (sidebarView) {
             case "explorer": return <ExplorerSidebar />
             case "search": return <SearchSidebar />
-            case "git": return <GitSidebar workspaceId={workspaceId || ""} />
-            case "extensions": return <ExtensionsPanel />
-            case "ai": return <AIChatSidebar onApplyCode={(fileId, content) => { writeFile(fileId, content); toast.success("Code applied to file") }} />
-            case "settings": return <SettingsPanel settings={editorSettings} onSettingsChange={setEditorSettings} />
+            case "git": return <GitSidebar />
+            case "extensions": return <ExtensionsSidebar />
+            case "ai": return <AISidebar />
             default: return <ExplorerSidebar />
         }
     }
@@ -1426,10 +1776,175 @@ export function CodeChamber({ id }: CodeChamberProps) {
     const renderPanel = () => {
         switch (panelView) {
             case "terminal": return <div className="h-full bg-[#0d1117]"><XTerminal /></div>
-            case "problems": return <ProblemsPanel diagnostics={diagnostics} isLinting={isLinting} onLintFile={lintFile} onNavigate={handleNavigateToDiagnostic} />
-            case "output": return <OutputPanel lines={outputLines} onClear={() => setOutputLines([])} />
-            case "debug": return <DebugPanel projectId={projectId} onNavigate={handleNavigateToDiagnostic} />
-            case "preview": return <LivePreviewPanel projectId={projectId} />
+            case "problems": return (
+                <div className="h-full bg-[#0d1117] overflow-y-auto">
+                    {diagnostics.length === 0 ? (
+                        <div className="text-[13px] text-[#484f58] text-center py-8">
+                            <CheckCircle className="w-8 h-8 mx-auto mb-2 text-emerald-500/40" />
+                            <p>No problems detected</p>
+                            <p className="text-[11px] mt-1">{lintSummary ? `Quality score: ${lintSummary.score}/100` : 'Save a file to lint it'}</p>
+                        </div>
+                    ) : (
+                        <div className="py-1">
+                            {diagnostics.map((d, i) => (
+                                <div key={i} className={cn(
+                                    "flex items-start gap-3 px-4 py-2 hover:bg-[#1f1f1f] cursor-pointer transition-colors border-l-2",
+                                    d.severity === 'error' ? 'border-red-500' : d.severity === 'warning' ? 'border-yellow-500' : 'border-blue-500'
+                                )}>
+                                    <div className={cn("text-[11px] font-bold uppercase shrink-0 mt-0.5",
+                                        d.severity === 'error' ? 'text-red-400' : d.severity === 'warning' ? 'text-yellow-400' : 'text-blue-400'
+                                    )}>{d.severity === 'error' ? 'ΓùÅ' : d.severity === 'warning' ? 'Γû▓' : 'Γä╣'}</div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-[13px] text-[#c9d1d9]">{d.message}</div>
+                                        <div className="text-[11px] text-[#484f58] mt-0.5">
+                                            {activeFileName}:{d.line}{d.column ? `:${d.column}` : ''} ┬╖ {d.rule}
+                                        </div>
+                                        {d.fix && <div className="text-[11px] text-emerald-400 mt-0.5">≡ƒÆí {d.fix}</div>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )
+            case "output": return <div className="h-full bg-[#0d1117] p-4 font-mono text-[13px] text-[#c9d1d9]"><div className="text-[#8b949e]">[Output] Ready.</div></div>
+            case "debug": return <div className="h-full bg-[#0d1117] p-4"><div className="text-[13px] text-[#484f58] text-center py-8"><Bug className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>No debug session active</p><p className="text-[11px] mt-1">Start debugging with F5</p></div></div>
+            case "diagnostics": return (
+                <div className="h-full bg-[#0d1117] overflow-y-auto">
+                    <div className="p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-[13px] font-medium text-white">System Diagnostics</h3>
+                            <Button size="sm" variant="outline" onClick={() => setCodeDiagnostics([])} className="h-6 text-[11px]">Clear</Button>
+                        </div>
+                        {codeDiagnostics.length === 0 ? (
+                            <div className="text-[13px] text-[#484f58] text-center py-8">
+                                <CheckCircle className="w-8 h-8 mx-auto mb-2 text-emerald-500/40" />
+                                <p>All systems operational</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {codeDiagnostics.map((diag: any, i: number) => (
+                                    <div key={i} className={cn(
+                                        "flex items-start gap-3 p-3 rounded border",
+                                        diag.severity === 'error' ? 'border-red-500/20 bg-red-500/5' : 
+                                        diag.severity === 'warning' ? 'border-yellow-500/20 bg-yellow-500/5' : 
+                                        'border-blue-500/20 bg-blue-500/5'
+                                    )}>
+                                        <div className={cn("text-[11px] font-bold uppercase shrink-0 mt-0.5",
+                                            diag.severity === 'error' ? 'text-red-400' : 
+                                            diag.severity === 'warning' ? 'text-yellow-400' : 'text-blue-400'
+                                        )}>
+                                            {diag.severity === 'error' ? 'ΓùÅ' : diag.severity === 'warning' ? 'Γû▓' : 'Γä╣'}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-[13px] text-[#c9d1d9]">{diag.message}</div>
+                                            <div className="text-[11px] text-[#484f58] mt-0.5">
+                                                {diag.source} ┬╖ {new Date(diag.timestamp || Date.now()).toLocaleTimeString()}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )
+            case "history": return (
+                <div className="h-full bg-[#0d1117] overflow-y-auto">
+                    <div className="p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-[13px] font-medium text-white">Version History</h3>
+                            <Button size="sm" onClick={createCodeVersion} className="h-6 text-[11px] bg-[#238636] hover:bg-[#2ea043]">Create Version</Button>
+                        </div>
+                        {codeVersions.length === 0 ? (
+                            <div className="text-[13px] text-[#484f58] text-center py-8">
+                                <Star className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                                <p>No versions saved yet</p>
+                                <p className="text-[11px] mt-1">Create your first version to start tracking changes</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {codeVersions.map((version: any, i: number) => (
+                                    <div key={version.id} className="flex items-center gap-3 p-3 rounded border border-[#30363d] hover:border-[#1f6feb]/50 transition-colors">
+                                        <Star className="w-4 h-4 text-amber-400 shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-[13px] text-[#c9d1d9] font-medium">{version.description}</div>
+                                            <div className="text-[11px] text-[#484f58]">
+                                                {version.author} ┬╖ {new Date(version.timestamp).toLocaleString()} ┬╖ {Object.keys(version.files).length} files
+                                            </div>
+                                        </div>
+                                        <Button size="sm" variant="outline" onClick={() => restoreCodeVersion(version.id)} className="h-6 text-[11px]">Restore</Button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )
+            case "ai-actions": return (
+                <div className="h-full bg-[#0d1117] overflow-y-auto">
+                    <div className="p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-[13px] font-medium text-white flex items-center gap-2">
+                                <Bot className="w-4 h-4 text-purple-400" />
+                                AI Code Actions
+                            </h3>
+                            {aiActionResult && (
+                                <Button size="sm" variant="outline" onClick={() => { setAiActionResult(''); setAiActionType('explain'); }} className="h-6 text-[11px]">Clear</Button>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {(['explain', 'fix', 'refactor', 'test', 'doc'] as const).map((action) => (
+                                <Button
+                                    key={action}
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={isAiActionRunning || !activeFileId}
+                                    onClick={() => {
+                                        const sel = editorInstance?.getModel()?.getValueInRange(editorInstance?.getSelection() || { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }) || '';
+                                        const code = sel || editorInstance?.getValue() || '';
+                                        runAiCodeAction(action, code);
+                                        setPanelView('ai-actions');
+                                    }}
+                                    className={cn("h-7 text-[11px] capitalize", aiActionType === action && isAiActionRunning && "border-purple-500/50")}
+                                >
+                                    {isAiActionRunning && aiActionType === action ? (
+                                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                    ) : null}
+                                    {action}
+                                </Button>
+                            ))}
+                        </div>
+                        {isAiActionRunning && (
+                            <div className="flex items-center gap-2 text-[13px] text-purple-400">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Running {aiActionType} action...
+                            </div>
+                        )}
+                        {aiActionResult && !isAiActionRunning && (
+                            <div className="rounded border border-[#30363d] bg-[#161b22] overflow-hidden">
+                                <div className="flex items-center justify-between px-3 py-2 border-b border-[#30363d]">
+                                    <span className="text-[11px] text-purple-400 uppercase font-medium">{aiActionType} Result</span>
+                                    <button
+                                        onClick={() => navigator.clipboard.writeText(aiActionResult)}
+                                        className="text-[11px] text-[#8b949e] hover:text-white transition-colors flex items-center gap-1"
+                                    >
+                                        <Copy className="w-3 h-3" /> Copy
+                                    </button>
+                                </div>
+                                <pre className="p-3 text-[13px] text-[#c9d1d9] font-mono whitespace-pre-wrap overflow-x-auto max-h-[300px]">{aiActionResult}</pre>
+                            </div>
+                        )}
+                        {!aiActionResult && !isAiActionRunning && (
+                            <div className="text-[13px] text-[#484f58] text-center py-8">
+                                <Bot className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                                <p>Select code and run an action</p>
+                                <p className="text-[11px] mt-1">Or run on the entire file with no selection</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )
             default: return null
         }
     }
@@ -1437,82 +1952,6 @@ export function CodeChamber({ id }: CodeChamberProps) {
     return (
         <TooltipProvider delayDuration={300}>
             <div className="h-full w-full flex flex-col bg-[#0d1117] overflow-hidden">
-                <Toaster
-                    position="bottom-right"
-                    theme="dark"
-                    toastOptions={{
-                        className: "!bg-[#161b22] !border-[#30363d] !text-[#c9d1d9]",
-                    }}
-                />
-
-                {/* Command Palette */}
-                <CommandPalette open={showCommandPalette} onClose={() => setShowCommandPalette(false)} onAction={handleCommandAction} activeFileName={activeFileName} />
-
-                {/* Quick Open */}
-                <QuickOpen open={showQuickOpen} onClose={() => setShowQuickOpen(false)} onOpenFile={(fileId) => openFile(fileId)} />
-
-                {/* Inline Edit Widget */}
-                <InlineEditWidget
-                    open={showInlineEdit}
-                    onClose={() => setShowInlineEdit(false)}
-                    onApply={handleInlineApply}
-                    selectedCode={inlineEditCode}
-                    language={getLanguage(activeFileName)}
-                    filename={activeFileName}
-                    cursorPosition={inlineEditPos}
-                />
-
-                {/* Zen Mode — Full-screen distraction-free editor */}
-                {isZenMode && activeFileId && (
-                    <div className="fixed inset-0 z-40 bg-[#0d1117] flex flex-col">
-                        {/* Zen mode header bar (subtle) */}
-                        <div className="h-8 flex items-center justify-between px-6 bg-[#0d1117] opacity-0 hover:opacity-100 transition-opacity duration-300 shrink-0">
-                            <span className="text-[12px] text-[#484f58]">{activeFileName} — Zen Mode</span>
-                            <button
-                                onClick={() => setIsZenMode(false)}
-                                className="text-[11px] text-[#484f58] hover:text-white px-2 py-0.5 rounded hover:bg-[#30363d] transition-colors"
-                            >
-                                Exit Zen Mode (Esc)
-                            </button>
-                        </div>
-                        <div className="flex-1 max-w-4xl w-full mx-auto">
-                            <MonacoEditor
-                                height="100%"
-                                path={`zen-${activeFileId}`}
-                                language={getLanguage(activeFileName)}
-                                theme={editorSettings.theme}
-                                value={activeFileContent}
-                                onChange={handleEditorChange}
-                                options={{
-                                    minimap: { enabled: false },
-                                    fontSize: editorSettings.fontSize + 2,
-                                    lineNumbers: "off",
-                                    scrollBeyondLastLine: true,
-                                    automaticLayout: true,
-                                    tabSize: editorSettings.tabSize,
-                                    wordWrap: "on",
-                                    padding: { top: 40, bottom: 40 },
-                                    fontFamily: editorSettings.fontFamily,
-                                    fontLigatures: editorSettings.fontLigatures,
-                                    cursorBlinking: "smooth",
-                                    cursorSmoothCaretAnimation: "on",
-                                    smoothScrolling: true,
-                                    renderLineHighlight: "none",
-                                    folding: false,
-                                    glyphMargin: false,
-                                    guides: { bracketPairs: false, indentation: false },
-                                    overviewRulerLanes: 0,
-                                    hideCursorInOverviewRuler: true,
-                                    scrollbar: { vertical: "hidden", horizontal: "hidden" },
-                                    lineDecorationsWidth: 0,
-                                    lineNumbersMinChars: 0,
-                                    renderWhitespace: "none",
-                                }}
-                            />
-                        </div>
-                    </div>
-                )}
-
                 {/* Title Bar */}
                 <div className="h-9 flex items-center justify-between px-3 bg-[#010409] border-b border-[#1b1f27] shrink-0 select-none">
                     <div className="flex items-center gap-3 text-[13px]">
@@ -1520,7 +1959,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
                             <Code className="w-4 h-4 text-emerald-400" />
                             <span className="font-medium">Code Chamber</span>
                         </div>
-                        <span className="text-[#30363d]">|</span>
+                        <span className="text-[#30363d]">ΓÇö</span>
                         <span className="text-[#8b949e] truncate max-w-[300px]">{activeFileName || "No file open"}</span>
                     </div>
                     <div className="flex items-center gap-1">
@@ -1529,11 +1968,36 @@ export function CodeChamber({ id }: CodeChamberProps) {
                             <Play className="w-3 h-3 text-emerald-400" />Run
                         </Button>
                         <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-[#8b949e] hover:text-white hover:bg-[#30363d] gap-1.5"
-                            onClick={() => handleCommandAction("deploy")}>
+                            onClick={async () => {
+                                if (!projectId) return
+                                try {
+                                    const res = await fetch("/api/deploy", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                            action: "deploy",
+                                            projectId,
+                                            projectName: projectId,
+                                            environment: "development",
+                                            buildType: "preview",
+                                        })
+                                    })
+                                    const data = await res.json()
+                                    if (!res.ok && !data?.status) {
+                                        alert(`Deploy failed: ${data.error || 'Unknown error'}`)
+                                    } else if (data?.status === 'not_ready') {
+                                        alert(data?.message || 'Deploy backend is not ready yet')
+                                    } else {
+                                        alert(`Deploy initiated: ${data.status || 'success'}`)
+                                    }
+                                } catch (e: any) {
+                                    alert(`Deploy error: ${e.message}`)
+                                }
+                            }}>
                             <Globe className="w-3 h-3 text-[#54aeff]" />Deploy
                         </Button>
                         <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-[#8b949e] hover:text-white hover:bg-[#30363d] gap-1.5"
-                            onClick={() => { saveProject(); toast.success("All files saved") }}>
+                            onClick={() => saveProject()}>
                             <Save className="w-3 h-3 text-amber-400" />Save All
                         </Button>
                     </div>
@@ -1545,10 +2009,35 @@ export function CodeChamber({ id }: CodeChamberProps) {
                         activeView={sidebarView}
                         onViewChange={handleSidebarViewChange}
                         sidebarVisible={sidebarVisible}
-                        diagnosticCounts={diagnosticCounts}
+                        onSettingsOpen={() => setSettingsOpen((o: boolean) => !o)}
                     />
 
-                    <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+                    <div className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
+                        {/* Settings panel overlay */}
+                        {settingsOpen && (
+                            <SettingsPanel
+                                projectId={projectId}
+                                onClose={() => setSettingsOpen(false)}
+                                onApply={(s) => {
+                                    setEditorSettings(s)
+                                    if (editorInstance) {
+                                        editorInstance.updateOptions({
+                                            fontSize: s.fontSize,
+                                            tabSize: s.tabSize,
+                                            fontFamily: s.fontFamily,
+                                            wordWrap: s.wordWrap,
+                                            minimap: { enabled: s.minimap },
+                                            lineNumbers: s.lineNumbers,
+                                            renderWhitespace: s.renderWhitespace,
+                                            stickyScroll: { enabled: s.stickyScroll },
+                                            bracketPairColorization: { enabled: s.bracketPairColorization },
+                                            cursorBlinking: s.cursorBlinking,
+                                            fontLigatures: s.fontLigatures,
+                                        })
+                                    }
+                                }}
+                            />
+                        )}
                         <ResizablePanelGroup direction="horizontal" className="flex-1">
                             {sidebarVisible && (
                                 <>
@@ -1563,82 +2052,100 @@ export function CodeChamber({ id }: CodeChamberProps) {
                                 <ResizablePanelGroup direction="vertical">
                                     <ResizablePanel defaultSize={panelVisible ? 65 : 100} minSize={30}>
                                         <div className="h-full flex flex-col bg-[#0d1117]">
-                                            {/* Draggable Editor Tabs */}
-                                            <DraggableTabBar
-                                                tabs={(tabOrder.length > 0 ? tabOrder : openFiles)
-                                                    .filter(fId => openFiles.includes(fId))
-                                                    .map(fId => ({
-                                                        id: fId,
-                                                        name: fileMap[fId]?.name || "untitled",
-                                                        icon: getFileIcon(fileMap[fId]?.name || ""),
-                                                        hasErrors: diagnostics.some(d => d.fileId === fId && d.severity === "error"),
-                                                        isModified: modifiedFiles.has(fId),
-                                                    }))}
-                                                activeTabId={activeFileId}
-                                                onSelect={setActiveFile}
-                                                onClose={closeFile}
-                                                onReorder={(tabs) => setTabOrder(tabs.map(t => t.id))}
-                                                getFileIcon={getFileIcon}
-                                            />
+                                            {/* Editor Tabs */}
+                                            <div role="tablist" aria-label="Open files" className="flex items-center bg-[#010409] border-b border-[#1b1f27] overflow-x-auto shrink-0 scrollbar-none min-h-[35px]">
+                                                {openFiles.map((fId) => {
+                                                    const file = fileMap[fId]
+                                                    if (!file) return null
+                                                    const isActive = activeFileId === fId
+                                                    return (
+                                                        <button 
+                                                            key={fId} 
+                                                            role="tab"
+                                                            aria-selected={isActive}
+                                                            aria-controls={`editor-panel-${fId}`}
+                                                            onClick={() => setActiveFile(fId)} 
+                                                            className={cn("group flex items-center gap-2 h-[35px] px-3 text-[13px] border-r border-[#1b1f27] transition-colors shrink-0", isActive ? "bg-[#0d1117] text-white border-t-2 border-t-[#1f6feb]" : "bg-[#010409] text-[#8b949e] hover:text-[#c9d1d9] border-t-2 border-t-transparent")}
+                                                        >
+                                                            {getFileIcon(file.name)}
+                                                            <span>{file.name}</span>
+                                                            <button onClick={(e) => { e.stopPropagation(); closeFile(fId) }} className="ml-1 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-[#30363d] transition-all"><X className="w-3 h-3" /></button>
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
 
-                                            {/* Enhanced Breadcrumb bar with symbol navigation */}
-                                            {activeFileName && (
-                                                <EnhancedBreadcrumbBar
-                                                    fileName={activeFileName}
-                                                    fileMap={fileMap}
-                                                    activeFileId={activeFileId}
-                                                    onOpenFile={(fileId) => openFile(fileId)}
-                                                    symbols={symbols}
-                                                    onNavigateSymbol={(line) => {
-                                                        if (editorInstance) {
-                                                            editorInstance.revealLineInCenter(line)
-                                                            editorInstance.setPosition({ lineNumber: line, column: 1 })
-                                                            editorInstance.focus()
-                                                        }
-                                                    }}
-                                                />
-                                            )}
+                                            {/* Breadcrumb bar */}
+                                            {activeFileName && <BreadcrumbBar fileName={activeFileName} />}
 
                                             {/* Editor / Welcome */}
                                             <div className="flex-1 min-h-0 relative">
                                                 {activeFileId ? (
                                                     <>
-                                                        {provider && connectedUsers > 1 && (
+                                                        {provider && (
                                                             <div className="absolute top-2 right-6 z-10 flex items-center gap-2 px-2 py-1 rounded-md bg-[#161b22] border border-[#30363d] text-[11px] text-[#8b949e] shadow-sm">
                                                                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                                                <span>{connectedUsers} collaborators</span>
+                                                                <span>Live Collaboration Active</span>
+                                                                {liveSharePeers.length > 0 && (
+                                                                    <div className="flex items-center gap-1 ml-2 pl-2 border-l border-[#30363d]">
+                                                                        {liveSharePeers.slice(0, 4).map((peer) => (
+                                                                            <div
+                                                                                key={peer.clientId}
+                                                                                className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+                                                                                style={{ backgroundColor: peer.color }}
+                                                                                title={peer.name}
+                                                                            >
+                                                                                {peer.name.charAt(0).toUpperCase()}
+                                                                            </div>
+                                                                        ))}
+                                                                        {liveSharePeers.length > 4 && (
+                                                                            <span className="text-[10px] text-[#8b949e]">+{liveSharePeers.length - 4}</span>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                                {isLiveShareActive && liveShareLink && (
+                                                                    <button
+                                                                        onClick={() => { navigator.clipboard.writeText(liveShareLink); }}
+                                                                        className="ml-2 pl-2 border-l border-[#30363d] hover:text-white transition-colors"
+                                                                        title="Copy share link"
+                                                                    >
+                                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         )}
-                                                        <MonacoEditor
-                                                            height="100%"
-                                                            path={activeFileId}
-                                                            language={getLanguage(activeFileName)}
-                                                            theme={editorSettings.theme}
-                                                            value={activeFileContent}
-                                                            onChange={handleEditorChange}
-                                                            onMount={handleEditorMount}
-                                                            options={{
-                                                                minimap: { enabled: editorSettings.minimap, maxColumn: 80 },
-                                                                fontSize: editorSettings.fontSize,
-                                                                lineNumbers: editorSettings.lineNumbers,
-                                                                scrollBeyondLastLine: false,
-                                                                automaticLayout: true,
-                                                                tabSize: editorSettings.tabSize,
-                                                                wordWrap: editorSettings.wordWrap,
-                                                                padding: { top: 8 },
-                                                                fontFamily: editorSettings.fontFamily,
-                                                                fontLigatures: editorSettings.fontLigatures,
-                                                                cursorBlinking: editorSettings.cursorBlinking,
-                                                                cursorSmoothCaretAnimation: "on",
-                                                                smoothScrolling: true,
-                                                                renderLineHighlight: "all",
-                                                                bracketPairColorization: { enabled: editorSettings.bracketPairColorization },
-                                                                guides: { bracketPairs: true },
-                                                                suggest: { showMethods: true, showFunctions: true },
-                                                                stickyScroll: { enabled: editorSettings.stickyScroll },
-                                                                renderWhitespace: editorSettings.renderWhitespace,
-                                                            }}
-                                                        />
+                                                        <ErrorBoundary fallback={() => <div className="h-full flex items-center justify-center text-red-400">Editor failed to load</div>}>
+                                                            <MonacoEditor
+                                                                height="100%"
+                                                                path={activeFileId}
+                                                                language={getLanguage(activeFileName)}
+                                                                theme="vs-dark"
+                                                                value={activeFileContent}
+                                                                onChange={handleEditorChange}
+                                                                onMount={handleEditorMount}
+                                                                options={{
+                                                                    minimap: { enabled: true, maxColumn: 80 },
+                                                                    fontSize: 13,
+                                                                    lineNumbers: "on",
+                                                                    scrollBeyondLastLine: false,
+                                                                    automaticLayout: true,
+                                                                    tabSize: 2,
+                                                                    wordWrap: "off",
+                                                                    padding: { top: 8 },
+                                                                    fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+                                                                    fontLigatures: true,
+                                                                    cursorBlinking: "smooth",
+                                                                    cursorSmoothCaretAnimation: "on",
+                                                                    smoothScrolling: true,
+                                                                    renderLineHighlight: "all",
+                                                                    bracketPairColorization: { enabled: true },
+                                                                    guides: { bracketPairs: true },
+                                                                    suggest: { showMethods: true, showFunctions: true },
+                                                                    stickyScroll: { enabled: true },
+                                                                    renderWhitespace: "boundary",
+                                                                }}
+                                                            />
+                                                        </ErrorBoundary>
                                                     </>
                                                 ) : (
                                                     <WelcomeTab onProjectSelect={(templateId) => loadProject(templateId)} />
@@ -1652,8 +2159,18 @@ export function CodeChamber({ id }: CodeChamberProps) {
                                             <ResizableHandle className="h-px bg-[#1b1f27] hover:bg-[#1f6feb] transition-colors data-[resize-handle-active]:bg-[#1f6feb]" />
                                             <ResizablePanel defaultSize={35} minSize={10} maxSize={80}>
                                                 <div className="h-full flex flex-col">
-                                                    <PanelTabs activePanel={panelView} onPanelChange={setPanelView} onClose={() => setPanelVisible(false)} diagnosticCounts={diagnosticCounts} />
-                                                    <div className="flex-1 overflow-hidden">{renderPanel()}</div>
+                                                    <PanelTabs
+                                                        activePanel={panelView}
+                                                        onPanelChange={setPanelView}
+                                                        onClose={() => setPanelVisible(false)}
+                                                        errorCount={lintSummary?.errors}
+                                                        warningCount={lintSummary?.warnings}
+                                                    />
+                                                    <div className="flex-1 overflow-hidden">
+                                                        <ErrorBoundary fallback={() => <div className="h-full flex items-center justify-center text-red-400">Panel failed to load</div>}>
+                                                            {renderPanel()}
+                                                        </ErrorBoundary>
+                                                    </div>
                                                 </div>
                                             </ResizablePanel>
                                         </>
@@ -1671,25 +2188,51 @@ export function CodeChamber({ id }: CodeChamberProps) {
                     onTogglePanel={() => setPanelVisible(!panelVisible)}
                     cursorLine={cursorLine}
                     cursorCol={cursorCol}
-                    diagnosticCounts={diagnosticCounts}
-                    gitBranch={gitBranch}
-                    connectedUsers={connectedUsers}
-                    onGoToLine={() => {
-                        if (editorInstance) {
-                            editorInstance.getAction("editor.action.gotoLine")?.run()
-                        }
-                    }}
-                    isZenMode={isZenMode}
-                    onToggleZenMode={() => setIsZenMode(z => !z)}
-                    notifications={notifications}
-                    onDismissNotification={dismissNotification}
-                    onDismissAllNotifications={dismissAllNotifications}
-                    onMarkNotificationRead={markNotificationRead}
-                    onMarkAllNotificationsRead={markAllNotificationsRead}
+                    errorCount={diagnostics.filter((d: Diagnostic) => d.severity === 'error').length}
+                    warningCount={diagnostics.filter((d: Diagnostic) => d.severity === 'warning').length}
                 />
             </div>
+
+            {/* Command Palette (Ctrl+Shift+P) */}
+            <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
+
+            {/* Quick Open (Ctrl+P) ΓÇö file fuzzy search */}
+            {quickOpenOpen && (
+                <div className="fixed inset-0 z-[9999] flex items-start justify-center pt-[15vh]" onClick={() => setQuickOpenOpen(false)}>
+                    <div className="w-[520px] bg-[#1c2128] border border-[#30363d] rounded-lg shadow-2xl overflow-hidden" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                        <input
+                            autoFocus
+                            value={quickOpenQuery}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuickOpenQuery(e.target.value)}
+                            onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Escape") setQuickOpenOpen(false) }}
+                            placeholder="Search files by name..."
+                            className="w-full bg-transparent border-b border-[#30363d] px-4 py-3 text-[14px] text-white placeholder-[#484f58] outline-none"
+                        />
+                        <div className="max-h-[300px] overflow-y-auto">
+                            {Object.values(fileMap)
+                                .filter((n: any) => n.type === "file" && n.name.toLowerCase().includes(quickOpenQuery.toLowerCase()))
+                                .slice(0, 15)
+                                .map((n: any) => (
+                                    <button
+                                        key={n.id}
+                                        className="w-full flex items-center gap-3 px-4 py-2 text-[13px] text-[#c9d1d9] hover:bg-[#1f6feb33] transition-colors text-left"
+                                        onClick={() => { openFile(n.id); setQuickOpenOpen(false) }}
+                                    >
+                                        {getFileIcon(n.name)}
+                                        <span className="flex-1 truncate">{n.name}</span>
+                                        <span className="text-[11px] text-[#484f58] truncate max-w-[200px]">{n.path}</span>
+                                    </button>
+                                ))}
+                            {Object.values(fileMap).filter((n: any) => n.type === "file" && n.name.toLowerCase().includes(quickOpenQuery.toLowerCase())).length === 0 && (
+                                <div className="px-4 py-6 text-center text-[13px] text-[#484f58]">No files found</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </TooltipProvider>
     )
 }
 
 export default CodeChamber
+

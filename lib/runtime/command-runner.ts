@@ -14,16 +14,38 @@ import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 
 // WebContainer is a browser-only API. During Node tests it may not be installed.
-// Try to require it dynamically and fallback to undefined if unavailable.
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-let WebContainer: any
-try {
-  WebContainer = require('@webcontainer/api').WebContainer
-} catch (err) {
-  WebContainer = undefined
+// Resolve it at runtime without static module references so server bundling does not
+// require '@webcontainer/api' to be installed.
+function resolveOptionalModule(moduleName: string): any {
+  try {
+    const runtimeRequire =
+      typeof (globalThis as { require?: unknown }).require === 'function'
+        ? (globalThis as { require: (name: string) => unknown }).require
+        : Function('return require')()
+    return runtimeRequire(moduleName)
+  } catch {
+    return undefined
+  }
 }
 
+const WebContainer = resolveOptionalModule('@webcontainer/api')?.WebContainer
+
 const execAsync = promisify(exec);
+const BLOCKED_SHELL_PATTERNS = [
+  /(^|\s)rm\s+-rf\s+\//i,
+  /(^|\s)mkfs(\s|$)/i,
+  /(^|\s)dd\s+if=/i,
+  /(^|\s)shutdown(\s|$)/i,
+  /(^|\s)reboot(\s|$)/i,
+  /(^|\s)format(\s|$)/i,
+  /:\(\)\s*\{\s*:\|:&\s*\};:/,
+]
+
+function isBlockedShellCommand(command: string): boolean {
+  const normalized = command.trim()
+  if (!normalized || normalized.length > 4000) return true
+  return BLOCKED_SHELL_PATTERNS.some((pattern) => pattern.test(normalized))
+}
 
 export interface CommandConfig {
   type: 'javascript' | 'typescript' | 'python' | 'bash' | 'shell';
@@ -83,34 +105,11 @@ async function executeJavaScript(config: CommandConfig): Promise<CommandResult> 
         duration: Date.now() - startTime,
       };
     } catch (containerError) {
-      // Fallback to Node.js eval for simple code (safer than eval)
-      // Only for trusted, generated code
-      console.warn('[CommandRunner] WebContainer unavailable, using safe eval');
-      
-      const wrappedCode = `
-        (async () => {
-          try {
-            const console_log = console.log;
-            let output = '';
-            const console_proxy = { log: (...args) => { output += args.join(' ') + '\\n'; } };
-            
-            ${config.code}
-            
-            return output;
-          } catch (error) {
-            throw error;
-          }
-        })()
-      `;
-
-      const fn = new Function(wrappedCode);
-      const output = await fn();
-
       return {
-        success: true,
-        output: String(output),
+        success: false,
+        error: 'JavaScript/TypeScript execution requires WebContainer runtime',
         duration: Date.now() - startTime,
-      };
+      }
     }
   } catch (error) {
     return {
@@ -132,14 +131,23 @@ async function executePython(config: CommandConfig): Promise<CommandResult> {
       throw new Error('No code provided');
     }
 
-    const { stdout, stderr } = await execAsync(
-      `python3 -c "${config.code.replace(/"/g, '\\"')}"`,
+    const pythonExecutable = process.platform === 'win32' ? 'python' : (process.env.PYTHON_BIN || 'python3')
+    const { stdout, stderr, exitCode } = await runSpawnCommand(
+      pythonExecutable,
+      ['-c', config.code],
       {
         cwd: config.cwd || process.cwd(),
         timeout: config.timeout || 30000,
         env: { ...process.env, ...config.env },
       }
-    );
+    )
+
+    if (exitCode !== 0) {
+      throw Object.assign(new Error(stderr || `Python exited with code ${exitCode}`), {
+        code: exitCode,
+        stderr,
+      })
+    }
 
     return {
       success: true,
@@ -156,6 +164,49 @@ async function executePython(config: CommandConfig): Promise<CommandResult> {
   }
 }
 
+function runSpawnCommand(
+  command: string,
+  args: string[],
+  options: {
+    cwd: string
+    timeout: number
+    env: NodeJS.ProcessEnv
+  }
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env,
+      shell: false,
+    })
+
+    let stdout = ''
+    let stderr = ''
+
+    const timeoutHandle = setTimeout(() => {
+      child.kill()
+    }, Math.max(1000, options.timeout))
+
+    child.stdout?.on('data', (chunk) => {
+      stdout += chunk.toString()
+    })
+
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk.toString()
+    })
+
+    child.on('error', (error) => {
+      clearTimeout(timeoutHandle)
+      reject(error)
+    })
+
+    child.on('close', (code) => {
+      clearTimeout(timeoutHandle)
+      resolve({ stdout, stderr, exitCode: code ?? 1 })
+    })
+  })
+}
+
 /**
  * Execute shell command
  */
@@ -165,6 +216,10 @@ async function executeShell(config: CommandConfig): Promise<CommandResult> {
   try {
     if (!config.command) {
       throw new Error('No command provided');
+    }
+
+    if (isBlockedShellCommand(config.command)) {
+      throw new Error('Command blocked by security policy')
     }
 
     const { stdout, stderr } = await execAsync(config.command, {

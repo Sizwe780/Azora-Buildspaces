@@ -19,6 +19,7 @@ import { WebLinksAddon } from 'xterm-addon-web-links'
 import { runtimeEngine, type ProcessOutput } from '@/lib/runtime/container'
 import { Button } from '@/components/ui/button'
 import { Terminal as TerminalIcon, X, RotateCcw, Play, Square } from 'lucide-react'
+import { terminalTheme } from '@/lib/ide-terminal-theme'
 import 'xterm/css/xterm.css'
 
 interface RealTerminalProps {
@@ -40,27 +41,7 @@ export function RealTerminal({ onClose }: RealTerminalProps) {
 
     // Create terminal instance
     const terminal = new Terminal({
-      theme: {
-        background: '#0d1117',
-        foreground: '#c9d1d9',
-        cursor: '#58a6ff',
-        black: '#484f58',
-        red: '#ff7b72',
-        green: '#3fb950',
-        yellow: '#d29922',
-        blue: '#58a6ff',
-        magenta: '#bc8cff',
-        cyan: '#39c5cf',
-        white: '#b1bac4',
-        brightBlack: '#6e7681',
-        brightRed: '#ffa198',
-        brightGreen: '#56d364',
-        brightYellow: '#e3b341',
-        brightBlue: '#79c0ff',
-        brightMagenta: '#d2a8ff',
-        brightCyan: '#56d4dd',
-        brightWhite: '#f0f6fc',
-      },
+      theme: terminalTheme,
       fontSize: 13,
       fontFamily: '"Cascadia Code", "Fira Code", "JetBrains Mono", monospace',
       cursorBlink: true,
@@ -292,9 +273,9 @@ export function RealTerminal({ onClose }: RealTerminalProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#0d1117]">
+    <div className="flex flex-col h-full bg-[var(--ide-terminal-bg)]">
       {/* Terminal Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[#3e3e42] bg-[#161b22]">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--ide-border)] bg-[var(--ide-sidebar-bg)]">
         <div className="flex items-center gap-2">
           <TerminalIcon className="w-4 h-4 text-emerald-400" />
           <span className="text-sm font-medium text-white">Terminal</span>

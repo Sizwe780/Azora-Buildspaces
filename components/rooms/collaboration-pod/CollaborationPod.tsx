@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useRoomEvents } from "@/lib/hooks/use-room-events";
 import * as Y from "yjs";
-import { WebsocketProvider } from "y-websocket";
+// Dynamic import for browser-only module
+const getWebsocketProvider = () => import("y-websocket").then(m => m.WebsocketProvider);
 import { motion, AnimatePresence } from "framer-motion";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -18,11 +20,8 @@ import Whiteboard from "./Whiteboard";
 import Chat from "./Chat";
 import TaskBoard from "./TaskBoard";
 
-const SAMPLE_PARTICIPANTS = [
-    { id: 1, name: "Alice Chen", initials: "AC", status: "online" as const },
-    { id: 2, name: "Bob Kumar", initials: "BK", status: "away" as const },
-    { id: 3, name: "Diana Ross", initials: "DR", status: "typing" as const },
-];
+// Participants are derived from Yjs awareness (real connected users)
+// No hardcoded sample data — the list is populated live.
 
 const EMOJIS = ["👍", "❤️", "🎉", "🔥", "🤔", "😂"];
 
@@ -46,6 +45,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function CollaborationPod() {
+    const { emit, ROOM_EVENTS } = useRoomEvents('collaboration-pod')
     const [activeTab, setActiveTab] = useState("video");
     const [notifications, setNotifications] = useState(5);
     const [isConnected, setIsConnected] = useState(false);
@@ -54,8 +54,9 @@ export default function CollaborationPod() {
     const [isSharing, setIsSharing] = useState(false);
     const screenStreamRef = useRef<MediaStream | null>(null);
 
-    // Feature 2: Participants
-    const [participants] = useState(SAMPLE_PARTICIPANTS);
+    // Feature 2: Participants — derived from Yjs awareness protocol
+    // Feature 2: Participants — derived from Yjs awareness protocol (effect placed after provider useMemo below)
+    const [participants, setParticipants] = useState<{ id: number; name: string; initials: string; status: 'online' | 'away' | 'typing' }[]>([]);
 
     // Feature 3: Emoji Reactions
     const [showEmojiBar, setShowEmojiBar] = useState(false);
@@ -63,7 +64,7 @@ export default function CollaborationPod() {
     const emojiIdRef = useRef(0);
 
     // Feature 4: Reconnect
-    const providerRef = useRef<WebsocketProvider | null>(null);
+    const providerRef = useRef<any>(null);
     const ydocRef = useRef<Y.Doc | null>(null);
     const [providerVersion, setProviderVersion] = useState(0);
 
@@ -78,15 +79,35 @@ export default function CollaborationPod() {
     const [pendingSettings, setPendingSettings] = useState<RoomSettings>(settings);
 
     // Initialize Yjs — recreated on reconnect via providerVersion
-    const { ydoc, provider } = useMemo(() => {
+    const [ydoc, setYdoc] = useState<Y.Doc | null>(null);
+    const [provider, setProvider] = useState<any>(null);
+
+    useEffect(() => {
         if (ydocRef.current) ydocRef.current.destroy();
         const doc = new Y.Doc();
         ydocRef.current = doc;
-        const wsProvider = typeof window !== 'undefined'
-            ? new WebsocketProvider('wss://demos.yjs.dev', 'azora-buildspaces-pod', doc)
-            : null;
-        providerRef.current = wsProvider;
-        return { ydoc: doc, provider: wsProvider };
+        setYdoc(doc);
+        let cancelled = false;
+        let wsProvider: any = null;
+
+        if (typeof window !== 'undefined') {
+            getWebsocketProvider().then(WebsocketProvider => {
+                if (cancelled) return;
+                const wsUrl = process.env.NEXT_PUBLIC_YJS_WS_URL || 'ws://localhost:1234';
+                wsProvider = new WebsocketProvider(wsUrl, 'azora-buildspaces-pod', doc);
+                providerRef.current = wsProvider;
+                setProvider(wsProvider);
+            }).catch(() => {
+                // WebSocket provider not available
+            });
+        }
+
+        return () => {
+            cancelled = true;
+            wsProvider?.destroy();
+            doc.destroy();
+            setProvider(null);
+        };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [providerVersion]);
 
@@ -97,6 +118,35 @@ export default function CollaborationPod() {
             });
         }
         return () => provider?.destroy();
+    }, [provider]);
+
+    // Awareness-driven participant list
+    useEffect(() => {
+        if (!provider) return;
+        const awareness = provider.awareness;
+        awareness.setLocalStateField('user', {
+            name: 'You',
+            initials: 'YO',
+            color: '#ec4899',
+        });
+        const updateParticipants = () => {
+            const states = awareness.getStates();
+            const users: { id: number; name: string; initials: string; status: 'online' | 'away' | 'typing' }[] = [];
+            states.forEach((state: any, clientId: number) => {
+                if (state.user) {
+                    users.push({
+                        id: clientId,
+                        name: state.user.name || `User ${clientId}`,
+                        initials: state.user.initials || state.user.name?.slice(0, 2)?.toUpperCase() || 'U',
+                        status: state.user.typing ? 'typing' : 'online',
+                    });
+                }
+            });
+            setParticipants(users);
+        };
+        awareness.on('change', updateParticipants);
+        updateParticipants();
+        return () => awareness.off('change', updateParticipants);
     }, [provider]);
 
     // Feature 1: Screen share helpers
@@ -257,7 +307,7 @@ export default function CollaborationPod() {
                         onMouseEnter={() => setShowEmojiBar(true)}
                         onMouseLeave={() => setShowEmojiBar(false)}
                     >
-                        {provider && <ActiveComponent ydoc={ydoc} provider={provider} />}
+                        {provider && ydoc && <ActiveComponent ydoc={ydoc} provider={provider} />}
 
                         {/* Emoji reaction bar */}
                         <AnimatePresence>

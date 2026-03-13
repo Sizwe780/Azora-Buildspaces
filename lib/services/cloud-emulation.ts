@@ -13,6 +13,11 @@
  * - Custom service mocking
  */
 
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+
+const execFileAsync = promisify(execFile)
+
 export type CloudProvider = 'aws' | 'gcp' | 'azure' | 'firebase' | 'generic'
 
 export type AWSService =
@@ -67,6 +72,27 @@ export interface CloudEmulatorPreset {
     config: Record<string, any>
   }[]
   icon: string
+}
+
+export interface CloudServiceCapability {
+  provider: CloudProvider
+  service: string
+  label: string
+  supported: boolean
+  reason?: string
+  defaultPort?: number
+}
+
+export interface CloudEmulationCapabilities {
+  providers: Record<CloudProvider, CloudServiceCapability[]>
+}
+
+export interface CloudEmulatorStartResult {
+  provider: CloudProvider
+  service: string
+  success: boolean
+  emulator?: CloudEmulatorConfig
+  error?: string
 }
 
 // Pre-configured presets
@@ -128,6 +154,73 @@ const EMULATOR_PRESETS: CloudEmulatorPreset[] = [
   },
 ]
 
+const PROVIDER_SERVICE_CATALOG: Record<CloudProvider, Array<{ service: string; label: string }>> = {
+  aws: [
+    { service: 's3', label: 'S3' },
+    { service: 'dynamodb', label: 'DynamoDB' },
+    { service: 'lambda', label: 'Lambda' },
+    { service: 'sqs', label: 'SQS' },
+    { service: 'sns', label: 'SNS' },
+    { service: 'api-gateway', label: 'API Gateway' },
+    { service: 'cognito', label: 'Cognito' },
+    { service: 'ses', label: 'SES' },
+    { service: 'step-functions', label: 'Step Functions' },
+    { service: 'kinesis', label: 'Kinesis' },
+    { service: 'secretsmanager', label: 'Secrets Manager' },
+    { service: 'ssm', label: 'SSM Parameter Store' },
+    { service: 'cloudwatch', label: 'CloudWatch' },
+    { service: 'iam', label: 'IAM' },
+    { service: 'sts', label: 'STS' },
+  ],
+  gcp: [
+    { service: 'cloud-storage', label: 'Cloud Storage' },
+    { service: 'firestore', label: 'Firestore' },
+    { service: 'pubsub', label: 'Pub/Sub' },
+    { service: 'cloud-functions', label: 'Cloud Functions' },
+    { service: 'bigquery', label: 'BigQuery' },
+    { service: 'cloud-run', label: 'Cloud Run' },
+    { service: 'cloud-tasks', label: 'Cloud Tasks' },
+    { service: 'cloud-scheduler', label: 'Cloud Scheduler' },
+  ],
+  azure: [
+    { service: 'blob-storage', label: 'Blob Storage' },
+    { service: 'cosmos-db', label: 'Cosmos DB' },
+    { service: 'functions', label: 'Functions' },
+    { service: 'service-bus', label: 'Service Bus' },
+    { service: 'event-grid', label: 'Event Grid' },
+    { service: 'key-vault', label: 'Key Vault' },
+    { service: 'cognitive-services', label: 'Cognitive Services' },
+  ],
+  firebase: [
+    { service: 'auth', label: 'Auth' },
+    { service: 'firestore', label: 'Firestore' },
+    { service: 'rtdb', label: 'Realtime DB' },
+    { service: 'storage', label: 'Storage' },
+    { service: 'functions', label: 'Functions' },
+    { service: 'hosting', label: 'Hosting' },
+    { service: 'messaging', label: 'Messaging' },
+  ],
+  generic: [
+    { service: 'redis', label: 'Redis' },
+    { service: 'postgresql', label: 'PostgreSQL' },
+    { service: 'mongodb', label: 'MongoDB' },
+    { service: 'elasticsearch', label: 'Elasticsearch' },
+    { service: 'rabbitmq', label: 'RabbitMQ' },
+    { service: 'kafka', label: 'Kafka' },
+    { service: 'minio', label: 'MinIO' },
+    { service: 'vault', label: 'Vault' },
+    { service: 'consul', label: 'Consul' },
+    { service: 'etcd', label: 'etcd' },
+  ],
+}
+
+const SERVICE_ALIASES: Record<string, string> = {
+  'pub-sub': 'pubsub',
+  'servicebus': 'service-bus',
+  'realtime-db': 'rtdb',
+  'realtime-database': 'rtdb',
+}
+
 // Service port mappings
 const SERVICE_DEFAULTS: Record<string, { port: number; image: string; healthPath: string }> = {
   // AWS
@@ -154,6 +247,45 @@ const SERVICE_DEFAULTS: Record<string, { port: number; image: string; healthPath
 class CloudEmulationService {
   private emulators: Map<string, CloudEmulatorConfig> = new Map()
 
+  private normalizeService(service: string): string {
+    const normalized = service
+      .trim()
+      .toLowerCase()
+      .replace(/[\/_\s]+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+
+    return SERVICE_ALIASES[normalized] || normalized
+  }
+
+  private getServiceCapability(provider: CloudProvider, service: string): CloudServiceCapability | undefined {
+    const normalized = this.normalizeService(service)
+    const providerCatalog = PROVIDER_SERVICE_CATALOG[provider] || []
+    const catalogEntry = providerCatalog.find(entry => entry.service === normalized)
+    if (!catalogEntry) return undefined
+
+    const defaults = SERVICE_DEFAULTS[normalized]
+    const supported = Boolean(defaults?.image)
+
+    return {
+      provider,
+      service: normalized,
+      label: catalogEntry.label,
+      supported,
+      reason: supported ? undefined : 'No runtime image configured for this service',
+      defaultPort: defaults?.port,
+    }
+  }
+
+  private async ensureDockerAvailable(): Promise<void> {
+    try {
+      await execFileAsync('docker', ['--version'])
+    } catch {
+      throw new Error('Docker runtime is required for cloud emulation but is not available in this environment')
+    }
+  }
+
   // Get all presets
   getPresets(): CloudEmulatorPreset[] {
     return EMULATOR_PRESETS
@@ -164,20 +296,57 @@ class CloudEmulationService {
     return EMULATOR_PRESETS.find(p => p.id === id)
   }
 
+  getCapabilities(): CloudEmulationCapabilities {
+    const providers = {
+      aws: [] as CloudServiceCapability[],
+      gcp: [] as CloudServiceCapability[],
+      azure: [] as CloudServiceCapability[],
+      firebase: [] as CloudServiceCapability[],
+      generic: [] as CloudServiceCapability[],
+    }
+
+    for (const [provider, services] of Object.entries(PROVIDER_SERVICE_CATALOG) as [CloudProvider, Array<{ service: string; label: string }>][]) {
+      providers[provider] = services.map(({ service, label }) => {
+        const defaults = SERVICE_DEFAULTS[service]
+        const supported = Boolean(defaults?.image)
+
+        return {
+          provider,
+          service,
+          label,
+          supported,
+          reason: supported ? undefined : 'No runtime image configured for this service',
+          defaultPort: defaults?.port,
+        }
+      })
+    }
+
+    return { providers }
+  }
+
   // Start a single emulator
   async startEmulator(
     provider: CloudProvider,
     service: string,
     config?: Partial<CloudEmulatorConfig>
   ): Promise<CloudEmulatorConfig> {
-    const defaults = SERVICE_DEFAULTS[service] || { port: 8000, image: '', healthPath: '' }
-    const id = `${provider}-${service}-${Date.now()}`
+    const normalizedService = this.normalizeService(service)
+    const capability = this.getServiceCapability(provider, normalizedService)
+    if (!capability) {
+      throw new Error(`Service ${normalizedService} is not available for provider ${provider}`)
+    }
+    if (!capability.supported) {
+      throw new Error(capability.reason || `Service ${normalizedService} is not supported in this environment`)
+    }
+
+    const defaults = SERVICE_DEFAULTS[normalizedService] || { port: 8000, image: '', healthPath: '' }
+    const id = `${provider}-${normalizedService}-${Date.now()}`
 
     const emulator: CloudEmulatorConfig = {
       id,
       provider,
-      service,
-      name: `${provider.toUpperCase()} ${service}`,
+      service: normalizedService,
+      name: `${provider.toUpperCase()} ${capability.label}`,
       port: config?.port || defaults.port,
       status: 'starting',
       config: config?.config || {},
@@ -191,45 +360,134 @@ class CloudEmulationService {
 
     this.emulators.set(id, emulator)
 
-    // Simulate startup
-    emulator.logs.push(`[${new Date().toISOString()}] Starting ${service} emulator...`)
-    emulator.logs.push(`[${new Date().toISOString()}] Using image: ${defaults.image}`)
+    emulator.logs.push(`[${new Date().toISOString()}] Starting ${normalizedService} emulator...`)
+    emulator.logs.push(`[${new Date().toISOString()}] Using image: ${defaults.image || 'unknown'}`)
     emulator.logs.push(`[${new Date().toISOString()}] Binding to port: ${emulator.port}`)
 
-    // In production, this would use Docker API or WebContainer
-    setTimeout(() => {
+    if (!defaults.image) {
+      emulator.status = 'error'
+      emulator.logs.push(`[${new Date().toISOString()}] ❌ No runtime image configured for service: ${service}`)
+      throw new Error(`No runtime image configured for service: ${service}`)
+    }
+
+    try {
+      await this.ensureDockerAvailable()
+
+      const containerName = `${provider}-${service}-${Date.now()}`.replace(/[^a-zA-Z0-9_.-]/g, '-')
+      const containerPort = defaults.port
+      const { stdout } = await execFileAsync('docker', [
+        'run',
+        '-d',
+        '--rm',
+        '--name',
+        containerName,
+        '-p',
+        `${emulator.port}:${containerPort}`,
+        defaults.image,
+      ])
+
+      emulator.container = stdout.trim()
       emulator.status = 'running'
       emulator.startedAt = Date.now()
       emulator.endpoint = `http://localhost:${emulator.port}`
       emulator.healthCheck = defaults.healthPath
         ? `http://localhost:${emulator.port}${defaults.healthPath}`
         : undefined
-      emulator.logs.push(`[${new Date().toISOString()}] ✅ ${service} is ready at ${emulator.endpoint}`)
-    }, 2000)
+      emulator.logs.push(`[${new Date().toISOString()}] ✅ ${normalizedService} is ready at ${emulator.endpoint}`)
+    } catch (error) {
+      emulator.status = 'error'
+      const message = error instanceof Error ? error.message : 'Failed to start emulator'
+      emulator.logs.push(`[${new Date().toISOString()}] ❌ ${message}`)
+      throw new Error(`Failed to start emulator ${normalizedService}: ${message}`)
+    }
 
     return emulator
   }
 
-  // Start a preset (multiple emulators)
-  async startPreset(presetId: string): Promise<CloudEmulatorConfig[]> {
+  async startServices(
+    provider: CloudProvider,
+    services: string[],
+    config?: Partial<CloudEmulatorConfig>
+  ): Promise<CloudEmulatorStartResult[]> {
+    const results: CloudEmulatorStartResult[] = []
+
+    for (const service of services) {
+      const normalizedService = this.normalizeService(service)
+      const capability = this.getServiceCapability(provider, normalizedService)
+
+      if (!capability) {
+        results.push({
+          provider,
+          service: normalizedService || service,
+          success: false,
+          error: `Service ${service} is not available for provider ${provider}`,
+        })
+        continue
+      }
+
+      if (!capability.supported) {
+        results.push({
+          provider,
+          service: capability.service,
+          success: false,
+          error: capability.reason || `Service ${capability.service} is not supported in this environment`,
+        })
+        continue
+      }
+
+      try {
+        const emulator = await this.startEmulator(provider, capability.service, config)
+        results.push({ provider, service: capability.service, success: true, emulator })
+      } catch (error) {
+        results.push({
+          provider,
+          service: capability.service,
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to start emulator',
+        })
+      }
+    }
+
+    return results
+  }
+
+  async startPresetWithResults(presetId: string): Promise<CloudEmulatorStartResult[]> {
     const preset = this.getPreset(presetId)
     if (!preset) throw new Error(`Preset ${presetId} not found`)
 
-    const configs: CloudEmulatorConfig[] = []
+    const results: CloudEmulatorStartResult[] = []
+
     for (const svc of preset.services) {
-      const config = await this.startEmulator(preset.provider, svc.service, {
+      const serviceResults = await this.startServices(preset.provider, [svc.service], {
         port: svc.port,
         config: svc.config,
       })
-      configs.push(config)
+      results.push(...serviceResults)
     }
-    return configs
+
+    return results
+  }
+
+  // Start a preset (multiple emulators)
+  async startPreset(presetId: string): Promise<CloudEmulatorConfig[]> {
+    const results = await this.startPresetWithResults(presetId)
+    return results.flatMap(result => (result.success && result.emulator ? [result.emulator] : []))
   }
 
   // Stop an emulator
   async stopEmulator(id: string): Promise<void> {
     const emulator = this.emulators.get(id)
     if (!emulator) return
+
+    if (emulator.container) {
+      try {
+        await execFileAsync('docker', ['stop', emulator.container])
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to stop container'
+        emulator.logs.push(`[${new Date().toISOString()}] ⚠️ ${message}`)
+      }
+    }
+
     emulator.status = 'stopped'
     emulator.logs.push(`[${new Date().toISOString()}] Stopped ${emulator.service}`)
   }
@@ -267,8 +525,18 @@ class CloudEmulationService {
     if (!emulator || emulator.status !== 'running') {
       return { healthy: false, latency: 0 }
     }
-    // Simulated health check
-    return { healthy: true, latency: Math.random() * 10 }
+
+    if (!emulator.healthCheck) {
+      return { healthy: Boolean(emulator.endpoint), latency: 0 }
+    }
+
+    const started = Date.now()
+    try {
+      const response = await fetch(emulator.healthCheck, { method: 'GET' })
+      return { healthy: response.ok, latency: Date.now() - started }
+    } catch {
+      return { healthy: false, latency: Date.now() - started }
+    }
   }
 
   // Get environment variables for connecting to emulators

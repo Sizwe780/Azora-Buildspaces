@@ -60,10 +60,41 @@ async function getRedisClient() {
     // this import will fail. Consider using a fetch-based Redis client for Edge.
 
     const { default: Redis } = await import('ioredis')
-    redisClient = new Redis(url)
+    redisClient = new Redis(url, {
+      lazyConnect: true,
+      connectTimeout: 10000,
+      maxRetriesPerRequest: 2,
+      enableReadyCheck: false,
+      enableOfflineQueue: false,
+      retryStrategy: (times) => (times < 3 ? 1000 : null),
+    })
+
+    // Handle connection errors gracefully
+    redisClient.on('error', (err: Error) => {
+      console.warn('[RateLimiter] Redis connection error:', err.message)
+      // Don't crash the app on Redis errors
+    })
+
+    redisClient.on('connect', () => {
+      console.log('[RateLimiter] Redis connected successfully')
+    })
+
+    // Try to connect, but don't wait too long
+    try {
+      await Promise.race([
+        redisClient.connect(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Redis connection timeout')), 3000))
+      ])
+    } catch (connectErr) {
+      console.warn('[RateLimiter] Redis connection failed, falling back to in-memory:', connectErr instanceof Error ? connectErr.message : String(connectErr))
+      redisClient.disconnect()
+      redisClient = null
+      return null
+    }
+
     return redisClient
   } catch (err) {
-    console.warn('[RateLimiter] Failed to load ioredis or connect to Redis, falling back to in-memory:', err)
+    console.warn('[RateLimiter] Failed to load ioredis, falling back to in-memory:', err instanceof Error ? err.message : String(err))
     return null
   }
 }

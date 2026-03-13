@@ -1,3 +1,5 @@
+"use client"
+
 /**
  * WebContainer Runtime Engine
  * 
@@ -10,16 +12,40 @@
  * for running and previewing applications.
  */
 
-import { WebContainer, type WebContainerProcess } from '@webcontainer/api'
 import { fileSystem, type FileNode } from '@/lib/workspace/file-system'
+
+type WebContainerLike = {
+  mount: (tree: unknown) => Promise<void>
+  spawn: (...args: any[]) => Promise<any>
+  on: (event: string, handler: (...args: any[]) => void) => void
+  teardown: () => Promise<void>
+}
+
+type WebContainerProcessLike = {
+  output: ReadableStream<any>
+  exit: Promise<number>
+  kill: () => void
+}
+
+function resolveOptionalModule(moduleName: string): any {
+  try {
+    const runtimeRequire =
+      typeof (globalThis as { require?: unknown }).require === 'function'
+        ? (globalThis as { require: (name: string) => unknown }).require
+        : Function('return require')()
+    return runtimeRequire(moduleName)
+  } catch {
+    return undefined
+  }
+}
 
 export type RuntimeStatus = 'idle' | 'booting' | 'ready' | 'error' | 'running'
 
 export interface RuntimeState {
   status: RuntimeStatus
-  container: WebContainer | null
+  container: WebContainerLike | null
   serverUrl: string | null
-  processes: Map<string, WebContainerProcess>
+  processes: Map<string, WebContainerProcessLike>
   error: string | null
 }
 
@@ -35,10 +61,10 @@ export interface ProcessOutput {
  */
 export class RuntimeEngine {
   private static instance: RuntimeEngine
-  private container: WebContainer | null = null
+  private container: WebContainerLike | null = null
   private status: RuntimeStatus = 'idle'
   private serverUrl: string | null = null
-  private processes: Map<string, WebContainerProcess> = new Map()
+  private processes: Map<string, WebContainerProcessLike> = new Map()
   private listeners: Map<string, (output: ProcessOutput) => void> = new Map()
   private error: string | null = null
 
@@ -66,6 +92,11 @@ export class RuntimeEngine {
       console.log('[Runtime] Booting WebContainer...')
 
       // Boot WebContainer
+      const webContainerModule = resolveOptionalModule('@webcontainer/api')
+      const WebContainer = webContainerModule?.WebContainer
+      if (!WebContainer || typeof WebContainer.boot !== 'function') {
+        throw new Error('WebContainer API is unavailable in this runtime')
+      }
       this.container = await WebContainer.boot()
       
       this.setStatus('ready')
@@ -151,7 +182,7 @@ export class RuntimeEngine {
     command: string,
     args: string[] = [],
     onOutput?: (output: ProcessOutput) => void
-  ): Promise<WebContainerProcess> {
+  ): Promise<WebContainerProcessLike> {
     if (!this.container) {
       throw new Error('Container not booted. Call boot() first.')
     }
@@ -187,7 +218,7 @@ export class RuntimeEngine {
       )
 
       // Listen for exit
-      process.exit.then((exitCode) => {
+      process.exit.then((exitCode: number) => {
         const output: ProcessOutput = {
           type: 'exit',
           data: exitCode,

@@ -51,13 +51,12 @@ export class AgentOrchestrator {
         if (!task) { throw new Error("Task not found") }
 
         task.status = 'in-progress'
-        // console.log(`[Orchestrator] Agent ${task.assignedTo} starting task: ${task.description}`)
 
-        // Simulate execution delay
-        await new Promise(resolve => setTimeout(resolve, 2000))
-
-        task.output = `Generated output for: ${task.description}`
+        task.output = [
+            `Task: ${task.description}`,
+            `Assigned Agent: ${task.assignedTo}`,
+            `Execution Mode: deterministic`,
+        ].join('\n')
         task.status = 'review'
-        // console.log(`[Orchestrator] Task ${taskId} moved to review`)
     }
 }

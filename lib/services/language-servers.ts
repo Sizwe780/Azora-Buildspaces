@@ -68,6 +68,20 @@ class LanguageServerService {
   private servers: Map<string, LSPServerInstance> = new Map()
   private diagnosticListeners: Map<string, ((diagnostics: LSPDiagnostic[]) => void)[]> = new Map()
 
+  private ensureBackendEnabled(): void {
+    if (process.env.LSP_BACKEND_ENABLED !== 'true') {
+      throw new Error('Language server backend is not configured. Set LSP_BACKEND_ENABLED=true and connect an LSP broker.')
+    }
+  }
+
+  private ensureRunningServer(languageId: string): LSPServerInstance {
+    const server = this.servers.get(languageId)
+    if (!server || server.status !== 'running') {
+      throw new Error(`Language server ${languageId} is not running`)
+    }
+    return server
+  }
+
   /**
    * Get the LSP command for a language
    */
@@ -104,8 +118,8 @@ class LanguageServerService {
     this.servers.set(languageId, instance)
 
     try {
-      // In a real implementation, this would spawn the process
-      // For now, we mark it as running and return the configuration
+      void workspaceRoot
+      this.ensureBackendEnabled()
       instance.status = 'running'
       instance.capabilities = this.getDefaultCapabilities()
       
@@ -167,14 +181,13 @@ class LanguageServerService {
     column: number,
     context?: string
   ): Promise<LSPCompletionItem[]> {
-    const server = this.servers.get(languageId)
-    if (!server || server.status !== 'running') {
-      return []
-    }
-
-    // In production, this sends a textDocument/completion request to the LSP
-    // For now, return empty completions; real LSP integration would be here
-    return []
+    void file
+    void line
+    void column
+    void context
+    this.ensureBackendEnabled()
+    this.ensureRunningServer(languageId)
+    throw new Error('LSP completion request requires broker integration implementation')
   }
 
   /**
@@ -186,9 +199,12 @@ class LanguageServerService {
     line: number,
     column: number
   ): Promise<{ contents: string } | null> {
-    const server = this.servers.get(languageId)
-    if (!server || server.status !== 'running') return null
-    return null
+    void file
+    void line
+    void column
+    this.ensureBackendEnabled()
+    this.ensureRunningServer(languageId)
+    throw new Error('LSP hover request requires broker integration implementation')
   }
 
   /**
@@ -200,9 +216,12 @@ class LanguageServerService {
     line: number,
     column: number
   ): Promise<{ file: string; line: number; column: number } | null> {
-    const server = this.servers.get(languageId)
-    if (!server || server.status !== 'running') return null
-    return null
+    void file
+    void line
+    void column
+    this.ensureBackendEnabled()
+    this.ensureRunningServer(languageId)
+    throw new Error('LSP definition request requires broker integration implementation')
   }
 
   /**
@@ -213,9 +232,11 @@ class LanguageServerService {
     file: string,
     content: string
   ): Promise<LSPDiagnostic[]> {
-    const server = this.servers.get(languageId)
-    if (!server || server.status !== 'running') return []
-    return []
+    void file
+    void content
+    this.ensureBackendEnabled()
+    this.ensureRunningServer(languageId)
+    throw new Error('LSP diagnostics request requires broker integration implementation')
   }
 
   /**
@@ -228,8 +249,11 @@ class LanguageServerService {
   ): Promise<string | null> {
     const language = getLanguageById(languageId)
     if (!language?.formatter) return null
-    // In production, this calls the formatter command
-    return null
+    void content
+    void options
+    this.ensureBackendEnabled()
+    this.ensureRunningServer(languageId)
+    throw new Error('Document formatting requires formatter backend integration')
   }
 
   /**
@@ -241,9 +265,12 @@ class LanguageServerService {
     range: { startLine: number; startColumn: number; endLine: number; endColumn: number },
     diagnostics: LSPDiagnostic[]
   ): Promise<Array<{ title: string; kind: string; edit?: any }>> {
-    const server = this.servers.get(languageId)
-    if (!server || server.status !== 'running') return []
-    return []
+    void file
+    void range
+    void diagnostics
+    this.ensureBackendEnabled()
+    this.ensureRunningServer(languageId)
+    throw new Error('LSP code action request requires broker integration implementation')
   }
 
   /**

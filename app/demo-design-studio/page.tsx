@@ -1,10 +1,12 @@
 'use client'
 
-import DesignStudio from '@/components/rooms/design-studio'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Sparkles, Lock, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { WorkspaceProvider } from '@/lib/contexts/workspace-context'
+
+const DesignStudio = dynamic(() => import('@/components/rooms/design-studio'), { ssr: false })
 
 export default function DemoDesignStudioPage() {
     return (

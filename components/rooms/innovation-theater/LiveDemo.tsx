@@ -25,25 +25,52 @@ export default function LiveDemo() {
     const [isCamOn, setIsCamOn] = useState(true);
     const [isSharing, setIsSharing] = useState(false);
     const [reactions, setReactions] = useState<{ id: number, emoji: string, x: number }[]>([]);
-    const [viewerCount, setViewerCount] = useState(124);
+    const [viewerCount, setViewerCount] = useState(0);
+    const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
 
+    // Listen for real audience reaction events
     useEffect(() => {
-        if (isSharing) {
-            const interval = setInterval(() => {
-                if (Math.random() > 0.7) {
-                    const id = Date.now();
-                    const emoji = REACTIONS[Math.floor(Math.random() * REACTIONS.length)];
-                    const x = Math.random() * 80 + 10; // 10% to 90%
-                    setReactions(prev => [...prev, { id, emoji, x }]);
-                    setTimeout(() => {
-                        setReactions(prev => prev.filter(r => r.id !== id));
-                    }, 3000);
-                }
-                setViewerCount(prev => prev + (Math.random() > 0.5 ? 1 : -1));
-            }, 1000);
-            return () => clearInterval(interval);
+        const handler = (e: Event) => {
+            const { emoji } = (e as CustomEvent).detail || {};
+            if (emoji) {
+                const id = Date.now();
+                const x = Math.random() * 80 + 10;
+                setReactions(prev => [...prev, { id, emoji, x }]);
+                setTimeout(() => setReactions(prev => prev.filter(r => r.id !== id)), 3000);
+            }
+        };
+        const viewerHandler = (e: Event) => {
+            const { count } = (e as CustomEvent).detail || {};
+            if (typeof count === 'number') setViewerCount(count);
+        };
+        window.addEventListener('theater:reaction', handler);
+        window.addEventListener('theater:viewer-count', viewerHandler);
+        return () => {
+            window.removeEventListener('theater:reaction', handler);
+            window.removeEventListener('theater:viewer-count', viewerHandler);
+        };
+    }, []);
+
+    // Real screen share via getDisplayMedia
+    const startScreenShare = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+            setScreenStream(stream);
+            setIsSharing(true);
+            stream.getVideoTracks()[0].addEventListener('ended', () => {
+                setIsSharing(false);
+                setScreenStream(null);
+            });
+        } catch {
+            setIsSharing(false);
         }
-    }, [isSharing]);
+    };
+
+    const stopScreenShare = () => {
+        screenStream?.getTracks().forEach(t => t.stop());
+        setScreenStream(null);
+        setIsSharing(false);
+    };
 
     return (
         <div className="h-full flex flex-col bg-black text-white relative overflow-hidden">
@@ -63,22 +90,32 @@ export default function LiveDemo() {
                         <Button 
                             size="lg" 
                             className="bg-primary hover:bg-primary/90 text-white px-8 h-12 rounded-full shadow-lg shadow-primary/20"
-                            onClick={() => setIsSharing(true)}
+                            onClick={startScreenShare}
                         >
                             Start Screen Share
                         </Button>
                     </div>
                 ) : (
                     <div className="w-full h-full flex flex-col">
-                        {/* Simulated Screen Share Content */}
+                        {/* Real Screen Share Content */}
                         <div className="flex-1 bg-slate-800 m-4 rounded-xl border border-white/10 flex items-center justify-center overflow-hidden relative">
-                            <div className="text-center space-y-4">
-                                <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto animate-pulse">
-                                    <Zap className="w-8 h-8 text-yellow-500" />
+                            {screenStream ? (
+                                <video
+                                    autoPlay
+                                    muted
+                                    playsInline
+                                    className="w-full h-full object-contain"
+                                    ref={(el) => { if (el && screenStream) el.srcObject = screenStream; }}
+                                />
+                            ) : (
+                                <div className="text-center space-y-4">
+                                    <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto">
+                                        <Zap className="w-8 h-8 text-yellow-500" />
+                                    </div>
+                                    <h3 className="text-xl font-medium text-white/50">Screen Share Active</h3>
+                                    <p className="text-sm text-white/30">Waiting for screen capture stream...</p>
                                 </div>
-                                <h3 className="text-xl font-medium text-white/50">Azora BuildSpaces Demo</h3>
-                                <p className="text-sm text-white/30">Sharing: Window "Chrome - Localhost:3000"</p>
-                            </div>
+                            )}
 
                             {/* Floating Reactions */}
                             <AnimatePresence>
@@ -165,7 +202,7 @@ export default function LiveDemo() {
                     <Button 
                         variant={isSharing ? "destructive" : "default"}
                         className="rounded-full px-8 font-bold"
-                        onClick={() => setIsSharing(!isSharing)}
+                        onClick={() => isSharing ? stopScreenShare() : startScreenShare()}
                     >
                         {isSharing ? "Stop Demo" : "Start Demo"}
                     </Button>

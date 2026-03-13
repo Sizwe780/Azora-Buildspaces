@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
 
       case 'installed':
         return NextResponse.json({
-          extensions: extensionMarketplace.getInstalled(),
-          total: extensionMarketplace.getInstalled().length,
+          extensions: await extensionMarketplace.getInstalled(searchParams.get('projectId') || 'default'),
+          total: (await extensionMarketplace.getInstalled(searchParams.get('projectId') || 'default')).length,
         })
 
       case 'featured':
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case 'install': {
         if (!extensionId) return NextResponse.json({ error: 'extensionId required' }, { status: 400 })
-        const installed = await extensionMarketplace.install(extensionId, userId || 'anonymous')
+        const installed = await extensionMarketplace.install(extensionId, userId || 'anonymous', body.projectId || 'default')
         return NextResponse.json({ success: true, extension: installed })
       }
 

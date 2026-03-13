@@ -43,24 +43,24 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#0d1117]">
+    <div className="h-full flex flex-col bg-[var(--ide-terminal-bg)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[#1b1f27] bg-[#0d1117]/80">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--ide-settings-border)] bg-[var(--ide-terminal-bg)]/80">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-sm">
-            <TerminalIcon className="w-4 h-4 text-[#8b949e]" />
-            <span className="text-[#c9d1d9] font-medium">Terminal</span>
+            <TerminalIcon className="w-4 h-4 text-[var(--ide-settings-muted)]" />
+            <span className="text-[var(--ide-settings-text)] font-medium">Terminal</span>
             {!terminalEnabled && (
-              <span className="text-[10px] text-[#8b949e] bg-[#161b22] border border-[#30363d] rounded px-1.5 py-0.5">
+              <span className="text-[10px] text-[var(--ide-settings-muted)] bg-[var(--ide-sidebar-bg)] border border-[var(--ide-settings-surface)] rounded px-1.5 py-0.5">
                 local mode
               </span>
             )}
           </div>
           <div className="flex items-center gap-0.5">
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#30363d]">
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-[var(--ide-settings-muted)] hover:text-[var(--ide-settings-text)] hover:bg-[var(--ide-settings-surface)]">
               <Plus className="w-3 h-3" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#30363d]">
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-[var(--ide-settings-muted)] hover:text-[var(--ide-settings-text)] hover:bg-[var(--ide-settings-surface)]">
               <Trash2 className="w-3 h-3" />
             </Button>
           </div>
@@ -71,14 +71,14 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
               {isConnected ? (
                 <Wifi className="w-3 h-3 text-emerald-500" />
               ) : (
-                <WifiOff className="w-3 h-3 text-[#8b949e]" />
+                <WifiOff className="w-3 h-3 text-[var(--ide-settings-muted)]" />
               )}
             </>
           ) : null}
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#30363d]"
+            className="h-6 w-6 text-[var(--ide-settings-muted)] hover:text-[var(--ide-settings-text)] hover:bg-[var(--ide-settings-surface)]"
             onClick={onClose}
           >
             <X className="w-3 h-3" />

@@ -1,0 +1,78 @@
+[
+  {
+    "id": "1",
+    "name": "SaaS Starter Kit",
+    "description": "Next.js 14 + Prisma + NextAuth + Stripe integration.",
+    "category": "Full-Stack",
+    "author": "Azora Team",
+    "rating": 4.9,
+    "downloads": 1200,
+    "price": "Free",
+    "tags": [
+      "Next.js",
+      "Prisma",
+      "Stripe"
+    ],
+    "icon": "Code2",
+    "color": "text-blue-500",
+    "createdAt": "2026-03-10T07:51:42.660Z",
+    "updatedAt": "2026-03-10T07:51:42.660Z"
+  },
+  {
+    "id": "2",
+    "name": "AI Agent Workflow",
+    "description": "Pre-configured Elara workflow for automated code reviews.",
+    "category": "AI",
+    "author": "Sankofa",
+    "rating": 5,
+    "downloads": 850,
+    "price": "50 AZR",
+    "tags": [
+      "AI",
+      "Elara",
+      "Automation"
+    ],
+    "icon": "Sparkles",
+    "color": "text-purple-500",
+    "createdAt": "2026-03-10T07:51:42.660Z",
+    "updatedAt": "2026-03-10T07:51:42.660Z"
+  },
+  {
+    "id": "3",
+    "name": "Modern Dashboard UI",
+    "description": "Beautiful Tailwind CSS dashboard with 50+ components.",
+    "category": "Design",
+    "author": "Naledi",
+    "rating": 4.8,
+    "downloads": 2500,
+    "price": "Free",
+    "tags": [
+      "Tailwind",
+      "React",
+      "UI"
+    ],
+    "icon": "Palette",
+    "color": "text-pink-500",
+    "createdAt": "2026-03-10T07:51:42.660Z",
+    "updatedAt": "2026-03-10T07:51:42.660Z"
+  },
+  {
+    "id": "4",
+    "name": "E-commerce Schema",
+    "description": "Optimized PostgreSQL schema for high-scale retail.",
+    "category": "Database",
+    "author": "Themba",
+    "rating": 4.7,
+    "downloads": 600,
+    "price": "20 AZR",
+    "tags": [
+      "Postgres",
+      "SQL",
+      "Schema"
+    ],
+    "icon": "Database",
+    "color": "text-orange-500",
+    "createdAt": "2026-03-10T07:51:42.660Z",
+    "updatedAt": "2026-03-10T07:51:42.660Z"
+  }
+]

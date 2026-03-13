@@ -140,6 +140,12 @@ class FigmaToCodeService {
   private generatedCode: Map<string, GeneratedCode> = new Map()
   private conversionHistory: ConversionHistory[] = []
   private tokens: FigmaToken[] = []
+  private generationCounter = 0
+
+  private nextGenerationId(): string {
+    this.generationCounter += 1
+    return `gen_${this.generationCounter}`
+  }
 
   // ── Figma API Integration ──
   async importFromFigma(fileKey: string, accessToken: string): Promise<FigmaImportResult> {
@@ -173,8 +179,7 @@ class FigmaToCodeService {
       this.tokens = [...this.tokens, ...tokens]
       return result
     } catch (error) {
-      // Return mock for demo when API not available
-      return this.getMockImportResult(fileKey)
+      throw new Error(`Failed to import Figma file ${fileKey}: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -352,7 +357,7 @@ class FigmaToCodeService {
     }
 
     const generated: GeneratedCode = {
-      id: `gen_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: this.nextGenerationId(),
       componentName,
       framework: opts.framework,
       files,
@@ -891,78 +896,6 @@ export const Mobile: Story = {
     return `#${toHex(color.r)}${toHex(color.g)}${toHex(color.b)}`
   }
 
-  // ── Mock Data for Demo ──
-  private getMockImportResult(fileKey: string): FigmaImportResult {
-    return {
-      projectId: fileKey,
-      fileName: 'Azora Design System',
-      pages: [
-        { id: 'page1', name: 'Components', componentCount: 24 },
-        { id: 'page2', name: 'Pages', componentCount: 8 },
-        { id: 'page3', name: 'Design Tokens', componentCount: 0 },
-      ],
-      components: [
-        {
-          id: 'comp1', name: 'Primary Button', type: 'COMPONENT',
-          x: 0, y: 0, width: 160, height: 44,
-          layoutMode: 'HORIZONTAL', primaryAxisAlignItems: 'CENTER', counterAxisAlignItems: 'CENTER',
-          cornerRadius: 8, padding: { top: 12, right: 24, bottom: 12, left: 24 },
-          fills: [{ type: 'SOLID', color: { r: 0.388, g: 0.4, b: 0.945, a: 1 } }],
-          children: [
-            { id: 'text1', name: 'Label', type: 'TEXT', x: 24, y: 12, width: 112, height: 20, text: 'Click Me', fontSize: 14, fontWeight: 600, fontFamily: 'Inter', textAlign: 'CENTER', fills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1, a: 1 } }] }
-          ]
-        },
-        {
-          id: 'comp2', name: 'Card Component', type: 'COMPONENT',
-          x: 0, y: 60, width: 360, height: 200,
-          layoutMode: 'VERTICAL', cornerRadius: 12, padding: { top: 24, right: 24, bottom: 24, left: 24 }, gap: 16,
-          fills: [{ type: 'SOLID', color: { r: 0.98, g: 0.98, b: 0.98, a: 1 } }],
-          effects: [{ type: 'DROP_SHADOW', color: { r: 0, g: 0, b: 0, a: 0.08 }, offset: { x: 0, y: 4 }, radius: 12, visible: true }],
-          children: [
-            { id: 'text2', name: 'Title', type: 'TEXT', x: 24, y: 24, width: 312, height: 28, text: 'Card Title', fontSize: 20, fontWeight: 700, fontFamily: 'Inter' },
-            { id: 'text3', name: 'Description', type: 'TEXT', x: 24, y: 68, width: 312, height: 40, text: 'A brief description of the card content goes here.', fontSize: 14, fontWeight: 400, fontFamily: 'Inter', lineHeight: 20 },
-          ]
-        },
-        {
-          id: 'comp3', name: 'Navigation Bar', type: 'COMPONENT',
-          x: 0, y: 280, width: 1440, height: 64,
-          layoutMode: 'HORIZONTAL', primaryAxisAlignItems: 'SPACE_BETWEEN', counterAxisAlignItems: 'CENTER',
-          padding: { top: 0, right: 32, bottom: 0, left: 32 },
-          fills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1, a: 1 } }],
-          effects: [{ type: 'DROP_SHADOW', color: { r: 0, g: 0, b: 0, a: 0.05 }, offset: { x: 0, y: 2 }, radius: 8, visible: true }],
-        },
-        {
-          id: 'comp4', name: 'Input Field', type: 'COMPONENT',
-          x: 0, y: 360, width: 320, height: 44,
-          layoutMode: 'HORIZONTAL', counterAxisAlignItems: 'CENTER',
-          cornerRadius: 8, padding: { top: 10, right: 16, bottom: 10, left: 16 },
-          fills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1, a: 1 } }],
-        },
-        {
-          id: 'comp5', name: 'Avatar Group', type: 'COMPONENT',
-          x: 0, y: 420, width: 160, height: 40,
-          layoutMode: 'HORIZONTAL', gap: -8,
-        },
-      ],
-      tokens: [
-        { id: 't1', name: 'primary', type: 'color', value: '#6366f1', category: 'colors' },
-        { id: 't2', name: 'secondary', type: 'color', value: '#8b5cf6', category: 'colors' },
-        { id: 't3', name: 'background', type: 'color', value: '#ffffff', category: 'colors' },
-        { id: 't4', name: 'foreground', type: 'color', value: '#0f172a', category: 'colors' },
-        { id: 't5', name: 'muted', type: 'color', value: '#f1f5f9', category: 'colors' },
-        { id: 't6', name: 'sm', type: 'spacing', value: '8px', category: 'spacing' },
-        { id: 't7', name: 'md', type: 'spacing', value: '16px', category: 'spacing' },
-        { id: 't8', name: 'lg', type: 'spacing', value: '24px', category: 'spacing' },
-        { id: 't9', name: 'xl', type: 'spacing', value: '32px', category: 'spacing' },
-        { id: 't10', name: 'heading', type: 'typography', value: 'Inter 700 24px/32px', category: 'typography' },
-        { id: 't11', name: 'body', type: 'typography', value: 'Inter 400 14px/20px', category: 'typography' },
-        { id: 't12', name: 'sm', type: 'border-radius', value: '4px', category: 'radii' },
-        { id: 't13', name: 'md', type: 'border-radius', value: '8px', category: 'radii' },
-        { id: 't14', name: 'lg', type: 'border-radius', value: '12px', category: 'radii' },
-      ],
-      importedAt: Date.now(),
-    }
-  }
 }
 
 export const figmaToCode = new FigmaToCodeService()

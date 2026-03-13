@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
 import { qaTesting } from '@/lib/services/qa-testing'
 
 export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   const { searchParams } = new URL(request.url)
   const action = searchParams.get('action') || 'frameworks'
 
   switch (action) {
+    case 'capabilities':
+      return NextResponse.json({ capabilities: qaTesting.getCapabilities() })
     case 'frameworks':
       return NextResponse.json({ frameworks: qaTesting.getSupportedFrameworks() })
     case 'runs': {
@@ -28,6 +37,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   try {
     const body = await request.json()
     const { action } = body
@@ -50,7 +64,20 @@ export async function POST(request: NextRequest) {
       }
       case 'watch': {
         const { config } = body
-        const watchId = qaTesting.startWatch(config)
+        let watchId: string
+        try {
+          watchId = qaTesting.startWatch(config)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error'
+          const unsupported = /WATCH_MODE_UNSUPPORTED/i.test(message)
+          if (unsupported) {
+            return NextResponse.json({
+              error: message.replace(/^WATCH_MODE_UNSUPPORTED:\s*/i, ''),
+              capabilities: qaTesting.getCapabilities(),
+            }, { status: 409 })
+          }
+          throw error
+        }
         return NextResponse.json({ watchId })
       }
       case 'unwatch': {

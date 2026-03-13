@@ -126,9 +126,9 @@ export function PreviewPane() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#0d1117]">
+    <div className="flex flex-col h-full bg-[var(--ide-terminal-bg)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[#3e3e42] bg-[#161b22]">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--ide-border)] bg-[var(--ide-sidebar-bg)]">
         <div className="flex items-center gap-2">
           <Monitor className="w-4 h-4 text-blue-400" />
           <span className="text-sm font-medium text-white">Preview</span>
@@ -141,7 +141,7 @@ export function PreviewPane() {
 
         <div className="flex items-center gap-1">
           {/* Viewport Selectors */}
-          <div className="flex items-center gap-1 mr-2 border-r border-[#3e3e42] pr-2">
+          <div className="flex items-center gap-1 mr-2 border-r border-[var(--ide-border)] pr-2">
             <Button
               onClick={() => setViewport('mobile')}
               size="sm"
@@ -236,7 +236,7 @@ export function PreviewPane() {
 
       {/* URL Bar */}
       {serverUrl && (
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-[#3e3e42] bg-[#161b22]/50">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--ide-border)] bg-[var(--ide-sidebar-bg)]/50">
           <span className="text-xs text-gray-400">URL:</span>
           <code className="text-xs text-emerald-400 font-mono flex-1 truncate">
             {serverUrl}
@@ -245,7 +245,7 @@ export function PreviewPane() {
       )}
 
       {/* Preview Content */}
-      <div className="flex-1 flex items-center justify-center bg-[#0d1117] overflow-auto p-4">
+      <div className="flex-1 flex items-center justify-center bg-[var(--ide-terminal-bg)] overflow-auto p-4">
         {error && (
           <div className="flex flex-col items-center gap-4 text-center max-w-md">
             <div className="p-4 rounded-full bg-red-500/10">

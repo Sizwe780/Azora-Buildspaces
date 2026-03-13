@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRoomEvents } from "@/lib/hooks/use-room-events";
+import dynamic from "next/dynamic";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -44,7 +46,8 @@ import {
     TestTube,
     BarChart3,
     Eye,
-    Smartphone
+    Smartphone,
+    Loader2,
 } from "lucide-react";
 
 import DatabaseDesigner from "./maker-lab/DatabaseDesigner";
@@ -54,9 +57,25 @@ import DeploymentConfig from "./maker-lab/DeploymentConfig";
 import { SparkInterface } from "./maker-lab/spark-interface";
 import CircuitSimulator from "./maker-lab/CircuitSimulator";
 import FirmwareEditor from "./maker-lab/FirmwareEditor";
-import ComponentViewer from "./maker-lab/ComponentViewer";
+// Dynamic import for Three.js 3D viewer to prevent SSR issues
+const ComponentViewer = dynamic(() => import("./maker-lab/ComponentViewer"), {
+    ssr: false,
+    loading: () => (
+        <div className="w-full h-full flex items-center justify-center bg-slate-950 rounded-lg border border-slate-800">
+            <div className="text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-emerald-500 mx-auto mb-2" />
+                <p className="text-xs text-slate-500">Loading 3D Viewer...</p>
+            </div>
+        </div>
+    ),
+});
+import mqtt from "mqtt";
 
 export default function MakerLab() {
+    const { emit, ROOM_EVENTS } = useRoomEvents('maker-lab')
+    const [mqttClient, setMqttClient] = useState<mqtt.MqttClient | null>(null);
+    const [mqttConnectionStatus, setMqttConnectionStatus] = useState("Disconnected");
+
     const [activeView, setActiveView] = useState("overview");
     const [projectName, setProjectName] = useState("IoT Smart Device");
     const [projectDescription, setProjectDescription] = useState("");
@@ -95,12 +114,93 @@ export default function MakerLab() {
     ]);
     const [isRunningTests, setIsRunningTests] = useState(false);
 
-    // MQTT topics
-    const [mqttTopics] = useState([
-        { topic: "device/telemetry", qos: 1, messages: 142, lastMsg: "2s ago" },
-        { topic: "device/commands", qos: 2, messages: 7, lastMsg: "1m ago" },
-        { topic: "device/status", qos: 0, messages: 38, lastMsg: "5s ago" },
+    // OTA Update state
+    const [otaVersion, setOtaVersion] = useState("1.0.0");
+    const [otaAvailableVersion, setOtaAvailableVersion] = useState("1.0.1");
+    const [otaProgress, setOtaProgress] = useState(0);
+    const [otaStatus, setOtaStatus] = useState<"idle" | "checking" | "downloading" | "installing" | "complete" | "error">("idle");
+    const [otaDevices, setOtaDevices] = useState([
+        { id: "dev-001", name: "Living Room Sensor", version: "1.0.0", status: "online" },
+        { id: "dev-002", name: "Kitchen Hub", version: "0.9.8", status: "online" },
+        { id: "dev-003", name: "Garage Controller", version: "1.0.0", status: "offline" },
     ]);
+
+    const checkForUpdates = async () => {
+        setOtaStatus("checking");
+        // Simulate API call
+        await new Promise(r => setTimeout(r, 1500));
+        setOtaAvailableVersion("1.0.2");
+        setOtaStatus("idle");
+    };
+
+    const startOtaUpdate = async (deviceId?: string) => {
+        setOtaStatus("downloading");
+        setOtaProgress(0);
+        
+        // Simulate download progress
+        for (let i = 0; i <= 100; i += 5) {
+            await new Promise(r => setTimeout(r, 100));
+            setOtaProgress(i);
+            if (i === 50) setOtaStatus("installing");
+        }
+        
+        setOtaStatus("complete");
+        if (deviceId) {
+            setOtaDevices(prev => prev.map(d => 
+                d.id === deviceId ? { ...d, version: otaAvailableVersion } : d
+            ));
+        } else {
+            setOtaVersion(otaAvailableVersion);
+        }
+        
+        setTimeout(() => setOtaStatus("idle"), 2000);
+    };
+
+    // Real MQTT state
+    const [mqttTopic, setMqttTopic] = useState("");
+    const [mqttPayload, setMqttPayload] = useState("");
+    const [mqttTopics, setMqttTopics] = useState<{topic: string, qos: number, messages: number, lastMsg: string}[]>([]);
+    
+    useEffect(() => {
+        // Connect to a public test MQTT WebSockets broker
+        const client = mqtt.connect('wss://test.mosquitto.org:8081');
+        
+        client.on('connect', () => {
+            setMqttConnectionStatus("Connected");
+            setMqttClient(client);
+            // Subscribe to some demo topics
+            const defaultTopics = ["device/telemetry", "device/commands", "device/status"];
+            defaultTopics.forEach(t => client.subscribe(t));
+            setMqttTopics(defaultTopics.map(t => ({ topic: t, qos: 0, messages: 0, lastMsg: "never" })));
+        });
+
+        client.on('message', (topic, message) => {
+            setMqttTopics(prev => {
+                const existing = prev.find(t => t.topic === topic);
+                if (existing) {
+                    return prev.map(t => t.topic === topic ? { ...t, messages: t.messages + 1, lastMsg: "just now" } : t);
+                }
+                return [...prev, { topic, qos: 0, messages: 1, lastMsg: "just now" }];
+            });
+            const ts = new Date().toISOString().substr(11, 8);
+            setSerialLog(prev => [...prev, { ts, data: `[MQTTRX] ${topic}: ${message.toString()}`, type: "rx" }]);
+        });
+
+        client.on('error', (err) => {
+            console.error('MQTT error: ', err);
+            setMqttConnectionStatus("Error");
+        });
+
+        client.on('offline', () => {
+            setMqttConnectionStatus("Offline");
+        });
+
+        return () => {
+            client.end();
+            setMqttClient(null);
+            setMqttConnectionStatus("Disconnected");
+        };
+    }, []);
 
     // Live sensor simulation
     useEffect(() => {
@@ -231,7 +331,27 @@ export default function MakerLab() {
                         {isSimulating ? 'Testing...' : 'Test Hardware'}
                     </Button>
 
-                    <Button size="sm" variant="outline" className="gap-2">
+                    <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="gap-2"
+                        onClick={async () => {
+                            try {
+                                if (!("serial" in navigator)) {
+                                    alert("Web Serial API not supported. Please use Chrome or Edge.");
+                                    return;
+                                }
+                                const port = await (navigator as any).serial.requestPort();
+                                await port.open({ baudRate: 115200 });
+                                const ts = new Date().toISOString().substring(11,19);
+                                setSerialLog(prev => [...prev, { ts, data: "Opened Web Serial Port at 115200 baud.", type: "rx" }]);
+                                // In a real scenario we'd use esptool.js here via a writer stream to upload the binary
+                                setTimeout(() => port.close(), 1000);
+                            } catch (e: any) {
+                                console.error(e);
+                            }
+                        }}
+                    >
                         <Download className="w-4 h-4" />
                         Flash
                     </Button>
@@ -382,9 +502,40 @@ export default function MakerLab() {
                             <div className="space-y-2">
                                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Publish Message</div>
                                 <div className="flex gap-2">
-                                    <Input placeholder="topic/path" className="h-8 text-xs font-mono flex-1" />
-                                    <Input placeholder="payload JSON" className="h-8 text-xs font-mono flex-1" />
-                                    <Button size="sm" className="h-8 text-xs bg-orange-500 hover:bg-orange-600">Publish</Button>
+                                    <Input 
+                                        placeholder="topic/path" 
+                                        className="h-8 text-xs font-mono flex-1" 
+                                        value={mqttTopic}
+                                        onChange={e => setMqttTopic(e.target.value)}
+                                    />
+                                    <Input 
+                                        placeholder="payload JSON" 
+                                        className="h-8 text-xs font-mono flex-1"
+                                        value={mqttPayload}
+                                        onChange={e => setMqttPayload(e.target.value)}
+                                        onKeyDown={e => {
+                                            if (e.key === "Enter" && mqttClient && mqttTopic) {
+                                                mqttClient.publish(mqttTopic, mqttPayload);
+                                                const ts = new Date().toISOString().substr(11, 8);
+                                                setSerialLog(prev => [...prev, { ts, data: `[MQTTTX] ${mqttTopic}: ${mqttPayload}`, type: "tx" }]);
+                                                setMqttPayload("");
+                                            }
+                                        }}
+                                    />
+                                    <Button 
+                                        size="sm" 
+                                        className="h-8 text-xs bg-orange-500 hover:bg-orange-600"
+                                        onClick={() => {
+                                            if (mqttClient && mqttTopic) {
+                                                mqttClient.publish(mqttTopic, mqttPayload);
+                                                const ts = new Date().toISOString().substr(11, 8);
+                                                setSerialLog(prev => [...prev, { ts, data: `[MQTTTX] ${mqttTopic}: ${mqttPayload}`, type: "tx" }]);
+                                                setMqttPayload("");
+                                            }
+                                        }}
+                                    >
+                                        Publish
+                                    </Button>
                                 </div>
                             </div>
                         </div>
@@ -452,6 +603,116 @@ export default function MakerLab() {
                                     </div>
                                 ))}
                             </div>
+                        </div>
+                    </TabsContent>
+
+                    {/* Deploy Tab with OTA Updates */}
+                    <TabsContent value="deploy" className="h-full m-0 p-4 overflow-y-auto">
+                        <div className="grid grid-cols-2 gap-6">
+                            {/* OTA Updates Section */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-lg flex items-center gap-2">
+                                        <Upload className="w-5 h-5 text-blue-500" />
+                                        OTA Firmware Updates
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {/* Current Version Info */}
+                                    <div className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
+                                        <div>
+                                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Current Version</div>
+                                            <div className="text-lg font-bold">{otaVersion}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Available</div>
+                                            <div className="text-lg font-bold text-blue-500">{otaAvailableVersion}</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Progress */}
+                                    {otaStatus !== "idle" && otaStatus !== "complete" && (
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between text-xs">
+                                                <span className="capitalize">{otaStatus}...</span>
+                                                <span>{otaProgress}%</span>
+                                            </div>
+                                            <Progress value={otaProgress} className="h-2" />
+                                        </div>
+                                    )}
+
+                                    {otaStatus === "complete" && (
+                                        <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400 text-sm text-center">
+                                            Update installed successfully!
+                                        </div>
+                                    )}
+
+                                    {/* Actions */}
+                                    <div className="flex gap-2">
+                                        <Button
+                                            onClick={checkForUpdates}
+                                            variant="outline"
+                                            className="flex-1"
+                                            disabled={otaStatus !== "idle"}
+                                        >
+                                            {otaStatus === "checking" ? (
+                                                <><Activity className="w-4 h-4 mr-2 animate-spin" />Checking...</>
+                                            ) : (
+                                                <><Download className="w-4 h-4 mr-2" />Check Updates</>
+                                            )}
+                                        </Button>
+                                        <Button
+                                            onClick={() => startOtaUpdate()}
+                                            className="flex-1 bg-blue-600 hover:bg-blue-700"
+                                            disabled={otaStatus !== "idle" || otaVersion === otaAvailableVersion}
+                                        >
+                                            <Upload className="w-4 h-4 mr-2" />
+                                            Install Update
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Device Fleet OTA */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-lg flex items-center gap-2">
+                                        <Server className="w-5 h-5 text-purple-500" />
+                                        Fleet Management
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                    {otaDevices.map(device => (
+                                        <div key={device.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-2 h-2 rounded-full ${device.status === "online" ? "bg-emerald-500" : "bg-slate-500"}`} />
+                                                <div>
+                                                    <div className="text-sm font-medium">{device.name}</div>
+                                                    <div className="text-[10px] text-muted-foreground">v{device.version}</div>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => startOtaUpdate(device.id)}
+                                                disabled={device.status === "offline" || device.version === otaAvailableVersion || otaStatus !== "idle"}
+                                            >
+                                                {device.version === otaAvailableVersion ? "Up to date" : "Update"}
+                                            </Button>
+                                        </div>
+                                    ))}
+                                    
+                                    <Button
+                                        className="w-full mt-2"
+                                        variant="outline"
+                                        onClick={() => otaDevices.filter(d => d.status === "online" && d.version !== otaAvailableVersion).forEach(d => startOtaUpdate(d.id))}
+                                        disabled={otaStatus !== "idle"}
+                                    >
+                                        <Upload className="w-4 h-4 mr-2" />
+                                        Update All Online Devices
+                                    </Button>
+                                </CardContent>
+                            </Card>
                         </div>
                     </TabsContent>
 

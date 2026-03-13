@@ -1,9 +1,17 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useRoomEvents } from "@/lib/hooks/use-room-events"
 import { motion, AnimatePresence } from "framer-motion"
 import { SpecValidator, SpecType } from "@/lib/spec-kit"
-import Editor from "@monaco-editor/react"
+import { useSpecStore } from "@/lib/stores/spec-store"
+import { useSession } from "next-auth/react"
+import { useFileSystem } from "@/lib/stores/file-system"
+import Editor, { type OnMount } from "@monaco-editor/react"
+import * as Y from "yjs"
+// Dynamic imports for browser-only modules (they access window at module level)
+const getWebsocketProvider = () => import("y-websocket").then(m => m.WebsocketProvider)
+const getMonacoBinding = () => import("y-monaco").then(m => m.MonacoBinding)
 import {
   FileJson,
   CheckCircle2,
@@ -13,21 +21,14 @@ import {
   Wand2,
   LayoutTemplate,
   Code2,
-  FileText,
   Settings,
   Download,
-  Upload,
-  Lightbulb,
   Users,
   GitBranch,
   Search,
-  Filter,
-  BarChart3,
   Zap,
   Target,
   Clock,
-  Star,
-  Share2,
   Eye,
   MessageSquare,
   Copy,
@@ -41,6 +42,9 @@ import {
   Brain,
   X,
   RefreshCw,
+  Trash2,
+  TestTube,
+  FileUp,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -48,8 +52,11 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 
 import { VisualBuilder } from "./visual-builder"
+import { ErrorBoundary } from "@/components/shared/error-boundary"
+import yaml from "js-yaml"
 
 /* ─── types ─── */
 interface SpecDocument {
@@ -146,105 +153,691 @@ function CodeOutput({ code, language }: { code: string; language: string }) {
   )
 }
 
+/* ─── Rich Spec Preview ─── */
+function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: {
+  content: string
+  activeType: SpecType
+  acceptanceCriteria: { id: string; text: string; checked: boolean }[]
+  stakeholders: { id: string; name: string; status: string }[]
+}) {
+  let spec: any = null
+  let parseError: string | null = null
+
+  try {
+    spec = yaml.load(content) as any
+  } catch (e: any) {
+    parseError = e.message || "Invalid YAML"
+  }
+
+  if (parseError || !spec) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <h2 className="text-lg font-semibold mb-4 text-zinc-200">Specification Preview</h2>
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-sm text-red-300">
+          <AlertCircle className="w-4 h-4 inline mr-2" />
+          Cannot parse YAML: {parseError || "Empty content"}
+        </div>
+        <pre className="mt-4 bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-sm font-mono text-zinc-300 whitespace-pre-wrap">{content}</pre>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      {/* Title & Meta */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="text-xs border-purple-600 text-purple-400">{spec.type || activeType}</Badge>
+          {spec.version && <Badge variant="outline" className="text-xs border-zinc-700">{spec.version}</Badge>}
+        </div>
+        <h2 className="text-2xl font-bold text-zinc-100">{spec.name || spec.title || "Untitled Spec"}</h2>
+        {spec.description && <p className="text-sm text-zinc-400 leading-relaxed">{spec.description}</p>}
+      </div>
+
+      {/* Requirements */}
+      {spec.requirements && Array.isArray(spec.requirements) && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
+            <Target className="w-4 h-4 text-purple-400" /> Requirements
+          </h3>
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 space-y-2">
+            {spec.requirements.map((req: string, i: number) => (
+              <div key={i} className="flex items-start gap-2 text-sm text-zinc-300">
+                <ChevronRight className="w-3.5 h-3.5 text-purple-400 mt-0.5 shrink-0" />
+                <span>{req}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Props (for component specs) */}
+      {spec.props && Array.isArray(spec.props) && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
+            <Settings className="w-4 h-4 text-blue-400" /> Props
+          </h3>
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-zinc-800 text-zinc-500"><th className="text-left p-3 font-medium">Name</th><th className="text-left p-3 font-medium">Type</th><th className="text-left p-3 font-medium">Required</th><th className="text-left p-3 font-medium">Default</th></tr></thead>
+              <tbody>
+                {spec.props.map((p: any, i: number) => (
+                  <tr key={i} className="border-b border-zinc-800/50"><td className="p-3 text-zinc-200 font-mono text-xs">{p.name}</td><td className="p-3 text-blue-400 font-mono text-xs">{p.type}</td><td className="p-3">{p.required ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <span className="text-zinc-600">—</span>}</td><td className="p-3 text-zinc-400 font-mono text-xs">{p.default ?? "—"}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Endpoints (for API specs) */}
+      {spec.endpoints && Array.isArray(spec.endpoints) && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
+            <Globe className="w-4 h-4 text-green-400" /> Endpoints
+          </h3>
+          <div className="space-y-3">
+            {spec.endpoints.map((ep: any, i: number) => (
+              <div key={i} className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge className="text-[10px] font-bold bg-green-600/20 text-green-400">{ep.method || "GET"}</Badge>
+                  <code className="text-sm text-zinc-200 font-mono">{ep.path || ep.url}</code>
+                </div>
+                {ep.description && <p className="text-xs text-zinc-500 mt-1">{ep.description}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tables (for DB specs) */}
+      {spec.tables && Array.isArray(spec.tables) && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
+            <Database className="w-4 h-4 text-orange-400" /> Tables
+          </h3>
+          {spec.tables.map((table: any, i: number) => (
+            <div key={i} className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
+              <h4 className="text-sm font-semibold text-zinc-200 mb-2">{table.name}</h4>
+              {table.columns && Array.isArray(table.columns) && (
+                <div className="space-y-1">
+                  {table.columns.map((col: any, j: number) => (
+                    <div key={j} className="flex items-center gap-3 text-xs">
+                      <code className="text-zinc-200 font-mono w-28">{col.name}</code>
+                      <span className="text-orange-400 font-mono">{col.type}</span>
+                      {col.primary && <Badge className="text-[9px] bg-yellow-600/20 text-yellow-400">PK</Badge>}
+                      {col.nullable === false && <Badge className="text-[9px] bg-blue-600/20 text-blue-400">NOT NULL</Badge>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Steps (for workflow specs) */}
+      {spec.steps && Array.isArray(spec.steps) && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
+            <Zap className="w-4 h-4 text-yellow-400" /> Workflow Steps
+          </h3>
+          <div className="space-y-2">
+            {spec.steps.map((step: any, i: number) => (
+              <div key={i} className="flex items-start gap-3 bg-zinc-900/50 border border-zinc-800 rounded-lg p-3">
+                <div className="w-6 h-6 rounded-full bg-yellow-500/20 text-yellow-400 text-xs flex items-center justify-center font-bold shrink-0">{i + 1}</div>
+                <div>
+                  <div className="text-sm font-medium text-zinc-200">{step.name || step.title || `Step ${i + 1}`}</div>
+                  {step.description && <p className="text-xs text-zinc-500 mt-0.5">{step.description}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Acceptance Criteria */}
+      {acceptanceCriteria.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Acceptance Criteria ({acceptanceCriteria.filter(c => c.checked).length}/{acceptanceCriteria.length})
+          </h3>
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 space-y-1.5">
+            {acceptanceCriteria.map(c => (
+              <div key={c.id} className={`flex items-center gap-2 text-sm ${c.checked ? 'text-emerald-400 line-through' : 'text-zinc-300'}`}>
+                {c.checked ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5 text-zinc-600" />}
+                {c.text}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Stakeholder Sign-Off */}
+      {stakeholders.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
+            <Users className="w-4 h-4 text-blue-400" /> Sign-Off Status
+          </h3>
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-zinc-800 text-zinc-500"><th className="text-left p-3 font-medium">Stakeholder</th><th className="text-left p-3 font-medium">Status</th></tr></thead>
+              <tbody>
+                {stakeholders.map(s => (
+                  <tr key={s.id} className="border-b border-zinc-800/50">
+                    <td className="p-3 text-zinc-200">{s.name}</td>
+                    <td className="p-3">
+                      <Badge className={`text-[10px] ${s.status === 'approved' ? 'bg-emerald-600/20 text-emerald-400' : s.status === 'rejected' ? 'bg-red-600/20 text-red-400' : 'bg-zinc-700/50 text-zinc-400'}`}>
+                        {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Raw YAML fallback */}
+      <details className="group">
+        <summary className="text-xs text-zinc-600 cursor-pointer hover:text-zinc-400 transition-colors">
+          Show raw YAML
+        </summary>
+        <pre className="mt-2 bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-[11px] font-mono text-zinc-400 whitespace-pre-wrap">{content}</pre>
+      </details>
+    </div>
+  )
+}
+
 /* ═══════════════════════════════════════════════ */
 /*               SPEC CHAMBER                      */
 /* ═══════════════════════════════════════════════ */
 export function SpecChamber() {
-  const [content, setContent] = useState(SpecValidator.generateTemplate("component"))
+  const { emit, ROOM_EVENTS } = useRoomEvents('spec-chamber')
+  // ── Zustand Store (persistent) ──
+  const sessionResult = useSession()
+  const session = sessionResult?.data ?? null
+  const userName = session?.user?.name || session?.user?.email || 'Anonymous'
+
+  const store = useSpecStore()
+  const {
+    activeSpecId,
+    activeType,
+    content,
+    isSaved,
+    generatedCode,
+    specs,
+    acceptanceCriteria: allCriteria,
+    stakeholders: allStakeholders,
+    versionHistory: allVersions,
+    reviewComments: allComments,
+    setActiveType: storeSetActiveType,
+    setContent,
+    setIsSaved,
+    setGeneratedCode,
+    setActiveSpecId,
+    saveSpec,
+    updateSpec,
+    loadSpec,
+    addCriterion,
+    toggleCriterion,
+    removeCriterion,
+    addStakeholder,
+    updateStakeholderStatus,
+    removeStakeholder,
+    createVersion,
+    addReviewComment,
+    editReviewComment,
+    resolveReviewComment,
+    deleteReviewComment,
+    deleteSpec,
+    migrateUnsavedData,
+  } = store
+
+  // Derived state for current spec
+  const specId = activeSpecId || '_unsaved'
+  const acceptanceCriteria = allCriteria[specId] || []
+  const stakeholders = allStakeholders[specId] || []
+  const versionHistory = allVersions[specId] || []
+  const reviewComments = allComments[specId] || []
+
+  // Initialize default stakeholders in the store so mutations work
+  useEffect(() => {
+    if (!allStakeholders[specId] || allStakeholders[specId].length === 0) {
+      const defaults = [
+        { id: 'sh-default-1', name: 'Tech Lead', role: 'Engineering', status: 'pending' as const },
+        { id: 'sh-default-2', name: 'Product Manager', role: 'Product', status: 'pending' as const },
+        { id: 'sh-default-3', name: 'QA Lead', role: 'Quality', status: 'pending' as const },
+      ]
+      for (const s of defaults) {
+        addStakeholder(specId, s.name, s.role)
+      }
+    }
+  }, [specId, allStakeholders, addStakeholder])
+
+  // Local-only UI state
   const [validationResult, setValidationResult] = useState<{ valid: boolean; errors?: any[]; spec?: any } | null>(null)
-  const [activeType, setActiveType] = useState<SpecType>("component")
-  const [generatedCode, setGeneratedCode] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [isValidating, setIsValidating] = useState(false)
   const [activeTab, setActiveTab] = useState("editor")
-  const [specs, setSpecs] = useState<SpecDocument[]>([])
   const [showAI, setShowAI] = useState(false)
   const [aiQuery, setAiQuery] = useState("")
   const [isAiGenerating, setIsAiGenerating] = useState(false)
   const [aiResponse, setAiResponse] = useState("")
-  const [isSaved, setIsSaved] = useState(true)
-  const [selectedSpec, setSelectedSpec] = useState<string | null>(null)
-
-  // Upgrade 1: AI Complete loading state
   const [isAiCompleting, setIsAiCompleting] = useState(false)
-
-  // Upgrade 2: Acceptance Criteria
-  const [acceptanceCriteria, setAcceptanceCriteria] = useState<
-    { id: string; text: string; checked: boolean }[]
-  >([])
   const [newCriteriaText, setNewCriteriaText] = useState("")
+  const [newStakeholderName, setNewStakeholderName] = useState("")
+  const [versionDescription, setVersionDescription] = useState("")
+  const [newCommentText, setNewCommentText] = useState("")
+  const [diffVersionId, setDiffVersionId] = useState<string | null>(null)
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
+  const [editingCommentText, setEditingCommentText] = useState("")
+  const [commentLineRef, setCommentLineRef] = useState("")
+  const [specSearchQuery, setSpecSearchQuery] = useState("")
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [isGeneratingTests, setIsGeneratingTests] = useState(false)
+  const [generatedTests, setGeneratedTests] = useState("")
+  const [completenessScore, setCompletenessScore] = useState<number | null>(null)
+  const [isLoadingSpecs, setIsLoadingSpecs] = useState(false)
 
-  // Upgrade 3: Stakeholder Sign-Off
-  const [stakeholders, setStakeholders] = useState<
-    { id: string; name: string; status: "pending" | "approved" | "rejected" }[]
-  >([
-    { id: "sl-1", name: "Tech Lead", status: "pending" },
-    { id: "sl-2", name: "Product Manager", status: "pending" },
-    { id: "sl-3", name: "QA Lead", status: "pending" },
-  ])
+  // ─── Yjs Collaboration ─────────────────────────────────────────────────
+  const ydocRef = useRef<Y.Doc | null>(null)
+  const providerRef = useRef<any>(null)
+  const bindingRef = useRef<any>(null)
+  const editorRef = useRef<any>(null)
+  const [collaborators, setCollaborators] = useState<{ id: number; name: string; color: string }[]>([])
+  const [yjsConnected, setYjsConnected] = useState(false)
 
-  // Upgrade 4: Version History (pre-populated)
-  const [versionHistory] = useState([
-    {
-      version: "v1.2",
-      author: "Alice Chen",
-      timestamp: "2024-01-14T09:15:00Z",
-      description: "Updated security considerations",
-      content:
-        "name: MyComponent\nversion: 1.2\ndescription: Updated component with security fixes\nrequirements:\n  - Secure data handling\n  - Input sanitization\n  - CSRF protection\n",
-    },
-    {
-      version: "v1.1",
-      author: "Bob Smith",
-      timestamp: "2024-01-12T14:30:00Z",
-      description: "Added error handling requirements",
-      content:
-        "name: MyComponent\nversion: 1.1\ndescription: Component with error handling\nrequirements:\n  - Error boundary support\n  - Fallback UI\n  - Retry mechanism\n",
-    },
-    {
-      version: "v1.0",
-      author: "Alice Chen",
-      timestamp: "2024-01-10T10:00:00Z",
-      description: "Initial spec draft",
-      content:
-        "name: MyComponent\nversion: 1.0\ndescription: Initial component specification\nrequirements:\n  - Basic rendering\n  - Props validation\n",
-    },
-  ])
-
-  // Load specs on mount
-  useEffect(() => {
-    loadSpecs()
+  // User colors for awareness
+  const userColors = useMemo(() => {
+    const colors = ['#f97316', '#06b6d4', '#8b5cf6', '#22c55e', '#ec4899', '#f59e0b']
+    return colors[Math.floor(Math.random() * colors.length)]
   }, [])
 
-  const loadSpecs = async () => {
+  // Initialize Yjs doc + WebSocket provider
+  useEffect(() => {
+    const doc = new Y.Doc()
+    ydocRef.current = doc
+
+    const wsUrl = typeof window !== 'undefined'
+      ? (process.env.NEXT_PUBLIC_YJS_WS_URL || 'ws://localhost:1234')
+      : ''
+    if (!wsUrl) return
+
+    const roomName = `azora-spec-${specId}`
+    let wsProvider: any = null
+    getWebsocketProvider().then(WsProvider => {
+      wsProvider = new WsProvider(wsUrl, roomName, doc)
+      providerRef.current = wsProvider
+
+      // Set local awareness
+      wsProvider.awareness.setLocalStateField('user', {
+        name: userName,
+        color: userColors,
+      })
+
+      wsProvider.on('status', (event: any) => {
+        setYjsConnected(event.status === 'connected')
+      })
+
+      // Track collaborators
+      const updateCollaborators = () => {
+        const states = wsProvider.awareness.getStates()
+        const users: { id: number; name: string; color: string }[] = []
+        states.forEach((state: any, clientId: number) => {
+          if (state.user) {
+            users.push({
+              id: clientId,
+              name: state.user.name || `User ${clientId}`,
+              color: state.user.color || '#888',
+            })
+          }
+        })
+        setCollaborators(users)
+      }
+      wsProvider.awareness.on('change', updateCollaborators)
+      updateCollaborators()
+
+      // Initialize Y.Text with current content if empty
+      const yText = doc.getText('spec-content')
+      if (yText.length === 0 && content) {
+        yText.insert(0, content)
+      }
+
+      // Sync Y.Text changes back to Zustand store
+      yText.observe(() => {
+        const newContent = yText.toString()
+        if (newContent !== content) {
+          setContent(newContent)
+        }
+      })
+    })
+
+    return () => {
+      bindingRef.current?.destroy()
+      bindingRef.current = null
+      if (providerRef.current) {
+        providerRef.current.destroy()
+      }
+      doc.destroy()
+      ydocRef.current = null
+      providerRef.current = null
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [specId])
+
+  // Monaco editor mount handler — binds Y.Text to editor
+  const handleEditorMount: OnMount = useCallback((editor, monaco) => {
+    editorRef.current = editor
+
+    if (ydocRef.current && providerRef.current) {
+      const yText = ydocRef.current.getText('spec-content')
+
+      // Clean up previous binding
+      bindingRef.current?.destroy()
+
+      // Create MonacoBinding for real-time collaborative editing
+      getMonacoBinding().then(MBinding => {
+        const binding = new MBinding(
+          yText,
+          editor.getModel()!,
+          new Set([editor]),
+          providerRef.current?.awareness,
+        )
+        bindingRef.current = binding
+      })
+    }
+  }, [])
+
+  // ─── User session and additional state ─────────────────────────────────
+  const _specSession = useSession()
+  const userSession = _specSession?.data ?? null
+  const [specDiagnostics, setSpecDiagnostics] = useState<any[]>([])
+  const [specSettings, setSpecSettings] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('spec-chamber-settings')
+      return saved ? JSON.parse(saved) : { autoSave: true, showMinimap: false, theme: 'vs-dark' }
+    }
+    return { autoSave: true, showMinimap: false, theme: 'vs-dark' }
+  })
+  const [specVersions, setSpecVersions] = useState<any[]>([])
+
+  // ─── Phase 1: API Integrations State ──────────────────────────────────
+  type IntegrationType = 'github' | 'slack' | 'jira' | 'linear'
+  interface Integration {
+    id: string;
+    type: IntegrationType;
+    name: string;
+    connected: boolean;
+    config: Record<string, string>;
+    lastSync?: string;
+  }
+  const [integrations, setIntegrations] = useState<Integration[]>([
+    { id: 'gh-1', type: 'github', name: 'GitHub', connected: false, config: { repo: '', token: '' } },
+    { id: 'sl-1', type: 'slack', name: 'Slack', connected: false, config: { webhook: '', channel: '' } },
+    { id: 'jr-1', type: 'jira', name: 'Jira', connected: false, config: { baseUrl: '', project: '', token: '' } },
+    { id: 'ln-1', type: 'linear', name: 'Linear', connected: false, config: { apiKey: '', teamId: '' } },
+  ])
+  const [isConnecting, setIsConnecting] = useState<string | null>(null)
+  const [integrationConfigOpen, setIntegrationConfigOpen] = useState<string | null>(null)
+
+  // ─── Phase 1: Custom Workflows State ──────────────────────────────────
+  type WorkflowStatus = 'draft' | 'in-review' | 'approved' | 'in-progress' | 'testing' | 'done'
+  interface WorkflowTransition {
+    from: WorkflowStatus;
+    to: WorkflowStatus;
+    label: string;
+    requiresApproval?: boolean;
+  }
+  const WORKFLOW_STATUSES: { status: WorkflowStatus; label: string; color: string }[] = [
+    { status: 'draft', label: 'Draft', color: '#64748b' },
+    { status: 'in-review', label: 'In Review', color: '#f59e0b' },
+    { status: 'approved', label: 'Approved', color: '#22c55e' },
+    { status: 'in-progress', label: 'In Progress', color: '#3b82f6' },
+    { status: 'testing', label: 'Testing', color: '#8b5cf6' },
+    { status: 'done', label: 'Done', color: '#10b981' },
+  ]
+  const WORKFLOW_TRANSITIONS: WorkflowTransition[] = [
+    { from: 'draft', to: 'in-review', label: 'Submit for Review' },
+    { from: 'in-review', to: 'approved', label: 'Approve', requiresApproval: true },
+    { from: 'in-review', to: 'draft', label: 'Request Changes' },
+    { from: 'approved', to: 'in-progress', label: 'Start Implementation' },
+    { from: 'in-progress', to: 'testing', label: 'Submit for Testing' },
+    { from: 'testing', to: 'done', label: 'Mark Complete' },
+    { from: 'testing', to: 'in-progress', label: 'Return to Dev' },
+  ]
+  const [specStatus, setSpecStatus] = useState<WorkflowStatus>('draft')
+  const [workflowHistory, setWorkflowHistory] = useState<{ status: WorkflowStatus; timestamp: string; actor: string }[]>([])
+  const [approvalRequired, setApprovalRequired] = useState(false)
+
+  const getAvailableTransitions = () => WORKFLOW_TRANSITIONS.filter(t => t.from === specStatus)
+
+  const transitionSpec = (transition: WorkflowTransition) => {
+    if (transition.requiresApproval) {
+      setApprovalRequired(true)
+    }
+    setSpecStatus(transition.to)
+    setWorkflowHistory(prev => [...prev, {
+      status: transition.to,
+      timestamp: new Date().toISOString(),
+      actor: userSession?.user?.name || 'Anonymous',
+    }])
+    setSpecDiagnostics(prev => [...prev, {
+      id: `workflow-${Date.now()}`,
+      message: `Spec transitioned: ${transition.from} → ${transition.to}`,
+      severity: 'info',
+      source: 'workflow',
+      timestamp: new Date().toISOString()
+    }])
+    // Notify integrations
+    integrations.filter(i => i.connected).forEach(i => {
+      if (i.type === 'slack' && i.config.webhook) {
+        fetch(i.config.webhook, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: `Spec "${activeType} spec" transitioned to ${transition.to}` }),
+        }).catch(() => {})
+      }
+    })
+  }
+
+  const connectIntegration = async (integrationId: string) => {
+    setIsConnecting(integrationId)
+    try {
+      // Real integration handshake via API
+      const res = await fetch('/api/integrations/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ integrationId }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `Connection failed (${res.status})`)
+      }
+      setIntegrations(prev => prev.map(i =>
+        i.id === integrationId
+          ? { ...i, connected: true, lastSync: new Date().toISOString() }
+          : i
+      ))
+      setSpecDiagnostics(prev => [...prev, {
+        id: `int-${Date.now()}`,
+        message: `Integration connected: ${integrations.find(i => i.id === integrationId)?.name}`,
+        severity: 'info',
+        source: 'integrations',
+        timestamp: new Date().toISOString()
+      }])
+    } finally {
+      setIsConnecting(null)
+    }
+  }
+
+  const disconnectIntegration = (integrationId: string) => {
+    setIntegrations(prev => prev.map(i =>
+      i.id === integrationId ? { ...i, connected: false, lastSync: undefined } : i
+    ))
+  }
+
+  const updateIntegrationConfig = (integrationId: string, key: string, value: string) => {
+    setIntegrations(prev => prev.map(i =>
+      i.id === integrationId ? { ...i, config: { ...i.config, [key]: value } } : i
+    ))
+  }
+
+  // ─── Phase 1: Reporting / Metrics ─────────────────────────────────────
+  const getSpecMetrics = () => {
+    const criteriaTotal = acceptanceCriteria.length
+    const criteriaMet = acceptanceCriteria.filter(c => c.checked).length
+    const stakeholderTotal = stakeholders.length
+    const stakeholderApproved = stakeholders.filter(s => s.status === 'approved').length
+    const reviewTotal = reviewComments.length
+    const reviewResolved = reviewComments.filter(c => c.resolved).length
+    const versionCount = specVersions.length
+    const integrationCount = integrations.filter(i => i.connected).length
+    const completeness = criteriaTotal > 0 ? Math.round((criteriaMet / criteriaTotal) * 100) : 0
+    const approvalRate = stakeholderTotal > 0 ? Math.round((stakeholderApproved / stakeholderTotal) * 100) : 0
+    const reviewRate = reviewTotal > 0 ? Math.round((reviewResolved / reviewTotal) * 100) : 0
+    const overallScore = Math.round((completeness * 0.4 + approvalRate * 0.3 + reviewRate * 0.3))
+
+    return {
+      criteriaTotal, criteriaMet, completeness,
+      stakeholderTotal, stakeholderApproved, approvalRate,
+      reviewTotal, reviewResolved, reviewRate,
+      versionCount, integrationCount, overallScore, specStatus,
+    }
+  }
+  useEffect(() => {
+    const handleSettingsChange = () => {
+      const saved = localStorage.getItem('spec-chamber-settings')
+      if (saved) {
+        setSpecSettings(JSON.parse(saved))
+      }
+    }
+    window.addEventListener('azora:settingsChanged', handleSettingsChange)
+    return () => window.removeEventListener('azora:settingsChanged', handleSettingsChange)
+  }, [])
+
+  // ─── Version management ───────────────────────────────────────────────
+  const createSpecVersion = () => {
+    const version = {
+      id: `v${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      content: content,
+      author: userSession?.user?.name || 'Anonymous',
+      description: versionDescription.trim() || `Version created at ${new Date().toLocaleTimeString()}`
+    }
+    setSpecVersions(prev => [version, ...prev.slice(0, 49)]) // Keep max 50 versions
+  }
+
+  const restoreSpecVersion = (versionId: string) => {
+    const version = specVersions.find(v => v.id === versionId)
+    if (version) {
+      setContent(version.content)
+      setIsSaved(false)
+      setSpecDiagnostics(prev => [...prev, {
+        id: 'version-restored',
+        message: `Restored version: ${versionId}`,
+        severity: 'info',
+        source: 'version-control',
+        timestamp: new Date().toISOString()
+      }])
+    }
+  }
+
+  // ─── Settings update function ────────────────────────────────────────
+  const updateSpecSettings = (newSettings: Partial<typeof specSettings>) => {
+    const updated = { ...specSettings, ...newSettings }
+    setSpecSettings(updated)
+    localStorage.setItem('spec-chamber-settings', JSON.stringify(updated))
+    window.dispatchEvent(new CustomEvent('azora:settingsChanged', { detail: updated }))
+  }
+
+  // Show toast helper
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 4000)
+  }, [])
+
+  // Initialize content from template on first load if empty
+  useEffect(() => {
+    if (!content) {
+      setContent(SpecValidator.generateTemplate("component"))
+      setIsSaved(true)
+    }
+  }, [])
+
+  // Load specs from API on mount (sync with server)
+  useEffect(() => {
+    loadSpecsFromApi()
+  }, [])
+
+  const loadSpecsFromApi = useCallback(async () => {
+    setIsLoadingSpecs(true)
     try {
       const resp = await fetch("/api/specs")
       if (resp.ok) {
         const data = await resp.json()
-        setSpecs(
-          (data.specs || []).map((s: any) => ({
-            ...s,
-            lastModified: new Date(s.lastModified || s.updatedAt || Date.now()),
-          }))
-        )
+        // Merge API specs into store (avoid duplicates)
+        const apiSpecs = (data.specs || []).map((s: any) => ({
+          ...s,
+          lastModified: s.lastModified || s.updatedAt || new Date().toISOString(),
+        }))
+        // Server specs supplement local store — store is source of truth
+        const currentSpecs = useSpecStore.getState().specs
+        if (apiSpecs.length > 0 && currentSpecs.length === 0) {
+          // Only use API data if local store is empty (first load)
+          apiSpecs.forEach((s: any) => {
+            if (!currentSpecs.find((existing: any) => existing.id === s.id)) {
+              store.saveSpec(s)
+            }
+          })
+        }
       }
     } catch (error) {
-      console.error("Failed to load specs:", error)
+      showToast("Failed to load specs from API", 'error')
+    } finally {
+      setIsLoadingSpecs(false)
     }
-  }
+  }, [store, showToast])
 
   const handleTemplateChange = useCallback((type: SpecType) => {
-    setActiveType(type)
+    storeSetActiveType(type)
     setContent(SpecValidator.generateTemplate(type))
     setValidationResult(null)
     setGeneratedCode("")
     setIsSaved(false)
-  }, [])
+  }, [storeSetActiveType, setContent, setGeneratedCode, setIsSaved])
 
   const handleValidate = useCallback(async () => {
     setIsValidating(true)
     try {
+      // Local validation
       const result = await SpecValidator.validate(content, activeType)
+
+      // Also run server-side AJV schema validation
+      try {
+        const resp = await fetch("/api/specs/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content, type: activeType }),
+        })
+        if (resp.ok) {
+          const serverResult = await resp.json()
+          if (serverResult.diagnostics?.length > 0) {
+            const serverErrors = serverResult.diagnostics.map((d: { path: string; message: string }) => ({
+              message: `[Schema] ${d.path}: ${d.message}`,
+            }))
+            result.errors = [...(result.errors || []), ...serverErrors]
+            result.valid = result.valid && serverResult.valid
+          }
+          if (serverResult.completeness?.score != null) {
+            setCompletenessScore(serverResult.completeness.score)
+          }
+        }
+      } catch {
+        // Server validation is supplementary — continue with local-only results
+      }
+
       setValidationResult(result)
     } catch (error) {
       setValidationResult({
@@ -259,7 +852,6 @@ export function SpecChamber() {
   const handleGenerateCode = useCallback(async () => {
     setIsGenerating(true)
     try {
-      // Try API-based generation first
       const resp = await fetch("/api/specs/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -271,44 +863,138 @@ export function SpecChamber() {
         setGeneratedCode(data.result || data.code || "// Generation completed but no output returned")
         setActiveTab("generated")
       } else {
-        // Fallback to local generation
         const generated = generateFromSpec(content, activeType)
         setGeneratedCode(generated)
         setActiveTab("generated")
+        showToast('AI unavailable — used local code scaffold', 'error')
       }
     } catch {
-      // Local fallback
       const generated = generateFromSpec(content, activeType)
       setGeneratedCode(generated)
       setActiveTab("generated")
+      showToast('AI unavailable — used local code scaffold', 'error')
     } finally {
       setIsGenerating(false)
     }
-  }, [content, activeType])
+  }, [content, activeType, setGeneratedCode])
 
-  const handleSave = useCallback(async () => {
+  
+  const handleScaffoldProject = useCallback(async () => {
+    try {
+      setIsGenerating(true)
+      const fsStore = useFileSystem.getState();
+      if (!fsStore.rootId) {
+        showToast('File system not initialized. Ensure a project is open.', 'error')
+        return;
+      }
+      
+      const fileName = activeType === 'api' ? 'api-spec-endpoint.ts' : 
+                       activeType === 'component' ? 'UiComponent.tsx' : 
+                       activeType === 'database' ? 'schema.prisma' : 'workflow.ts';
+                       
+      // Try to generate
+      let scaffoldCode = "";
+      try {
+        const resp = await fetch("/api/specs/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content, type: activeType }),
+        })
+        if (resp.ok) {
+          const data = await resp.json()
+          scaffoldCode = data.result || data.code || generateFromSpec(content, activeType)
+        } else {
+          scaffoldCode = generateFromSpec(content, activeType)
+        }
+      } catch (err) {
+        scaffoldCode = generateFromSpec(content, activeType)
+      }
+      
+      // We create it in root for this demo
+      await fsStore.createFile(fsStore.rootId, fileName, scaffoldCode);
+      
+      // Also scaffold a basic package.json if it doesn't exist, to trigger dependency resolution
+      const pkgJson = JSON.stringify({
+        "name": "azora-scaffolded-app",
+        "version": "1.0.0",
+        "private": true,
+        "scripts": {
+          "dev": "next dev",
+          "build": "next build",
+          "start": "next start"
+        },
+        "dependencies": {
+          "react": "^18.2.0",
+          "react-dom": "^18.2.0",
+          "framer-motion": "^10.0.0",
+          "lucide-react": "^0.292.0",
+          "tailwind-merge": "^2.0.0",
+          "clsx": "^2.0.0"
+        }
+      }, null, 2);
+      
+      // Provide generic dependencies required for the scaffolded components
+      await fsStore.createFile(fsStore.rootId, "package.json", pkgJson);
+      
+      showToast(`Scaffolded ${fileName} and package.json successfully to Code Chamber!`, 'success')
+      
+      // Emit event for terminal/runtime to install
+      if (typeof window !== 'undefined') {
+         window.dispatchEvent(new CustomEvent('azora:run-command', { detail: { command: 'npm install' } }));
+      }
+      
+    } catch (error) {
+      showToast('Scaffolding failed: ' + error, 'error')
+    } finally {
+      setIsGenerating(false)
+    }
+  }, [content, activeType, showToast]);
+
+    const handleSave = useCallback(async () => {
     try {
       const specData = {
         type: activeType,
         content,
         title: `${activeType.charAt(0).toUpperCase() + activeType.slice(1)} Specification`,
-        status: "draft",
+        status: 'draft' as const,
+        version: 'v1.0',
+        author: userName,
       }
 
-      const resp = await fetch("/api/specs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(specData),
-      })
+      if (activeSpecId) {
+        // Update existing spec in store
+        updateSpec(activeSpecId, { content, lastModified: new Date().toISOString() })
+        // Auto-create version snapshot
+        createVersion(activeSpecId, `Saved at ${new Date().toLocaleTimeString()}`, userName)
 
-      if (resp.ok) {
-        setIsSaved(true)
-        loadSpecs()
+        // Sync update to API (best-effort)
+        await fetch("/api/specs", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: activeSpecId, content, lastModified: new Date().toISOString() }),
+        }).catch(() => showToast('Saved locally — API sync failed', 'error'))
+      } else {
+        // Save new spec to store
+        const newSpec = saveSpec(specData)
+        // Migrate any data stored under '_unsaved' key to the real spec ID
+        migrateUnsavedData(newSpec.id)
+        // Auto-create initial version
+        createVersion(newSpec.id, 'Initial version', userName)
+
+        // Sync new spec to API (best-effort)
+        await fetch("/api/specs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...specData, id: newSpec.id }),
+        }).catch(() => showToast('Saved locally — API sync failed', 'error'))
       }
+
+      setIsSaved(true)
+      showToast('Specification saved', 'success')
     } catch (error) {
-      console.error("Failed to save spec:", error)
+      showToast('Failed to save specification', 'error')
     }
-  }, [content, activeType])
+  }, [content, activeType, activeSpecId, updateSpec, createVersion, saveSpec, setIsSaved, showToast])
 
   const handleExport = () => {
     const blob = new Blob([content], { type: "text/yaml" })
@@ -319,6 +1005,76 @@ export function SpecChamber() {
     a.click()
     URL.revokeObjectURL(url)
   }
+
+  const handleImport = useCallback(() => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = ".yaml,.yml,.json"
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      try {
+        const text = await file.text()
+        setContent(text)
+        setIsSaved(false)
+        showToast(`Imported ${file.name}`, 'success')
+      } catch {
+        showToast('Failed to read file', 'error')
+      }
+    }
+    input.click()
+  }, [setContent, setIsSaved, showToast])
+
+  const handleDeleteSpec = useCallback((specId: string) => {
+    if (window.confirm("Delete this spec? This cannot be undone.")) {
+      deleteSpec(specId)
+      // Sync delete to API (best-effort)
+      fetch("/api/specs", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: specId }),
+      }).catch(() => showToast('Deleted locally — API sync failed', 'error'))
+      showToast('Spec deleted', 'success')
+    }
+  }, [deleteSpec, showToast])
+
+  const handleGenerateTests = useCallback(async () => {
+    setIsGeneratingTests(true)
+    try {
+      const resp = await fetch("/api/specs/generate-tests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, type: activeType }),
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        setGeneratedTests(data.tests || data.code || "// No tests generated")
+        showToast("Tests generated successfully", 'success')
+      } else {
+        showToast("Test generation failed", 'error')
+      }
+    } catch {
+      showToast("Could not reach test generation service", 'error')
+    } finally {
+      setIsGeneratingTests(false)
+    }
+  }, [content, activeType, showToast])
+
+  // ── Keyboard shortcuts ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 's') {
+        e.preventDefault()
+        handleSave()
+      }
+      if (e.ctrlKey && e.shiftKey && e.key === 'V') {
+        e.preventDefault()
+        handleValidate()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [handleSave, handleValidate])
 
   const handleAiGenerate = useCallback(async () => {
     if (!aiQuery.trim() || isAiGenerating) return
@@ -339,7 +1095,7 @@ export function SpecChamber() {
         const data = await resp.json()
         if (data.spec) {
           setContent(data.spec)
-          setAiResponse("Specification generated and loaded into editor ✓")
+          setAiResponse("Specification generated and loaded into editor \u2713")
           setIsSaved(false)
         } else if (data.suggestion) {
           setAiResponse(data.suggestion)
@@ -354,41 +1110,45 @@ export function SpecChamber() {
     } finally {
       setIsAiGenerating(false)
     }
-  }, [aiQuery, isAiGenerating, activeType, content])
+  }, [aiQuery, isAiGenerating, activeType, content, setContent, setIsSaved])
 
-  // Upgrade 1: AI-Powered Spec Completion
+  // AI-Powered Spec Completion
   const handleAiComplete = useCallback(async () => {
     setIsAiCompleting(true)
     try {
-      const resp = await fetch("/api/agents/invoke", {
+      const resp = await fetch("/api/specs/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "generate-code", context: "Complete this spec section: " + content }),
+        body: JSON.stringify({
+          content: "Complete and expand this specification:\n" + content,
+          type: activeType,
+          action: "ai-complete",
+        }),
       })
       if (resp.ok) {
         const data = await resp.json()
-        const completion = data.result || data.output || data.response || ""
+        const completion = data.result || data.spec || data.output || ""
         if (completion) {
-          setContent((prev) => prev + "\n" + completion)
+          setContent(content + "\n" + completion)
           setIsSaved(false)
         }
       }
     } catch (error) {
-      console.error("AI completion failed:", error)
+      showToast("AI completion failed", 'error')
     } finally {
       setIsAiCompleting(false)
     }
-  }, [content])
+  }, [content, activeType, setContent, setIsSaved])
 
-  // Upgrade 5: Export as Markdown
+  // Export as Markdown
   const handleExportMarkdown = useCallback(() => {
     const title = `${activeType.charAt(0).toUpperCase() + activeType.slice(1)} Specification`
     const criteriaSection =
       acceptanceCriteria.length > 0
         ? `\n## Acceptance Criteria\n\n${acceptanceCriteria.map((c) => `- [${c.checked ? "x" : " "}] ${c.text}`).join("\n")}\n`
         : ""
-    const signOffSection = `\n## Sign-Off\n\n| Stakeholder | Status |\n|---|---|\n${stakeholders
-      .map((s) => `| ${s.name} | ${s.status.charAt(0).toUpperCase() + s.status.slice(1)} |`)
+    const signOffSection = `\n## Sign-Off\n\n| Stakeholder | Role | Status |\n|---|---|---|\n${stakeholders
+      .map((s) => `| ${s.name} | ${s.role || '-'} | ${s.status.charAt(0).toUpperCase() + s.status.slice(1)} |`)
       .join("\n")}\n`
     const md = `# ${title}\n\n${content}\n${criteriaSection}${signOffSection}`
     const blob = new Blob([md], { type: "text/markdown" })
@@ -400,31 +1160,111 @@ export function SpecChamber() {
     URL.revokeObjectURL(url)
   }, [activeType, content, acceptanceCriteria, stakeholders])
 
-  // Upgrade 2: Acceptance Criteria helpers
-  const addCriteria = useCallback(() => {
+  // Acceptance Criteria helpers (use store)
+  const handleAddCriteria = useCallback(() => {
     if (!newCriteriaText.trim()) return
-    setAcceptanceCriteria((prev) => [
-      ...prev,
-      { id: `ac-${Date.now()}`, text: newCriteriaText.trim(), checked: false },
-    ])
+    addCriterion(specId, newCriteriaText.trim())
     setNewCriteriaText("")
-  }, [newCriteriaText])
+  }, [newCriteriaText, specId, addCriterion])
 
-  const toggleCriteria = useCallback((id: string) => {
-    setAcceptanceCriteria((prev) => prev.map((c) => (c.id === id ? { ...c, checked: !c.checked } : c)))
-  }, [])
+  const handleToggleCriteria = useCallback((id: string) => {
+    toggleCriterion(specId, id)
+  }, [specId, toggleCriterion])
 
-  const removeCriteria = useCallback((id: string) => {
-    setAcceptanceCriteria((prev) => prev.filter((c) => c.id !== id))
-  }, [])
+  const handleRemoveCriteria = useCallback((id: string) => {
+    removeCriterion(specId, id)
+  }, [specId, removeCriterion])
 
-  // Upgrade 3: Stakeholder sign-off helper
-  const updateStakeholder = useCallback((id: string, status: "pending" | "approved" | "rejected") => {
-    setStakeholders((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)))
-  }, [])
+  // Stakeholder sign-off helper (use store)
+  const handleUpdateStakeholder = useCallback((id: string, status: "pending" | "approved" | "rejected") => {
+    updateStakeholderStatus(specId, id, status)
+  }, [specId, updateStakeholderStatus])
+
+  const handleAddStakeholder = useCallback(() => {
+    if (!newStakeholderName.trim()) return
+    addStakeholder(specId, newStakeholderName.trim(), 'Custom')
+    setNewStakeholderName("")
+  }, [newStakeholderName, specId, addStakeholder])
+
+  // Version history helper (use local state)
+  const handleCreateVersion = useCallback(() => {
+    if (!versionDescription.trim()) return
+    createSpecVersion()
+    setVersionDescription("")
+  }, [versionDescription, createSpecVersion])
+
+  // Review comment helpers (use store)
+  const handleAddComment = useCallback(() => {
+    if (!newCommentText.trim()) return
+    addReviewComment(specId, newCommentText.trim(), commentLineRef ? parseInt(commentLineRef, 10) : undefined, userName)
+    setNewCommentText("")
+    setCommentLineRef("")
+  }, [newCommentText, commentLineRef, specId, addReviewComment, userName])
+
+  // Compute LCS-based line diff between version content and current content
+  const diffLines = useMemo(() => {
+    if (!diffVersionId) return null
+    const ver = versionHistory.find(v => v.id === diffVersionId)
+    if (!ver) return null
+    const oldLines = ver.content.split('\n')
+    const newLines = content.split('\n')
+
+    // Build LCS table
+    const m = oldLines.length
+    const n = newLines.length
+    const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0))
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i][j] = oldLines[i - 1] === newLines[j - 1]
+          ? dp[i - 1][j - 1] + 1
+          : Math.max(dp[i - 1][j], dp[i][j - 1])
+      }
+    }
+
+    // Backtrack to produce diff
+    const result: { type: 'same' | 'added' | 'removed'; text: string }[] = []
+    let i = m, j = n
+    const stack: { type: 'same' | 'added' | 'removed'; text: string }[] = []
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+        stack.push({ type: 'same', text: oldLines[i - 1] })
+        i--; j--
+      } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+        stack.push({ type: 'added', text: newLines[j - 1] })
+        j--
+      } else {
+        stack.push({ type: 'removed', text: oldLines[i - 1] })
+        i--
+      }
+    }
+    while (stack.length) result.push(stack.pop()!)
+    return result
+  }, [diffVersionId, versionHistory, content])
 
   return (
     <div className="h-full flex flex-col bg-zinc-950 text-zinc-100">
+      {/* ── Toast Notification ── */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            role="alert"
+            aria-live="polite"
+            className={`fixed top-4 right-4 z-[100] px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 ${
+              toast.type === 'success'
+                ? 'bg-emerald-500/90 text-white'
+                : 'bg-red-500/90 text-white'
+            }`}
+          >
+            {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            {toast.message}
+            <button onClick={() => setToast(null)} className="ml-2 hover:opacity-70"><X className="w-3 h-3" /></button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Header ── */}
       <div className="h-14 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/30 backdrop-blur-sm">
         <div className="flex items-center gap-3">
@@ -439,6 +1279,30 @@ export function SpecChamber() {
             <div className={`w-2 h-2 rounded-full ${isSaved ? "bg-emerald-500" : "bg-yellow-500 animate-pulse"}`} />
             <span className="text-[11px] text-zinc-500">{isSaved ? "Saved" : "Unsaved"}</span>
           </div>
+          {/* Yjs Collaborators */}
+          {collaborators.length > 1 && (
+            <>
+              <div className="h-5 w-px bg-zinc-800" />
+              <div className="flex items-center gap-1">
+                {collaborators.map(c => (
+                  <div
+                    key={c.id}
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-zinc-900"
+                    style={{ backgroundColor: c.color }}
+                    title={c.name}
+                  >
+                    {c.name[0]?.toUpperCase()}
+                  </div>
+                ))}
+                <span className="text-[10px] text-zinc-500 ml-1">{collaborators.length} editing</span>
+              </div>
+            </>
+          )}
+          {yjsConnected && (
+            <Badge variant="outline" className="text-[9px] h-4 border-emerald-500/30 text-emerald-400 ml-1">
+              Sync
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -470,11 +1334,28 @@ export function SpecChamber() {
             {isGenerating ? "Generating…" : "Generate Code"}
           </Button>
           <Button size="sm" onClick={handleSave} className="gap-2 bg-zinc-800 hover:bg-zinc-700 h-8">
-            <Save className="w-3.5 h-3.5" />
-            Save
-          </Button>
+              <Save className="w-3.5 h-3.5" />
+              Save
+            </Button>
+            <Button size="sm" onClick={handleScaffoldProject} disabled={isGenerating} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white h-8">
+              <Wand2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Scaffold to Project</span>
+            </Button>
           <Button variant="ghost" size="sm" onClick={handleExportMarkdown} className="h-8 px-2 text-zinc-400" title="Export as Markdown">
             <Download className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleImport} className="h-8 px-2 text-zinc-400" title="Import YAML/JSON file">
+            <FileUp className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleGenerateTests}
+            disabled={isGeneratingTests}
+            className="h-8 px-2 text-zinc-400"
+            title="Generate Tests from Spec"
+          >
+            {isGeneratingTests ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <TestTube className="w-3.5 h-3.5" />}
           </Button>
           <Button
             variant="ghost"
@@ -502,6 +1383,8 @@ export function SpecChamber() {
                   <button
                     key={template.type}
                     onClick={() => handleTemplateChange(template.type)}
+                    aria-label={`${template.name} spec type`}
+                    aria-pressed={activeType === template.type}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
                       activeType === template.type
                         ? "bg-purple-500/10 border border-purple-500/20 text-zinc-200"
@@ -541,6 +1424,12 @@ export function SpecChamber() {
                     {validationResult.valid ? "Valid Specification" : "Validation Errors"}
                   </span>
                 </div>
+                {completenessScore != null && (
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <Progress value={completenessScore} className="h-1 flex-1" />
+                    <span className="text-[10px] text-zinc-400 whitespace-nowrap">{completenessScore}% complete</span>
+                  </div>
+                )}
                 {!validationResult.valid && validationResult.errors && (
                   <div className="space-y-1 mt-2">
                     {validationResult.errors.slice(0, 5).map((error: any, i: number) => (
@@ -569,35 +1458,74 @@ export function SpecChamber() {
           <div className="flex-1 border-t border-zinc-800 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="p-4">
-                <h3 className="text-[10px] font-semibold text-zinc-500 mb-3 uppercase tracking-wider">
+                <h3 className="text-[10px] font-semibold text-zinc-500 mb-2 uppercase tracking-wider">
                   Recent Specs
                 </h3>
+                {specs.length > 3 && (
+                  <div className="relative mb-2">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-600" />
+                    <input
+                      type="text"
+                      value={specSearchQuery}
+                      onChange={e => setSpecSearchQuery(e.target.value)}
+                      placeholder="Filter specs..."
+                      aria-label="Filter specifications"
+                      className="w-full bg-zinc-800/50 border border-zinc-700 rounded text-[11px] text-zinc-300 pl-7 pr-2 py-1 focus:border-purple-500 outline-none"
+                    />
+                  </div>
+                )}
                 {specs.length > 0 ? (
                   <div className="space-y-1">
-                    {specs.slice(0, 10).map((spec) => (
-                      <button
+                    {specs
+                      .filter(s => !specSearchQuery || s.title.toLowerCase().includes(specSearchQuery.toLowerCase()) || s.type.toLowerCase().includes(specSearchQuery.toLowerCase()))
+                      .slice(0, 15)
+                      .map((spec) => (
+                      <div
                         key={spec.id}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-800/50 transition-colors"
+                        className={`group w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-800/50 transition-colors flex items-start gap-2 ${
+                          activeSpecId === spec.id ? "bg-purple-500/10 border border-purple-500/20" : ""
+                        }`}
                       >
-                        <div className="text-xs text-zinc-300 truncate">{spec.title}</div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="outline" className="text-[9px] h-4 border-zinc-700">
-                            {spec.type}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className={`text-[9px] h-4 ${
-                              spec.status === "approved"
-                                ? "border-emerald-600 text-emerald-400"
-                                : spec.status === "review"
-                                ? "border-yellow-600 text-yellow-400"
-                                : "border-zinc-700 text-zinc-500"
-                            }`}
-                          >
-                            {spec.status}
-                          </Badge>
-                        </div>
-                      </button>
+                        <button
+                          onClick={() => loadSpec(spec.id)}
+                          className="flex-1 text-left min-w-0"
+                        >
+                          <div className="text-xs text-zinc-300 truncate">{spec.title}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-[9px] h-4 border-zinc-700">
+                              {spec.type}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className={`text-[9px] h-4 ${
+                                spec.status === "approved"
+                                  ? "border-emerald-600 text-emerald-400"
+                                  : spec.status === "review"
+                                  ? "border-yellow-600 text-yellow-400"
+                                  : "border-zinc-700 text-zinc-500"
+                              }`}
+                            >
+                              {spec.status}
+                            </Badge>
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteSpec(spec.id) }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-zinc-600 hover:text-red-400 transition-all shrink-0 mt-0.5"
+                          title="Delete spec"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : isLoadingSpecs ? (
+                  <div className="space-y-2 py-2">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="px-3 py-2 rounded-lg bg-zinc-800/30 animate-pulse">
+                        <div className="h-3 w-24 bg-zinc-700/50 rounded mb-1.5" />
+                        <div className="h-2 w-14 bg-zinc-700/30 rounded" />
+                      </div>
                     ))}
                   </div>
                 ) : (
@@ -612,7 +1540,7 @@ export function SpecChamber() {
         <div className="flex-1 flex flex-col min-w-0">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
             <div className="border-b border-zinc-800 px-4 py-1.5 flex items-center justify-between">
-              <TabsList className="bg-zinc-800/50 h-8">
+              <TabsList role="tablist" aria-label="Specification editor tabs" className="bg-zinc-800/50 h-8">
                 <TabsTrigger value="editor" className="gap-1.5 text-xs h-7 data-[state=active]:bg-zinc-700">
                   <FileJson className="w-3.5 h-3.5" />
                   Spec Editor
@@ -637,6 +1565,10 @@ export function SpecChamber() {
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   Criteria
                 </TabsTrigger>
+                <TabsTrigger value="diagnostics" className="gap-1.5 text-xs h-7 data-[state=active]:bg-zinc-700">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  Diagnostics
+                </TabsTrigger>
                 <TabsTrigger value="signoff" className="gap-1.5 text-xs h-7 data-[state=active]:bg-zinc-700">
                   <Users className="w-3.5 h-3.5" />
                   Sign-Off
@@ -644,6 +1576,26 @@ export function SpecChamber() {
                 <TabsTrigger value="history" className="gap-1.5 text-xs h-7 data-[state=active]:bg-zinc-700">
                   <GitBranch className="w-3.5 h-3.5" />
                   History
+                </TabsTrigger>
+                <TabsTrigger value="reviews" className="gap-1.5 text-xs h-7 data-[state=active]:bg-zinc-700">
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Reviews ({reviewComments.filter(c => !c.resolved).length})
+                </TabsTrigger>
+                <TabsTrigger value="tests" className="gap-1.5 text-xs h-7 data-[state=active]:bg-zinc-700" disabled={!generatedTests}>
+                  <TestTube className="w-3.5 h-3.5" />
+                  Tests
+                </TabsTrigger>
+                <TabsTrigger value="integrations" className="gap-1.5 text-xs h-7 data-[state=active]:bg-zinc-700">
+                  <Globe className="w-3.5 h-3.5" />
+                  Integrations
+                </TabsTrigger>
+                <TabsTrigger value="workflow" className="gap-1.5 text-xs h-7 data-[state=active]:bg-zinc-700">
+                  <Zap className="w-3.5 h-3.5" />
+                  Workflow
+                </TabsTrigger>
+                <TabsTrigger value="reporting" className="gap-1.5 text-xs h-7 data-[state=active]:bg-zinc-700">
+                  <Target className="w-3.5 h-3.5" />
+                  Reporting
                 </TabsTrigger>
               </TabsList>
 
@@ -673,14 +1625,17 @@ export function SpecChamber() {
             </div>
 
             <TabsContent value="editor" className="flex-1 m-0">
+              <ErrorBoundary componentName="Spec Editor (Monaco)">
               <Editor
                 height="100%"
                 language="yaml"
                 value={content}
                 onChange={(value) => {
-                  setContent(value || "")
-                  setIsSaved(false)
+                  if (!bindingRef.current) {
+                    setContent(value || "")
+                  }
                 }}
+                onMount={handleEditorMount}
                 theme="vs-dark"
                 options={{
                   minimap: { enabled: false },
@@ -698,6 +1653,7 @@ export function SpecChamber() {
                   renderWhitespace: "boundary",
                 }}
               />
+              </ErrorBoundary>
             </TabsContent>
 
             <TabsContent value="generated" className="flex-1 m-0">
@@ -715,18 +1671,13 @@ export function SpecChamber() {
             </TabsContent>
 
             <TabsContent value="preview" className="flex-1 m-0 p-6 overflow-y-auto">
-              <div className="max-w-2xl mx-auto">
-                <h2 className="text-lg font-semibold mb-4 text-zinc-200">Specification Preview</h2>
-                <div className="prose prose-invert prose-sm">
-                  <pre className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-sm font-mono text-zinc-300 whitespace-pre-wrap">
-                    {content}
-                  </pre>
-                </div>
-              </div>
+              <SpecPreview content={content} activeType={activeType} acceptanceCriteria={acceptanceCriteria} stakeholders={stakeholders} />
             </TabsContent>
 
             <TabsContent value="visual" className="flex-1 m-0">
-              <VisualBuilder />
+              <ErrorBoundary componentName="Visual Builder (ReactFlow)">
+              <VisualBuilder content={content} />
+              </ErrorBoundary>
             </TabsContent>
 
             {/* Upgrade 2: Acceptance Criteria Checklist */}
@@ -742,7 +1693,7 @@ export function SpecChamber() {
                 </div>
                 {acceptanceCriteria.length > 0 && (
                   <Progress
-                    value={(acceptanceCriteria.filter((c) => c.checked).length / acceptanceCriteria.length) * 100}
+                    value={acceptanceCriteria.length > 0 ? (acceptanceCriteria.filter((c) => c.checked).length / acceptanceCriteria.length) * 100 : 0}
                     className="h-1.5"
                   />
                 )}
@@ -750,11 +1701,11 @@ export function SpecChamber() {
                   <Input
                     value={newCriteriaText}
                     onChange={(e) => setNewCriteriaText(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addCriteria()}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddCriteria()}
                     placeholder="Add acceptance criterion…"
                     className="bg-zinc-800 border-zinc-700 text-sm text-zinc-300"
                   />
-                  <Button size="sm" onClick={addCriteria} className="bg-zinc-700 hover:bg-zinc-600 gap-1.5">
+                  <Button size="sm" onClick={handleAddCriteria} className="bg-zinc-700 hover:bg-zinc-600 gap-1.5">
                     <Plus className="w-3.5 h-3.5" />
                     Add
                   </Button>
@@ -768,7 +1719,8 @@ export function SpecChamber() {
                       <input
                         type="checkbox"
                         checked={item.checked}
-                        onChange={() => toggleCriteria(item.id)}
+                        onChange={() => handleToggleCriteria(item.id)}
+                        aria-label={`Mark criterion: ${item.text}`}
                         className="w-4 h-4 accent-purple-500 cursor-pointer flex-shrink-0"
                       />
                       <span
@@ -779,7 +1731,7 @@ export function SpecChamber() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => removeCriteria(item.id)}
+                        onClick={() => handleRemoveCriteria(item.id)}
                         className="h-6 w-6 p-0 text-zinc-600 hover:text-red-400"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -795,10 +1747,26 @@ export function SpecChamber() {
               </div>
             </TabsContent>
 
-            {/* Upgrade 3: Stakeholder Sign-Off */}
+            {/* Stakeholder Sign-Off */}
             <TabsContent value="signoff" className="flex-1 m-0 p-6 overflow-y-auto">
               <div className="max-w-2xl mx-auto space-y-4">
                 <h2 className="text-lg font-semibold text-zinc-200">Stakeholder Sign-Off</h2>
+
+                {/* Add stakeholder */}
+                <div className="flex gap-2">
+                  <Input
+                    value={newStakeholderName}
+                    onChange={(e) => setNewStakeholderName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddStakeholder()}
+                    placeholder="Add stakeholder name…"
+                    className="bg-zinc-800 border-zinc-700 text-sm text-zinc-300"
+                  />
+                  <Button size="sm" onClick={handleAddStakeholder} className="bg-zinc-700 hover:bg-zinc-600 gap-1.5">
+                    <Plus className="w-3.5 h-3.5" />
+                    Add
+                  </Button>
+                </div>
+
                 <div className="space-y-3">
                   {stakeholders.map((stakeholder) => (
                     <div
@@ -807,7 +1775,12 @@ export function SpecChamber() {
                     >
                       <div className="flex items-center gap-3">
                         <Users className="w-4 h-4 text-zinc-500" />
-                        <span className="text-sm text-zinc-200">{stakeholder.name}</span>
+                        <div>
+                          <span className="text-sm text-zinc-200">{stakeholder.name}</span>
+                          {stakeholder.role && (
+                            <span className="text-[10px] text-zinc-500 ml-2">({stakeholder.role})</span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge
@@ -824,7 +1797,7 @@ export function SpecChamber() {
                         </Badge>
                         <Button
                           size="sm"
-                          onClick={() => updateStakeholder(stakeholder.id, "approved")}
+                          onClick={() => handleUpdateStakeholder(stakeholder.id, "approved")}
                           disabled={stakeholder.status === "approved"}
                           className="h-7 px-2 text-xs bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40"
                         >
@@ -832,12 +1805,21 @@ export function SpecChamber() {
                         </Button>
                         <Button
                           size="sm"
-                          onClick={() => updateStakeholder(stakeholder.id, "rejected")}
+                          onClick={() => handleUpdateStakeholder(stakeholder.id, "rejected")}
                           disabled={stakeholder.status === "rejected"}
                           variant="outline"
                           className="h-7 px-2 text-xs border-zinc-700 text-zinc-400 hover:text-red-400 hover:border-red-700"
                         >
                           Request Changes
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeStakeholder(specId, stakeholder.id)}
+                          className="h-7 w-7 p-0 text-zinc-600 hover:text-red-400"
+                          title="Remove stakeholder"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>
                     </div>
@@ -846,21 +1828,82 @@ export function SpecChamber() {
               </div>
             </TabsContent>
 
-            {/* Upgrade 4: Version History */}
+            {/* Diagnostics Panel */}
+            <TabsContent value="diagnostics" className="flex-1 m-0 p-6 overflow-y-auto">
+              <div className="max-w-2xl mx-auto space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-zinc-200">System Diagnostics</h2>
+                  <Button size="sm" variant="outline" onClick={() => setSpecDiagnostics([])} className="h-7 text-xs">Clear</Button>
+                </div>
+                {specDiagnostics.length === 0 ? (
+                  <div className="text-center py-8">
+                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500/40" />
+                    <p className="text-sm text-zinc-400">All systems operational</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {specDiagnostics.map((diag: any, i: number) => (
+                      <div key={i} className={cn(
+                        "flex items-start gap-3 p-3 rounded border",
+                        diag.severity === 'error' ? 'border-red-500/20 bg-red-500/5' : 
+                        diag.severity === 'warning' ? 'border-yellow-500/20 bg-yellow-500/5' : 
+                        'border-blue-500/20 bg-blue-500/5'
+                      )}>
+                        <div className={cn("text-xs font-bold uppercase shrink-0 mt-0.5",
+                          diag.severity === 'error' ? 'text-red-400' : 
+                          diag.severity === 'warning' ? 'text-yellow-400' : 'text-blue-400'
+                        )}>
+                          {diag.severity === 'error' ? '●' : diag.severity === 'warning' ? '▲' : 'ℹ'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-zinc-200">{diag.message}</div>
+                          <div className="text-xs text-zinc-500 mt-0.5">
+                            {diag.source} · {new Date(diag.timestamp || Date.now()).toLocaleTimeString()}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+
+            {/* Version History (persistent via store) */}
             <TabsContent value="history" className="flex-1 m-0 p-6 overflow-y-auto">
               <div className="max-w-2xl mx-auto space-y-4">
-                <h2 className="text-lg font-semibold text-zinc-200">Version History</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-zinc-200">Version History</h2>
+                  <Badge variant="outline" className="text-xs border-zinc-700">
+                    {specVersions.length} versions
+                  </Badge>
+                </div>
+
+                {/* Create Version */}
+                <div className="flex gap-2">
+                  <Input
+                    value={versionDescription}
+                    onChange={(e) => setVersionDescription(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleCreateVersion()}
+                    placeholder="Version description (e.g. 'Added auth requirements')…"
+                    className="bg-zinc-800 border-zinc-700 text-sm text-zinc-300"
+                  />
+                  <Button size="sm" onClick={handleCreateVersion} className="bg-purple-700 hover:bg-purple-600 gap-1.5">
+                    <Save className="w-3.5 h-3.5" />
+                    Snapshot
+                  </Button>
+                </div>
+
                 <div className="space-y-3">
-                  {versionHistory.map((entry) => (
+                  {specVersions.map((entry) => (
                     <div
-                      key={entry.version}
+                      key={entry.id}
                       className="flex items-start justify-between px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800"
                     >
                       <div className="flex items-start gap-3">
                         <GitBranch className="w-4 h-4 text-purple-400 mt-0.5 flex-shrink-0" />
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-zinc-200">{entry.version}</span>
+                            <span className="text-sm font-medium text-zinc-200">{entry.id}</span>
                             <Badge variant="outline" className="text-[10px] h-4 border-zinc-700 text-zinc-500">
                               {entry.author}
                             </Badge>
@@ -872,27 +1915,595 @@ export function SpecChamber() {
                           </p>
                         </div>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setContent(entry.content)
-                          setIsSaved(false)
-                          setActiveTab("editor")
-                        }}
-                        className="h-7 px-2 text-xs border-zinc-700 text-zinc-400 hover:text-zinc-200 flex-shrink-0"
-                      >
-                        Restore
-                      </Button>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setDiffVersionId(diffVersionId === entry.id ? null : entry.id)}
+                          className={`h-7 px-2 text-xs flex-shrink-0 ${
+                            diffVersionId === entry.id 
+                              ? 'border-purple-600 text-purple-400 bg-purple-500/10' 
+                              : 'border-zinc-700 text-zinc-400 hover:text-zinc-200'
+                          }`}
+                        >
+                          {diffVersionId === entry.id ? 'Hide Diff' : 'Diff'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => restoreSpecVersion(entry.id)}
+                          className="h-7 px-2 text-xs border-zinc-700 text-zinc-400 hover:text-zinc-200 flex-shrink-0"
+                        >
+                          Restore
+                        </Button>
+                      </div>
                     </div>
                   ))}
+
+                  {/* Inline diff viewer */}
+                  {diffLines && (
+                    <div className="rounded-lg border border-purple-800/50 bg-zinc-900/80 overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-1.5 border-b border-zinc-800 bg-zinc-900">
+                        <span className="text-[10px] text-purple-400 font-medium">
+                          Diff: {versionHistory.find(v => v.id === diffVersionId)?.version} → current
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={() => setDiffVersionId(null)} className="h-5 w-5 p-0 text-zinc-500">
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <ScrollArea className="max-h-64">
+                        <pre className="text-[11px] font-mono p-2 leading-relaxed">
+                          {diffLines.map((line, i) => (
+                            <div
+                              key={i}
+                              className={
+                                line.type === 'added' ? 'bg-emerald-500/10 text-emerald-400'
+                                : line.type === 'removed' ? 'bg-red-500/10 text-red-400 line-through'
+                                : 'text-zinc-500'
+                              }
+                            >
+                              <span className="select-none mr-2 text-zinc-700">
+                                {line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' '}
+                              </span>
+                              {line.text}
+                            </div>
+                          ))}
+                        </pre>
+                      </ScrollArea>
+                    </div>
+                  )}
+
+                  {versionHistory.length === 0 && (
+                    <p className="text-[11px] text-zinc-600 text-center py-6">
+                      No versions yet. Save your spec or click Snapshot to create the first version.
+                    </p>
+                  )}
                 </div>
               </div>
             </TabsContent>
+
+            {/* Review Comments (persistent via store) */}
+            <TabsContent value="reviews" className="flex-1 m-0 p-6 overflow-y-auto">
+              <div className="max-w-2xl mx-auto space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-zinc-200">Review Comments</h2>
+                  <Badge variant="outline" className="text-xs border-zinc-700">
+                    {reviewComments.filter(c => !c.resolved).length} open
+                  </Badge>
+                </div>
+
+                {/* Add comment with optional line ref */}
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      value={newCommentText}
+                      onChange={(e) => setNewCommentText(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
+                      placeholder="Add a review comment…"
+                      className="bg-zinc-800 border-zinc-700 text-sm text-zinc-300"
+                    />
+                    <Input
+                      value={commentLineRef}
+                      onChange={(e) => setCommentLineRef(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Line #"
+                      className="bg-zinc-800 border-zinc-700 text-sm text-zinc-300 w-20"
+                    />
+                    <Button size="sm" onClick={handleAddComment} className="bg-zinc-700 hover:bg-zinc-600 gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Comment
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {reviewComments.map((comment) => (
+                    <div
+                      key={comment.id}
+                      className={`px-4 py-3 rounded-lg border ${
+                        comment.resolved
+                          ? "bg-zinc-900/50 border-zinc-800/50 opacity-60"
+                          : "bg-zinc-900 border-zinc-800"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-zinc-300">{comment.author}</span>
+                          {comment.lineRef && (
+                            <Badge variant="outline" className="text-[9px] h-4 border-blue-700 text-blue-400">
+                              L{comment.lineRef}
+                            </Badge>
+                          )}
+                          <span className="text-[10px] text-zinc-600">
+                            {new Date(comment.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {!comment.resolved && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingCommentId(comment.id)
+                                  setEditingCommentText(comment.text)
+                                }}
+                                className="h-5 px-1.5 text-[10px] text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => resolveReviewComment(specId, comment.id)}
+                                className="h-5 px-1.5 text-[10px] text-emerald-400 hover:bg-emerald-500/10"
+                              >
+                                <Check className="w-3 h-3 mr-0.5" />
+                                Resolve
+                              </Button>
+                            </>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteReviewComment(specId, comment.id)}
+                            className="h-5 px-1 text-zinc-600 hover:text-red-400"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      {editingCommentId === comment.id ? (
+                        <div className="flex gap-2 mt-1">
+                          <Input
+                            value={editingCommentText}
+                            onChange={(e) => setEditingCommentText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                editReviewComment(specId, comment.id, editingCommentText)
+                                setEditingCommentId(null)
+                              }
+                              if (e.key === "Escape") setEditingCommentId(null)
+                            }}
+                            className="bg-zinc-800 border-zinc-700 text-sm text-zinc-300 flex-1"
+                            autoFocus
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              editReviewComment(specId, comment.id, editingCommentText)
+                              setEditingCommentId(null)
+                            }}
+                            className="h-8 px-2 text-xs bg-zinc-700 hover:bg-zinc-600"
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingCommentId(null)}
+                            className="h-8 px-2 text-xs text-zinc-500"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className={`text-sm ${comment.resolved ? "text-zinc-500 line-through" : "text-zinc-300"}`}>
+                          {comment.text}
+                        </p>
+                      )}
+                      {comment.resolved && (
+                        <Badge variant="outline" className="text-[9px] h-4 border-emerald-700 text-emerald-500 mt-1">
+                          Resolved
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                  {reviewComments.length === 0 && (
+                    <p className="text-[11px] text-zinc-600 text-center py-6">
+                      No review comments yet. Add feedback above.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="tests" className="flex-1 m-0 flex flex-col overflow-hidden">
+              {generatedTests ? (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  {/* Coverage Summary Header */}
+                  <div className="px-4 py-3 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between flex-shrink-0">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <TestTube className="w-4 h-4 text-emerald-500" />
+                        <span className="text-sm font-medium text-zinc-200">Generated Tests</span>
+                      </div>
+                      <Badge variant="outline" className="text-xs border-emerald-700 text-emerald-400 bg-emerald-500/10">
+                        {(generatedTests.match(/it\(|test\(/g) || []).length} test cases
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-zinc-400">
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                        <span>Coverage: {acceptanceCriteria.length > 0 ? Math.round((generatedTests.match(/it\(|test\(/g) || []).length / acceptanceCriteria.length * 100) : 100}%</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                        <span>Criteria: {acceptanceCriteria.length}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <CodeOutput code={generatedTests} language="typescript" />
+                  </div>
+                </div>
+              ) : (
+                <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
+                  <div className="text-center space-y-3">
+                    <TestTube className="w-8 h-8 mx-auto text-zinc-600" />
+                    <p>Click the <TestTube className="w-3.5 h-3.5 inline" /> button in the header to generate tests from your spec.</p>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* ─── Integrations Tab ──────────────────────────────────────── */}
+            <TabsContent value="integrations" className="flex-1 m-0 overflow-y-auto">
+              <div className="max-w-3xl mx-auto p-6 space-y-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-zinc-100">API Integrations</h2>
+                  <p className="text-sm text-zinc-500">Connect external services to sync specs and receive notifications</p>
+                </div>
+
+                <div className="space-y-4">
+                  {integrations.map(integration => {
+                    const iconMap: Record<IntegrationType, string> = { github: '🐙', slack: '💬', jira: '📋', linear: '📐' }
+                    const isOpen = integrationConfigOpen === integration.id
+                    return (
+                      <div key={integration.id} className="rounded-lg border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+                        <div className="flex items-center justify-between p-4">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xl">{iconMap[integration.type]}</span>
+                            <div>
+                              <div className="text-sm font-medium text-zinc-200">{integration.name}</div>
+                              <div className="text-xs text-zinc-500">
+                                {integration.connected
+                                  ? `Connected · Last sync: ${integration.lastSync ? new Date(integration.lastSync).toLocaleString() : 'Never'}`
+                                  : 'Not connected'}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setIntegrationConfigOpen(isOpen ? null : integration.id)}
+                              className="h-7 text-xs border-zinc-700"
+                            >
+                              <Settings className="w-3 h-3 mr-1" />
+                              Configure
+                            </Button>
+                            {integration.connected ? (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => disconnectIntegration(integration.id)}
+                                className="h-7 text-xs"
+                              >
+                                Disconnect
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                onClick={() => connectIntegration(integration.id)}
+                                disabled={isConnecting === integration.id}
+                                className="h-7 text-xs bg-purple-600 hover:bg-purple-700"
+                              >
+                                {isConnecting === integration.id ? (
+                                  <><RefreshCw className="w-3 h-3 mr-1 animate-spin" /> Connecting...</>
+                                ) : 'Connect'}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        {isOpen && (
+                          <div className="px-4 pb-4 pt-2 border-t border-zinc-800 space-y-3">
+                            {Object.entries(integration.config).map(([key, value]) => (
+                              <div key={key} className="space-y-1">
+                                <label className="text-xs text-zinc-400 capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
+                                <Input
+                                  value={value}
+                                  onChange={(e) => updateIntegrationConfig(integration.id, key, e.target.value)}
+                                  type={key.toLowerCase().includes('token') || key.toLowerCase().includes('key') ? 'password' : 'text'}
+                                  placeholder={`Enter ${key}`}
+                                  className="h-8 text-xs bg-zinc-800 border-zinc-700"
+                                />
+                              </div>
+                            ))}
+                            <div className="text-[11px] text-zinc-600">
+                              {integration.type === 'github' && 'Syncs specs as GitHub issues/PRs. Requires a personal access token with repo scope.'}
+                              {integration.type === 'slack' && 'Sends notifications when specs change status. Use an incoming webhook URL.'}
+                              {integration.type === 'jira' && 'Creates linked Jira tickets for specs. Requires an API token.'}
+                              {integration.type === 'linear' && 'Syncs specs with Linear issues. Requires an API key.'}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Sync summary */}
+                <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/30">
+                  <h3 className="text-sm font-medium text-zinc-300 mb-3">Sync Status</h3>
+                  <div className="grid grid-cols-4 gap-4">
+                    {integrations.map(i => (
+                      <div key={i.id} className="text-center">
+                        <div className={`w-3 h-3 rounded-full mx-auto mb-1 ${i.connected ? 'bg-emerald-500' : 'bg-zinc-700'}`} />
+                        <span className="text-[10px] text-zinc-500">{i.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* ─── Workflow Tab ───────────────────────────────────────────── */}
+            <TabsContent value="workflow" className="flex-1 m-0 overflow-y-auto">
+              <div className="max-w-3xl mx-auto p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-zinc-100">Spec Workflow</h2>
+                    <p className="text-sm text-zinc-500">Track and manage the lifecycle of this specification</p>
+                  </div>
+                  <Badge
+                    className="text-xs px-3 py-1"
+                    style={{
+                      backgroundColor: `${WORKFLOW_STATUSES.find(s => s.status === specStatus)?.color}20`,
+                      color: WORKFLOW_STATUSES.find(s => s.status === specStatus)?.color,
+                      borderColor: `${WORKFLOW_STATUSES.find(s => s.status === specStatus)?.color}40`,
+                    }}
+                  >
+                    {WORKFLOW_STATUSES.find(s => s.status === specStatus)?.label}
+                  </Badge>
+                </div>
+
+                {/* Status pipeline visualization */}
+                <div className="flex items-center gap-1">
+                  {WORKFLOW_STATUSES.map((ws, idx) => {
+                    const isCurrent = ws.status === specStatus
+                    const isPast = WORKFLOW_STATUSES.findIndex(s => s.status === specStatus) > idx
+                    return (
+                      <div key={ws.status} className="flex items-center flex-1">
+                        <div
+                          className={`flex-1 h-10 rounded-lg flex items-center justify-center text-xs font-medium transition-all ${
+                            isPast && !isCurrent
+                              ? 'opacity-60'
+                              : !isCurrent && !isPast
+                              ? 'opacity-30'
+                              : ''
+                          }`}
+                          style={{
+                            backgroundColor: isCurrent || isPast ? `${ws.color}25` : 'rgba(255,255,255,0.05)',
+                            color: isCurrent || isPast ? ws.color : '#71717a',
+                            outline: isCurrent ? `2px solid ${ws.color}` : undefined,
+                            outlineOffset: isCurrent ? '2px' : undefined,
+                          }}
+                        >
+                          {ws.label}
+                        </div>
+                        {idx < WORKFLOW_STATUSES.length - 1 && (
+                          <ChevronRight className="w-4 h-4 text-zinc-600 mx-0.5 shrink-0" />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Available transitions */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-zinc-300">Available Actions</h3>
+                  {getAvailableTransitions().length === 0 ? (
+                    <div className="text-center py-6 text-zinc-600 text-sm">
+                      <CheckCircle2 className="w-6 h-6 mx-auto mb-2" />
+                      <p>This spec has reached its final state</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {getAvailableTransitions().map(t => (
+                        <Button
+                          key={`${t.from}-${t.to}`}
+                          size="sm"
+                          onClick={() => transitionSpec(t)}
+                          className="h-8 text-xs gap-1.5"
+                          style={{
+                            backgroundColor: `${WORKFLOW_STATUSES.find(s => s.status === t.to)?.color}20`,
+                            color: WORKFLOW_STATUSES.find(s => s.status === t.to)?.color,
+                            borderColor: `${WORKFLOW_STATUSES.find(s => s.status === t.to)?.color}40`,
+                          }}
+                          variant="outline"
+                        >
+                          <ChevronRight className="w-3 h-3" />
+                          {t.label}
+                          {t.requiresApproval && <span className="text-[9px] opacity-70">(needs approval)</span>}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Workflow history */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-zinc-300">Transition History</h3>
+                  {workflowHistory.length === 0 ? (
+                    <div className="text-center py-6 text-zinc-600 text-sm">
+                      <Clock className="w-6 h-6 mx-auto mb-2" />
+                      <p>No transitions yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {workflowHistory.slice().reverse().map((entry, i) => {
+                        const statusInfo = WORKFLOW_STATUSES.find(s => s.status === entry.status)
+                        return (
+                          <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-zinc-800 bg-zinc-900/30">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: statusInfo?.color }} />
+                            <div className="flex-1">
+                              <span className="text-xs text-zinc-300">{statusInfo?.label}</span>
+                              <div className="text-[10px] text-zinc-600">{entry.actor} · {new Date(entry.timestamp).toLocaleString()}</div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* ─── Reporting Tab ──────────────────────────────────────────── */}
+            <TabsContent value="reporting" className="flex-1 m-0 overflow-y-auto">
+              <div className="max-w-4xl mx-auto p-6 space-y-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-zinc-100">Spec Report</h2>
+                  <p className="text-sm text-zinc-500">Progress metrics, coverage analytics, and health indicators</p>
+                </div>
+
+                {(() => {
+                  const m = getSpecMetrics()
+                  return (
+                    <>
+                      {/* Overall Health Score */}
+                      <div className="text-center p-6 rounded-lg border border-zinc-800 bg-zinc-900/30">
+                        <div className="text-4xl font-bold mb-2" style={{
+                          color: m.overallScore >= 80 ? '#22c55e' : m.overallScore >= 50 ? '#f59e0b' : '#ef4444'
+                        }}>
+                          {m.overallScore}%
+                        </div>
+                        <p className="text-sm text-zinc-400">Overall Health Score</p>
+                        <Progress value={m.overallScore} className="mt-3 h-2 max-w-xs mx-auto" />
+                      </div>
+
+                      {/* Key Metrics Grid */}
+                      <div className="grid grid-cols-4 gap-4">
+                        <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/30 text-center">
+                          <div className="text-2xl font-bold text-purple-400">{m.completeness}%</div>
+                          <p className="text-xs text-zinc-500 mt-1">Criteria Met</p>
+                          <p className="text-[10px] text-zinc-600">{m.criteriaMet}/{m.criteriaTotal}</p>
+                        </div>
+                        <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/30 text-center">
+                          <div className="text-2xl font-bold text-blue-400">{m.approvalRate}%</div>
+                          <p className="text-xs text-zinc-500 mt-1">Stakeholder Approval</p>
+                          <p className="text-[10px] text-zinc-600">{m.stakeholderApproved}/{m.stakeholderTotal}</p>
+                        </div>
+                        <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/30 text-center">
+                          <div className="text-2xl font-bold text-amber-400">{m.reviewRate}%</div>
+                          <p className="text-xs text-zinc-500 mt-1">Reviews Resolved</p>
+                          <p className="text-[10px] text-zinc-600">{m.reviewResolved}/{m.reviewTotal}</p>
+                        </div>
+                        <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/30 text-center">
+                          <div className="text-2xl font-bold text-emerald-400">{m.versionCount}</div>
+                          <p className="text-xs text-zinc-500 mt-1">Versions</p>
+                          <p className="text-[10px] text-zinc-600">{m.integrationCount} integrations</p>
+                        </div>
+                      </div>
+
+                      {/* Status */}
+                      <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/30">
+                        <h3 className="text-sm font-medium text-zinc-300 mb-3">Current Status</h3>
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-4 h-4 rounded-full"
+                            style={{ backgroundColor: WORKFLOW_STATUSES.find(s => s.status === m.specStatus)?.color }}
+                          />
+                          <span className="text-sm font-medium" style={{ color: WORKFLOW_STATUSES.find(s => s.status === m.specStatus)?.color }}>
+                            {WORKFLOW_STATUSES.find(s => s.status === m.specStatus)?.label}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Breakdown bars */}
+                      <div className="space-y-4">
+                        <h3 className="text-sm font-medium text-zinc-300">Detailed Breakdown</h3>
+                        {[
+                          { label: 'Acceptance Criteria', value: m.completeness, color: '#a855f7' },
+                          { label: 'Stakeholder Approval', value: m.approvalRate, color: '#3b82f6' },
+                          { label: 'Review Resolution', value: m.reviewRate, color: '#f59e0b' },
+                        ].map(bar => (
+                          <div key={bar.label} className="space-y-1.5">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-zinc-400">{bar.label}</span>
+                              <span style={{ color: bar.color }}>{bar.value}%</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
+                              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${bar.value}%`, backgroundColor: bar.color }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Recommendations */}
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-medium text-zinc-300">Recommendations</h3>
+                        <div className="space-y-2">
+                          {m.completeness < 100 && (
+                            <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-xs text-amber-400">
+                              <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                              <span>{m.criteriaTotal - m.criteriaMet} acceptance criteria still unmet. Review and address them to improve spec quality.</span>
+                            </div>
+                          )}
+                          {m.approvalRate < 100 && m.stakeholderTotal > 0 && (
+                            <div className="flex items-start gap-2 p-3 rounded-lg border border-blue-500/20 bg-blue-500/5 text-xs text-blue-400">
+                              <Users className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                              <span>{m.stakeholderTotal - m.stakeholderApproved} stakeholders haven&apos;t approved yet. Follow up for sign-off.</span>
+                            </div>
+                          )}
+                          {m.reviewTotal > 0 && m.reviewRate < 100 && (
+                            <div className="flex items-start gap-2 p-3 rounded-lg border border-purple-500/20 bg-purple-500/5 text-xs text-purple-400">
+                              <MessageSquare className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                              <span>{m.reviewTotal - m.reviewResolved} unresolved review comments. Address them before moving forward.</span>
+                            </div>
+                          )}
+                          {m.integrationCount === 0 && (
+                            <div className="flex items-start gap-2 p-3 rounded-lg border border-zinc-500/20 bg-zinc-500/5 text-xs text-zinc-400">
+                              <Globe className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                              <span>No integrations connected. Connect GitHub, Slack, or Jira for better team visibility.</span>
+                            </div>
+                          )}
+                          {m.overallScore >= 80 && (
+                            <div className="flex items-start gap-2 p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-xs text-emerald-400">
+                              <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                              <span>Great job! This spec is in good health. Consider transitioning to the next workflow stage.</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )
+                })()}
+              </div>
+            </TabsContent>
+
           </Tabs>
         </div>
-
-        {/* ── AI Assistant Panel ── */}
         <AnimatePresence>
           {showAI && (
             <motion.div

@@ -12,6 +12,7 @@ export interface FileNode {
     parentId?: string | null
     isOpen?: boolean
     path: string
+    lastModified?: number
 }
 
 interface FileSystemState {
@@ -21,6 +22,11 @@ interface FileSystemState {
     fileMap: Record<string, FileNode> // Quick lookup by ID
     workspaceId: string | null // The active workspace ID for API calls
 
+    // File watching
+    fileWatchers: Set<string> // Set of file paths being watched
+    fileWatcherInterval: NodeJS.Timeout | null
+    externalChanges: Record<string, { timestamp: number; action: 'modified' | 'deleted' | 'created' }> // Track external changes
+
     // Actions
     createFile: (parentId: string | null, name: string, content?: string) => Promise<string>
     createDirectory: (parentId: string | null, name: string) => Promise<string>
@@ -29,9 +35,19 @@ interface FileSystemState {
     writeFile: (id: string, content: string) => Promise<void>
     deleteNode: (id: string) => Promise<void>
     renameNode: (id: string, newName: string) => Promise<void>
+    moveNode: (id: string, newParentId: string | null) => void
     openFile: (id: string) => void
     closeFile: (id: string) => void
     setActiveFile: (id: string) => void
+    restoreSessionState: (openFiles: string[], activeFileId: string | null) => void
+
+    // File watching actions
+    startFileWatching: () => void
+    stopFileWatching: () => void
+    watchFile: (filePath: string) => void
+    unwatchFile: (filePath: string) => void
+    checkForExternalChanges: () => Promise<void>
+    acknowledgeExternalChange: (filePath: string) => void
 
     // Project Management
     isLoading: boolean
@@ -45,92 +61,6 @@ const generateId = () => Math.random().toString(36).substr(2, 9)
 interface FileSnapshotEntry {
     path: string
     content: string
-}
-
-// Helper to create mock file system from template
-const createMockFileSystem = () => {
-    const template = projectTemplates?.[0]; // Default to Next.js template
-    
-     const rootId = 'root';
-    const fileMap: Record<string, FileNode> = {
-        [rootId]: {
-            id: rootId,
-            name: 'root',
-            type: 'directory',
-            path: '',
-            children: [],
-            isOpen: true,
-            parentId: null
-        }
-    };
-
-    if (!template) {
-        return { rootId, fileMap };
-    }
-
-    Object.entries(template.files).forEach(([filePath, fileData]) => {
-        const parts = filePath.split('/');
-        const fileName = parts.pop()!;
-        const dirParts = parts;
-
-        // Traverse/Create directories
-        let currentId = rootId;
-        let currentPath = '';
-
-        for (const part of dirParts) {
-            const parentNode = fileMap[currentId];
-            const children = parentNode.children || [];
-            
-            // Find existing directory child
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
-            const _temp = parentNode.children || [];
-            let childId = parentNode.children?.find(id => fileMap[id]?.name === part && fileMap[id]?.type === 'directory');
-            
-            if (!childId) {
-                childId = generateId();
-                const newPath = currentPath ? `${currentPath}/${part}` : part;
-                
-                fileMap[childId] = {
-                    id: childId,
-                    name: part,
-                    type: 'directory',
-                    path: newPath,
-                    children: [],
-                    parentId: currentId,
-                    isOpen: false
-                };
-                
-                parentNode.children = [...(parentNode.children || []), childId];
-            }
-            
-            currentId = childId;
-            // Bug fix: Update currentPath correctly
-            currentPath = fileMap[currentId].path;
-        }
-
-        // Create file
-        const fileId = generateId();
-        const fileNode: FileNode = {
-            id: fileId,
-            name: fileName,
-            type: 'file', // template.files entries are 'file' usually, but can be 'directory' too if empty
-            path: filePath,
-            content: fileData.content,
-            parentId: currentId
-        };
-        
-        // Handle explicit directory entries in template
-        if (fileData.type === 'directory') {
-             fileNode.type = 'directory';
-             fileNode.children = [];
-             fileNode.isOpen = false;
-        }
-
-        fileMap[fileId] = fileNode;
-        fileMap[currentId].children = [...(fileMap[currentId].children || []), fileId];
-    });
-
-    return { rootId, fileMap };
 }
 
 const buildFileMapFromSnapshot = (files: FileSnapshotEntry[]) => {
@@ -293,7 +223,6 @@ export const useFileSystem = create<FileSystemState>((set, get) => ({
     loadProject: async (_projectId: string) => {
         set({ isLoading: true, workspaceId: _projectId })
         try {
-            // 1) Try loading real file tree from /api/fs/tree (disk-backed workspace)
             const treeRes = await fetch(`/api/fs/tree?workspaceId=${encodeURIComponent(_projectId)}`)
             if (treeRes.ok) {
                 const treeData = await treeRes.json()
@@ -400,13 +329,13 @@ export const useFileSystem = create<FileSystemState>((set, get) => ({
                 }
             } catch { /* Firestore not configured */ }
 
-            // 3) Final fallback: local mock file system for offline/demo
-            console.warn("[file-system] No backend available — using template mock for demo mode")
-            const { rootId, fileMap } = createMockFileSystem()
+            // 3) Final fallback: empty workspace root only
+            console.warn("[file-system] No backend data available — initializing empty workspace")
+            const { rootId, fileMap } = buildFileMapFromSnapshot([])
             set({ fileMap, rootId, isLoading: false })
         } catch (error) {
             console.error("Failed to load project:", error)
-            const { rootId, fileMap } = createMockFileSystem()
+            const { rootId, fileMap } = buildFileMapFromSnapshot([])
             set({ fileMap, rootId, isLoading: false })
         }
     },
@@ -655,6 +584,42 @@ export const useFileSystem = create<FileSystemState>((set, get) => ({
         })
     },
 
+    moveNode: (id, newParentId) => {
+        const state = get()
+        const node = state.fileMap[id]
+        if (!node) return
+        // Prevent moving into itself or its own subtree
+        if (id === newParentId) return
+        const oldParent = node.parentId
+        if (oldParent === newParentId) return
+
+        const newParent = newParentId ? state.fileMap[newParentId] : null
+        if (newParent && newParent.type !== 'directory') return
+
+        const newPath = newParent ? `${newParent.path}/${node.name}` : node.name
+
+        set(st => {
+            const updated = { ...st.fileMap }
+            // Remove from old parent's children
+            if (oldParent && updated[oldParent]?.children) {
+                updated[oldParent] = {
+                    ...updated[oldParent],
+                    children: updated[oldParent].children!.filter(c => c !== id),
+                }
+            }
+            // Add to new parent's children
+            if (newParentId && updated[newParentId]) {
+                updated[newParentId] = {
+                    ...updated[newParentId],
+                    children: [...(updated[newParentId].children || []), id],
+                }
+            }
+            // Update node
+            updated[id] = { ...node, parentId: newParentId, path: newPath }
+            return { fileMap: updated }
+        })
+    },
+
     closeFile: (id) => {
         set(state => {
             const newOpenFiles = state.openFiles.filter(f => f !== id)
@@ -666,5 +631,117 @@ export const useFileSystem = create<FileSystemState>((set, get) => ({
         })
     },
 
-    setActiveFile: (id) => set({ activeFileId: id })
+    setActiveFile: (id) => set({ activeFileId: id }),
+
+    restoreSessionState: (openFiles, activeFileId) => {
+        set({ openFiles, activeFileId })
+    },
+
+    // File watching functionality
+    fileWatchers: new Set(),
+    fileWatcherInterval: null,
+    externalChanges: {},
+
+    startFileWatching: () => {
+        const state = get()
+        if (state.fileWatcherInterval) return
+
+        const interval = setInterval(async () => {
+            await get().checkForExternalChanges()
+        }, 2000) // Check every 2 seconds
+
+        set({ fileWatcherInterval: interval })
+    },
+
+    stopFileWatching: () => {
+        const state = get()
+        if (state.fileWatcherInterval) {
+            clearInterval(state.fileWatcherInterval)
+            set({ fileWatcherInterval: null, fileWatchers: new Set(), externalChanges: {} })
+        }
+    },
+
+    watchFile: (filePath: string) => {
+        set(state => ({
+            fileWatchers: new Set([...state.fileWatchers, filePath])
+        }))
+    },
+
+    unwatchFile: (filePath: string) => {
+        set(state => {
+            const newWatchers = new Set(state.fileWatchers)
+            newWatchers.delete(filePath)
+            return { fileWatchers: newWatchers }
+        })
+    },
+
+    checkForExternalChanges: async () => {
+        const state = get()
+        if (state.fileWatchers.size === 0 || !state.workspaceId) return
+
+        try {
+            const response = await fetch(`/api/fs/tree?workspaceId=${encodeURIComponent(state.workspaceId)}`)
+            if (!response.ok) return
+
+            const data = await response.json()
+            if (!data.entries) return
+
+            const currentFiles = new Map<string, { size: number; mtime?: number }>()
+            data.entries.forEach((entry: any) => {
+                currentFiles.set(entry.path, { size: entry.size, mtime: entry.mtime })
+            })
+
+            const changes: Record<string, { timestamp: number; action: 'modified' | 'deleted' | 'created' }> = {}
+
+            // Check for modifications and deletions
+            for (const watchedPath of state.fileWatchers) {
+                const current = currentFiles.get(watchedPath)
+                const nodeId = Object.keys(state.fileMap).find(id => state.fileMap[id]?.path === watchedPath)
+                const node = nodeId ? state.fileMap[nodeId] : null
+
+                if (!current && node) {
+                    // File was deleted externally
+                    changes[watchedPath] = { timestamp: Date.now(), action: 'deleted' }
+                } else if (current && node) {
+                    // Check if file was modified externally (different size or newer mtime)
+                    if (current.size !== (node.content?.length || 0) ||
+                        (current.mtime && (!node.lastModified || current.mtime > node.lastModified))) {
+                        changes[watchedPath] = { timestamp: Date.now(), action: 'modified' }
+                    }
+                }
+            }
+
+            // Check for new files
+            for (const [path, info] of currentFiles) {
+                if (!state.fileWatchers.has(path)) {
+                    const nodeId = Object.keys(state.fileMap).find(id => state.fileMap[id]?.path === path)
+                    if (!nodeId) {
+                        changes[path] = { timestamp: Date.now(), action: 'created' }
+                    }
+                }
+            }
+
+            if (Object.keys(changes).length > 0) {
+                set(state => ({
+                    externalChanges: { ...state.externalChanges, ...changes }
+                }))
+
+                // Notify about external changes
+                Object.entries(changes).forEach(([path, change]) => {
+                    console.log(`External change detected: ${change.action} ${path}`)
+                    // Could dispatch events or show notifications here
+                })
+            }
+        } catch (error) {
+            console.error('Error checking for external changes:', error)
+        }
+    },
+
+    acknowledgeExternalChange: (filePath: string) => {
+        set(state => {
+            const newChanges = { ...state.externalChanges }
+            delete newChanges[filePath]
+            return { externalChanges: newChanges }
+        })
+    },
 }))

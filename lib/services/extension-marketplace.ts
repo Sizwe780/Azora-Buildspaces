@@ -345,6 +345,8 @@ const FEATURED_EXTENSIONS: Partial<Extension>[] = [
 // MARKETPLACE SERVICE
 // ═══════════════════════════════════════════════════════════
 
+import { prisma } from '../database/client';
+
 export class ExtensionMarketplaceService {
   private registry: Map<string, Extension> = new Map()
   private installed: Map<string, InstalledExtension> = new Map()
@@ -408,12 +410,107 @@ export class ExtensionMarketplaceService {
     }
   }
 
+  // ─── OpenVSX Registry Integration ───────────────────────
+
+  private normalizeOpenVSXExtension(raw: any): Extension {
+    const namespace = raw.namespace || raw.publisher?.name || (raw.namespaceUrl?.split('/').pop()) || 'unknown'
+    const name = raw.name || 'unknown'
+    const id = `${namespace}.${name}`
+    return {
+      id,
+      name,
+      displayName: raw.displayName || name,
+      publisher: {
+        id: namespace,
+        name: namespace,
+        displayName: raw.namespaceDisplayName || namespace,
+        verified: raw.verified || false,
+        avatar: raw.namespaceUrl,
+      },
+      version: raw.version || '0.0.1',
+      description: raw.description || '',
+      categories: (raw.categories || ['Other']) as ExtensionCategory[],
+      tags: raw.tags || [],
+      icon: raw.files?.icon || undefined,
+      repository: raw.repository || undefined,
+      homepage: raw.homepage || undefined,
+      license: raw.license || 'MIT',
+      engine: 'vscode ^1.85.0',
+      main: undefined,
+      activationEvents: ['*'],
+      contributes: {},
+      dependencies: [],
+      size: raw.size || 0,
+      downloadCount: raw.downloadCount || 0,
+      rating: raw.averageRating || 0,
+      reviewCount: raw.reviewCount || 0,
+      lastUpdated: raw.timestamp ? new Date(raw.timestamp).getTime() : Date.now(),
+      createdAt: raw.publishedDate ? new Date(raw.publishedDate).getTime() : Date.now(),
+      verified: raw.verified || false,
+      preview: raw.preview || false,
+    }
+  }
+
+  private async searchOpenVSX(query: ExtensionSearchQuery): Promise<Extension[]> {
+    const OPENVSX_API = 'https://open-vsx.org/api'
+    const pageSize = query.pageSize || 20
+    const offset = ((query.page || 1) - 1) * pageSize
+
+    const params = new URLSearchParams({
+      size: String(pageSize),
+      offset: String(offset),
+    })
+    if (query.text) params.set('query', query.text)
+    if (query.category) params.set('category', query.category)
+    if (query.sortBy && query.sortBy !== 'relevance') params.set('sortBy', query.sortBy === 'publishedDate' ? 'timestamp' : query.sortBy)
+    if (query.sortOrder) params.set('sortOrder', query.sortOrder)
+
+    const res = await fetch(`${OPENVSX_API}/-/search?${params.toString()}`, {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) throw new Error(`OpenVSX search failed: ${res.status}`)
+    const data = await res.json()
+    return (data.extensions || []).map((e: any) => this.normalizeOpenVSXExtension(e))
+  }
+
+  private async getOpenVSXExtension(publisher: string, name: string): Promise<Extension | null> {
+    try {
+      const res = await fetch(`https://open-vsx.org/api/${encodeURIComponent(publisher)}/${encodeURIComponent(name)}`, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(6000),
+      })
+      if (!res.ok) return null
+      const data = await res.json()
+      return this.normalizeOpenVSXExtension(data)
+    } catch {
+      return null
+    }
+  }
+
   // ─── Search ──────────────────────────────────────────────
 
   async search(query: ExtensionSearchQuery): Promise<ExtensionSearchResult> {
+    const page = query.page || 1
+    const pageSize = query.pageSize || 20
+
+    // Try OpenVSX first for real marketplace data
+    try {
+      const openVSXResults = await this.searchOpenVSX(query)
+      // Register fetched extensions in local registry cache
+      for (const ext of openVSXResults) {
+        if (!this.registry.has(ext.id)) {
+          this.registry.set(ext.id, ext)
+        }
+      }
+      return { extensions: openVSXResults, total: openVSXResults.length, page, pageSize }
+    } catch {
+      // Fall back to local registry when OpenVSX is unreachable
+    }
+
+    // Local fallback
     let results = Array.from(this.registry.values())
 
-    // Text search
     if (query.text) {
       const q = query.text.toLowerCase()
       results = results.filter(
@@ -424,52 +521,32 @@ export class ExtensionMarketplaceService {
           ext.tags.some(t => t.includes(q))
       )
     }
-
-    // Category filter
     if (query.category) {
       results = results.filter(ext => ext.categories.includes(query.category!))
     }
-
-    // Tags filter
     if (query.tags && query.tags.length > 0) {
-      results = results.filter(ext =>
-        query.tags!.some(tag => ext.tags.includes(tag))
-      )
+      results = results.filter(ext => query.tags!.some(tag => ext.tags.includes(tag)))
     }
-
-    // Verified only
     if (query.verified) {
       results = results.filter(ext => ext.verified)
     }
 
-    // Sort
     const sortBy = query.sortBy || 'relevance'
     const sortOrder = query.sortOrder || 'desc'
     const multiplier = sortOrder === 'desc' ? -1 : 1
-
     results.sort((a, b) => {
       switch (sortBy) {
         case 'installs': return multiplier * (a.downloadCount - b.downloadCount)
         case 'rating': return multiplier * (a.rating - b.rating)
         case 'name': return multiplier * a.displayName.localeCompare(b.displayName)
         case 'publishedDate': return multiplier * (a.lastUpdated - b.lastUpdated)
-        default: // relevance = installs + rating
-          return multiplier * ((a.downloadCount + a.rating * 1000000) - (b.downloadCount + b.rating * 1000000))
+        default: return multiplier * ((a.downloadCount + a.rating * 1000000) - (b.downloadCount + b.rating * 1000000))
       }
     })
 
-    // Pagination
-    const page = query.page || 1
-    const pageSize = query.pageSize || 20
     const start = (page - 1) * pageSize
     const paged = results.slice(start, start + pageSize)
-
-    return {
-      extensions: paged,
-      total: results.length,
-      page,
-      pageSize,
-    }
+    return { extensions: paged, total: results.length, page, pageSize }
   }
 
   // convenience wrappers for API compatibility
@@ -493,18 +570,64 @@ export class ExtensionMarketplaceService {
     this.reviews.set(extensionId, arr)
   }
 
-  getInstalledExtensions(): InstalledExtension[] {
-    return this.getInstalled()
+  async getInstalledExtensions(projectId: string = 'default'): Promise<InstalledExtension[]> {
+    return this.getInstalled(projectId)
   }
 
   // ─── Installation ────────────────────────────────────────
 
-  async install(extensionId: string, userId: string): Promise<InstalledExtension> {
-    const ext = this.registry.get(extensionId)
+  /** Download extension .vsix from OpenVSX and return the download URL and size */
+  private async downloadVsix(publisher: string, name: string, version: string): Promise<{ downloadUrl: string; vsixSize: number }> {
+    const downloadUrl = `https://open-vsx.org/api/${publisher}/${name}/${version}/file/${name}-${version}.vsix`
+    try {
+      // HEAD request to verify availability and get size
+      const headRes = await fetch(downloadUrl, { method: 'HEAD', signal: AbortSignal.timeout(10000) })
+      if (!headRes.ok) {
+        // Fallback: try the generic file endpoint
+        const altUrl = `https://open-vsx.org/api/${publisher}/${name}/${version}/file/${name}.vsix`
+        const altRes = await fetch(altUrl, { method: 'HEAD', signal: AbortSignal.timeout(10000) })
+        if (altRes.ok) {
+          const size = parseInt(altRes.headers.get('content-length') || '0', 10)
+          return { downloadUrl: altUrl, vsixSize: size }
+        }
+        throw new Error(`VSIX not available: ${headRes.status}`)
+      }
+      const size = parseInt(headRes.headers.get('content-length') || '0', 10)
+      return { downloadUrl, vsixSize: size }
+    } catch (err: any) {
+      // Non-fatal: extension installs without download (metadata-only)
+      console.warn(`VSIX download verification failed for ${publisher}.${name}@${version}:`, err.message)
+      return { downloadUrl, vsixSize: 0 }
+    }
+  }
+
+  async install(extensionId: string, userId: string, projectId: string = 'default'): Promise<InstalledExtension> {
+    let ext = this.registry.get(extensionId)
+    if (!ext) {
+      // Try to fetch from OpenVSX (publisher.name format)
+      const [publisher, name] = extensionId.split('.')
+      if (publisher && name) {
+        const fetched = await this.getOpenVSXExtension(publisher, name)
+        if (fetched) {
+          this.registry.set(fetched.id, fetched)
+          ext = fetched
+        }
+      }
+    }
     if (!ext) throw new Error(`Extension ${extensionId} not found`)
 
     if (this.installed.has(extensionId)) {
       throw new Error(`Extension ${extensionId} is already installed`)
+    }
+
+    // Attempt real .vsix download verification from OpenVSX
+    let downloadUrl: string | null = null
+    let vsixSize = 0
+    const [pub, nm] = extensionId.split('.')
+    if (pub && nm && ext.version) {
+      const result = await this.downloadVsix(pub, nm, ext.version)
+      downloadUrl = result.downloadUrl
+      vsixSize = result.vsixSize
     }
 
     const installed: InstalledExtension = {
@@ -515,6 +638,7 @@ export class ExtensionMarketplaceService {
       isBuiltIn: false,
       autoUpdate: true,
       permissions: this.inferPermissions(ext),
+      ...(downloadUrl ? { downloadUrl, vsixSize } : {}),
     }
 
     this.installed.set(extensionId, installed)
@@ -559,8 +683,22 @@ export class ExtensionMarketplaceService {
 
   // ─── Queries ─────────────────────────────────────────────
 
-  getInstalled(): InstalledExtension[] {
-    return Array.from(this.installed.values())
+  async getInstalled(projectId: string = 'default'): Promise<InstalledExtension[]> {
+    try {
+      const dbExts = await prisma.installedExtension.findMany({ where: { projectId } });
+      if (dbExts && dbExts.length > 0) {
+        // Merge with memory
+        for (const ext of dbExts) {
+          if (this.registry.has(ext.extensionId)) {
+             const base = this.registry.get(ext.extensionId)!;
+             this.installed.set(ext.extensionId, { ...base, isEnabled: ext.isActive, installedAt: ext.installedAt.getTime(), installPath: `/extensions/${projectId}/${ext.extensionId}`, isBuiltIn: false, autoUpdate: true, permissions: ['all'] });
+          }
+        }
+      }
+    } catch (e) { 
+      console.error('Failed to load extensions from DB', e);
+    }
+    return Array.from(this.installed.values());
   }
 
   getEnabled(): InstalledExtension[] {

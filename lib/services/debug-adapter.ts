@@ -314,6 +314,7 @@ export const DEBUG_ADAPTERS: DebugAdapterInfo[] = [
 export class DebugService {
   private sessions: Map<string, DebugSession> = new Map()
   private eventListeners: Map<string, ((event: DebugEvent) => void)[]> = new Map()
+  private sessionCounter = 0
 
   // ─── Session Management ──────────────────────────────────
 
@@ -328,7 +329,7 @@ export class DebugService {
     }
 
     const session = new DebugSession(
-      `debug_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      `debug_${++this.sessionCounter}`,
       config,
       adapter,
       containerId,
@@ -407,7 +408,121 @@ export class DebugSession {
   private adapter: DebugAdapterInfo
   private containerId: string
   private userId: string
+  private remoteSessionId?: string
+  private dapBridgeUrl = process.env.DAP_BRIDGE_URL || 'http://localhost:3020'
   private breakpointIdCounter = 0
+  private watchExpressionCounter = 0
+
+  private ensureBackendAvailable(): void {
+    if (process.env.DAP_BACKEND_ENABLED !== 'true') {
+      throw new Error('Debug adapter backend is not configured. Set DAP_BACKEND_ENABLED=true and connect a DAP server.')
+    }
+  }
+
+  private getBrokerSessionId(): string {
+    return this.remoteSessionId || this.id
+  }
+
+  private async requestBroker(operation: string, params: Record<string, unknown> = {}): Promise<any> {
+    this.ensureBackendAvailable()
+
+    const payload = {
+      type: 'DAP_REQUEST',
+      operation,
+      sessionId: this.getBrokerSessionId(),
+      adapterType: this.adapter.type,
+      containerId: this.containerId,
+      userId: this.userId,
+      config: this.config,
+      ...params,
+      params,
+    }
+
+    const response = await fetch(this.dapBridgeUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        did: 'did:key:z6MkpTHR8V369',
+        signature: 'UNSIGNED',
+        payload,
+      }),
+    })
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => response.statusText)
+      throw new Error(`DAP broker request failed (${response.status}): ${text}`)
+    }
+
+    const data = await response.json().catch(() => ({}))
+    if (data?.error) {
+      throw new Error(`DAP broker error: ${data.error}`)
+    }
+
+    const remoteId = typeof data?.sessionId === 'string'
+      ? data.sessionId
+      : typeof data?.debugSessionId === 'string'
+        ? data.debugSessionId
+        : undefined
+
+    if (remoteId) {
+      this.remoteSessionId = remoteId
+    }
+
+    return data
+  }
+
+  private toNumber(value: unknown, fallback: number): number {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : fallback
+  }
+
+  private normalizeStackFrames(frames: unknown[]): StackFrame[] {
+    return frames.map((frame: any, index) => {
+      const sourcePath = String(
+        frame?.source?.path || frame?.path || frame?.file || frame?.source?.name || 'unknown'
+      )
+      const sourceName = String(frame?.source?.name || sourcePath.split('/').pop() || sourcePath)
+
+      return {
+        id: this.toNumber(frame?.id, index + 1),
+        name: String(frame?.name || '<frame>'),
+        source: {
+          name: sourceName,
+          path: sourcePath,
+          sourceReference: Number.isFinite(Number(frame?.source?.sourceReference))
+            ? Number(frame.source.sourceReference)
+            : undefined,
+        },
+        line: this.toNumber(frame?.line, 1),
+        column: this.toNumber(frame?.column, 1),
+        endLine: Number.isFinite(Number(frame?.endLine)) ? Number(frame.endLine) : undefined,
+        endColumn: Number.isFinite(Number(frame?.endColumn)) ? Number(frame.endColumn) : undefined,
+      }
+    })
+  }
+
+  private normalizeScopes(scopes: unknown[]): Scope[] {
+    return scopes.map((scope: any, index) => ({
+      name: String(scope?.name || `scope-${index}`),
+      variablesReference: this.toNumber(scope?.variablesReference, 0),
+      namedVariables: Number.isFinite(Number(scope?.namedVariables)) ? Number(scope.namedVariables) : undefined,
+      indexedVariables: Number.isFinite(Number(scope?.indexedVariables)) ? Number(scope.indexedVariables) : undefined,
+      expensive: Boolean(scope?.expensive),
+    }))
+  }
+
+  private normalizeVariables(variables: unknown[]): Variable[] {
+    return variables.map((variable: any) => ({
+      name: String(variable?.name || 'value'),
+      value: String(variable?.value ?? ''),
+      type: variable?.type ? String(variable.type) : undefined,
+      variablesReference: this.toNumber(variable?.variablesReference, 0),
+      namedVariables: Number.isFinite(Number(variable?.namedVariables)) ? Number(variable.namedVariables) : undefined,
+      indexedVariables: Number.isFinite(Number(variable?.indexedVariables)) ? Number(variable.indexedVariables) : undefined,
+      evaluateName: variable?.evaluateName ? String(variable.evaluateName) : undefined,
+      memoryReference: variable?.memoryReference ? String(variable.memoryReference) : undefined,
+    }))
+  }
 
   constructor(
     id: string,
@@ -438,17 +553,35 @@ export class DebugSession {
     this.state.status = 'initializing'
     this.addConsoleEntry('info', `Initializing ${this.adapter.name} debug session...`)
 
-    // In production: spawn DAP server process, connect via stdin/stdout or TCP
-    // For now, manage state transitions
+    this.ensureBackendAvailable()
+
     this.addConsoleEntry('info', `Configuration: ${JSON.stringify(this.config, null, 2)}`)
     this.addConsoleEntry('info', `Adapter: ${this.adapter.adapter}`)
   }
 
   async launch(): Promise<void> {
     await this.initialize()
+
+    const response = await this.requestBroker('launch', {
+      request: this.config.request,
+      config: this.config,
+    })
+
     this.state.status = 'running'
-    this.state.threads = [{ id: 1, name: 'Main Thread' }]
-    this.state.activeThreadId = 1
+
+    const rawThreads = Array.isArray(response?.threads)
+      ? response.threads
+      : Array.isArray(response?.result?.threads)
+        ? response.result.threads
+        : []
+
+    const normalizedThreads = rawThreads.map((thread: any, index: number) => ({
+      id: this.toNumber(thread?.id, index + 1),
+      name: String(thread?.name || `Thread ${index + 1}`),
+    }))
+
+    this.state.threads = normalizedThreads.length > 0 ? normalizedThreads : [{ id: 1, name: 'Main Thread' }]
+    this.state.activeThreadId = this.state.threads[0]?.id
     this.addConsoleEntry('info', `Debug session started: ${this.config.name}`)
 
     if (this.config.stopOnEntry) {
@@ -458,18 +591,48 @@ export class DebugSession {
 
   async attach(port: number, host: string = 'localhost'): Promise<void> {
     await this.initialize()
+
+    const response = await this.requestBroker('attach', {
+      port,
+      host,
+      request: this.config.request,
+      config: this.config,
+    })
+
     this.state.status = 'running'
-    this.state.threads = [{ id: 1, name: 'Main Thread' }]
-    this.state.activeThreadId = 1
+
+    const rawThreads = Array.isArray(response?.threads)
+      ? response.threads
+      : Array.isArray(response?.result?.threads)
+        ? response.result.threads
+        : []
+    const normalizedThreads = rawThreads.map((thread: any, index: number) => ({
+      id: this.toNumber(thread?.id, index + 1),
+      name: String(thread?.name || `Thread ${index + 1}`),
+    }))
+
+    this.state.threads = normalizedThreads.length > 0 ? normalizedThreads : [{ id: 1, name: 'Main Thread' }]
+    this.state.activeThreadId = this.state.threads[0]?.id
     this.addConsoleEntry('info', `Attached to ${host}:${port}`)
   }
 
   async terminate(): Promise<void> {
+    if (process.env.DAP_BACKEND_ENABLED === 'true') {
+      await this.requestBroker('terminate')
+    }
+
     this.state.status = 'terminated'
     this.addConsoleEntry('info', 'Debug session terminated')
   }
 
   async restart(): Promise<void> {
+    if (process.env.DAP_BACKEND_ENABLED === 'true') {
+      await this.requestBroker('restart')
+      this.state.status = 'running'
+      this.addConsoleEntry('info', 'Debug session restarted')
+      return
+    }
+
     await this.terminate()
     if (this.config.request === 'launch') {
       await this.launch()
@@ -479,26 +642,31 @@ export class DebugSession {
   // ─── Execution Control ───────────────────────────────────
 
   async continue(threadId?: number): Promise<void> {
+    await this.requestBroker('continue', { threadId: threadId || this.state.activeThreadId })
     this.state.status = 'running'
     this.addConsoleEntry('info', `Continuing execution on thread ${threadId || this.state.activeThreadId}`)
   }
 
   async pause(threadId?: number): Promise<void> {
+    await this.requestBroker('pause', { threadId: threadId || this.state.activeThreadId })
     this.state.status = 'paused'
     this.addConsoleEntry('info', `Paused on thread ${threadId || this.state.activeThreadId}`)
   }
 
   async stepOver(threadId?: number): Promise<void> {
+    await this.requestBroker('stepOver', { threadId: threadId || this.state.activeThreadId })
     this.state.status = 'paused'
     this.addConsoleEntry('info', 'Step over')
   }
 
   async stepInto(threadId?: number): Promise<void> {
+    await this.requestBroker('stepInto', { threadId: threadId || this.state.activeThreadId })
     this.state.status = 'paused'
     this.addConsoleEntry('info', 'Step into')
   }
 
   async stepOut(threadId?: number): Promise<void> {
+    await this.requestBroker('stepOut', { threadId: threadId || this.state.activeThreadId })
     this.state.status = 'paused'
     this.addConsoleEntry('info', 'Step out')
   }
@@ -507,6 +675,7 @@ export class DebugSession {
     if (!this.adapter.supportedFeatures.includes('stepBack')) {
       throw new Error(`Step back not supported by ${this.adapter.name}`)
     }
+    await this.requestBroker('stepBack', { threadId: threadId || this.state.activeThreadId })
     this.state.status = 'paused'
     this.addConsoleEntry('info', 'Step back')
   }
@@ -522,14 +691,27 @@ export class DebugSession {
       logMessage?: string
     }
   ): Promise<Breakpoint> {
-    const bp: Breakpoint = {
-      id: `bp_${++this.breakpointIdCounter}`,
-      verified: true,
+    const response = await this.requestBroker('setBreakpoint', {
       source,
       line,
-      condition: options?.condition,
-      hitCondition: options?.hitCondition,
-      logMessage: options?.logMessage,
+      options,
+    })
+
+    const brokerBp = response?.breakpoint || response?.result?.breakpoint
+    const bp: Breakpoint = {
+      id: String(brokerBp?.id || `bp_${++this.breakpointIdCounter}`),
+      verified: brokerBp?.verified !== false,
+      source: {
+        name: String(brokerBp?.source?.name || source.name),
+        path: String(brokerBp?.source?.path || source.path),
+        sourceReference: Number.isFinite(Number(brokerBp?.source?.sourceReference))
+          ? Number(brokerBp.source.sourceReference)
+          : source.sourceReference,
+      },
+      line: this.toNumber(brokerBp?.line, line),
+      condition: brokerBp?.condition || options?.condition,
+      hitCondition: brokerBp?.hitCondition || options?.hitCondition,
+      logMessage: brokerBp?.logMessage || options?.logMessage,
       enabled: true,
     }
 
@@ -539,15 +721,18 @@ export class DebugSession {
   }
 
   async removeBreakpoint(breakpointId: string): Promise<void> {
+    await this.requestBroker('removeBreakpoint', { breakpointId })
     this.state.breakpoints = this.state.breakpoints.filter(bp => bp.id !== breakpointId)
   }
 
   async toggleBreakpoint(breakpointId: string): Promise<void> {
+    await this.requestBroker('toggleBreakpoint', { breakpointId })
     const bp = this.state.breakpoints.find(b => b.id === breakpointId)
     if (bp) bp.enabled = !bp.enabled
   }
 
   async removeAllBreakpoints(sourcePath?: string): Promise<void> {
+    await this.requestBroker('removeAllBreakpoints', { sourcePath })
     if (sourcePath) {
       this.state.breakpoints = this.state.breakpoints.filter(
         bp => bp.source.path !== sourcePath
@@ -560,15 +745,22 @@ export class DebugSession {
   async setExceptionBreakpoints(
     filters: ('caught' | 'uncaught' | 'all')[]
   ): Promise<void> {
+    await this.requestBroker('setExceptionBreakpoints', { filters })
     this.addConsoleEntry('info', `Exception breakpoints: ${filters.join(', ')}`)
   }
 
   async setFunctionBreakpoint(functionName: string): Promise<Breakpoint> {
+    const response = await this.requestBroker('setFunctionBreakpoint', { functionName })
+    const brokerBp = response?.breakpoint || response?.result?.breakpoint
+
     const bp: Breakpoint = {
-      id: `fbp_${++this.breakpointIdCounter}`,
-      verified: true,
-      source: { name: functionName, path: '' },
-      line: 0,
+      id: String(brokerBp?.id || `fbp_${++this.breakpointIdCounter}`),
+      verified: brokerBp?.verified !== false,
+      source: {
+        name: String(brokerBp?.source?.name || functionName),
+        path: String(brokerBp?.source?.path || ''),
+      },
+      line: this.toNumber(brokerBp?.line, 0),
       enabled: true,
     }
     this.state.breakpoints.push(bp)
@@ -579,21 +771,63 @@ export class DebugSession {
   // ─── Inspection ──────────────────────────────────────────
 
   async getCallStack(threadId?: number): Promise<StackFrame[]> {
-    // In production: send stackTrace request to DAP server
-    return this.state.callStack
+    const response = await this.requestBroker('stackTrace', {
+      threadId: threadId || this.state.activeThreadId,
+    })
+
+    const rawFrames = Array.isArray(response?.stackFrames)
+      ? response.stackFrames
+      : Array.isArray(response?.frames)
+        ? response.frames
+        : Array.isArray(response?.result?.stackFrames)
+          ? response.result.stackFrames
+          : []
+
+    const frames = this.normalizeStackFrames(rawFrames)
+    this.state.callStack = frames
+
+    const rawThreads = Array.isArray(response?.threads)
+      ? response.threads
+      : Array.isArray(response?.result?.threads)
+        ? response.result.threads
+        : []
+
+    if (rawThreads.length > 0) {
+      this.state.threads = rawThreads.map((thread: any, index: number) => ({
+        id: this.toNumber(thread?.id, index + 1),
+        name: String(thread?.name || `Thread ${index + 1}`),
+      }))
+    }
+
+    if (frames.length > 0) {
+      this.state.status = 'paused'
+    }
+
+    return frames
   }
 
   async getScopes(frameId: number): Promise<Scope[]> {
-    // In production: send scopes request to DAP server
-    return [
-      { name: 'Local', variablesReference: 1, expensive: false },
-      { name: 'Closure', variablesReference: 2, expensive: false },
-      { name: 'Global', variablesReference: 3, expensive: true },
-    ]
+    const response = await this.requestBroker('scopes', { frameId })
+    const rawScopes = Array.isArray(response?.scopes)
+      ? response.scopes
+      : Array.isArray(response?.result?.scopes)
+        ? response.result.scopes
+        : []
+
+    return this.normalizeScopes(rawScopes)
   }
 
   async getVariables(variablesReference: number): Promise<Variable[]> {
-    return this.state.variables.get(variablesReference) || []
+    const response = await this.requestBroker('variables', { variablesReference })
+    const rawVariables = Array.isArray(response?.variables)
+      ? response.variables
+      : Array.isArray(response?.result?.variables)
+        ? response.result.variables
+        : []
+
+    const variables = this.normalizeVariables(rawVariables)
+    this.state.variables.set(variablesReference, variables)
+    return variables
   }
 
   async setVariable(
@@ -601,20 +835,28 @@ export class DebugSession {
     name: string,
     value: string
   ): Promise<Variable> {
-    const variable: Variable = {
+    const response = await this.requestBroker('setVariable', {
+      variablesReference,
       name,
       value,
-      type: typeof value,
-      variablesReference: 0,
+    })
+
+    const candidate = response?.variable || response?.result?.variable || {
+      name,
+      value,
+      type: 'string',
+      variablesReference,
     }
-    return variable
+
+    const [normalized] = this.normalizeVariables([candidate])
+    return normalized
   }
 
   // ─── Watch Expressions ───────────────────────────────────
 
   async addWatchExpression(expression: string): Promise<WatchExpression> {
     const watch: WatchExpression = {
-      id: `watch_${Date.now()}`,
+      id: `watch_${++this.watchExpressionCounter}`,
       expression,
     }
     this.state.watchExpressions.push(watch)
@@ -625,8 +867,15 @@ export class DebugSession {
     const watch = this.state.watchExpressions.find(w => w.id === watchId)
     if (!watch) throw new Error(`Watch expression ${watchId} not found`)
 
-    // In production: send evaluate request to DAP
-    watch.result = `<evaluated: ${watch.expression}>`
+    try {
+      const evaluated = await this.evaluate(watch.expression, 'watch')
+      watch.result = evaluated.result
+      watch.type = evaluated.type
+      watch.error = undefined
+    } catch (error) {
+      watch.error = error instanceof Error ? error.message : 'Failed to evaluate expression'
+    }
+
     return watch
   }
 
@@ -644,10 +893,28 @@ export class DebugSession {
     frameId?: number
   ): Promise<{ result: string; type?: string; variablesReference: number }> {
     this.addConsoleEntry('input', expression)
-    // In production: send evaluate request to DAP server
-    const result = `<result of: ${expression}>`
+
+    const response = await this.requestBroker('evaluate', {
+      expression,
+      context,
+      frameId,
+      threadId: this.state.activeThreadId,
+    })
+
+    const resultPayload = response?.result && typeof response.result === 'object'
+      ? response.result
+      : response
+
+    const result = String(
+      (resultPayload as any)?.result ??
+      (resultPayload as any)?.value ??
+      ''
+    )
+    const type = (resultPayload as any)?.type ? String((resultPayload as any).type) : undefined
+    const variablesReference = this.toNumber((resultPayload as any)?.variablesReference, 0)
+
     this.addConsoleEntry('output', result)
-    return { result, variablesReference: 0 }
+    return { result, type, variablesReference }
   }
 
   private addConsoleEntry(type: DebugConsoleEntry['type'], text: string): void {

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Figma, Loader2, CheckCircle2 } from "lucide-react";
+import { Figma, Loader2, CheckCircle2, AlertCircle, Wifi, WifiOff } from "lucide-react";
 
 interface FigmaImportDialogProps {
     onImport: (data: any) => void;
@@ -16,7 +16,44 @@ export default function FigmaImportDialog({ onImport, open, onOpenChange }: Figm
     const [url, setUrl] = useState("");
     const [isImporting, setIsImporting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected' | 'error'>('checking');
+    const [connectionMessage, setConnectionMessage] = useState("");
     const figmaEnabled = process.env.NEXT_PUBLIC_FIGMA_ENABLED === 'true'
+
+    // Check Figma connection on mount
+    useEffect(() => {
+        checkFigmaConnection();
+    }, []);
+
+    const checkFigmaConnection = async () => {
+        if (!figmaEnabled) {
+            setConnectionStatus('disconnected');
+            setConnectionMessage('Figma integration disabled');
+            return;
+        }
+
+        setConnectionStatus('checking');
+        try {
+            const resp = await fetch('/api/design/figma-status');
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.connected) {
+                    setConnectionStatus('connected');
+                    setConnectionMessage(data.message || 'Connected to Figma API');
+                } else {
+                    setConnectionStatus('disconnected');
+                    setConnectionMessage(data.message || 'Not connected');
+                }
+            } else {
+                setConnectionStatus('error');
+                setConnectionMessage('Could not verify connection');
+            }
+        } catch {
+            // API might not exist yet, assume connected if figmaEnabled
+            setConnectionStatus(figmaEnabled ? 'connected' : 'disconnected');
+            setConnectionMessage(figmaEnabled ? 'Ready to import' : 'Figma disabled');
+        }
+    };
 
     const handleImport = async () => {
         if (!url) return;
@@ -100,9 +137,43 @@ export default function FigmaImportDialog({ onImport, open, onOpenChange }: Figm
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Import Figma Design</DialogTitle>
+                    <DialogTitle className="flex items-center gap-3">
+                        <Figma className="w-5 h-5 text-pink-500" />
+                        Import Figma Design
+                    </DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+
+                {/* Connection Status Banner */}
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${
+                    connectionStatus === 'connected' 
+                        ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                        : connectionStatus === 'checking'
+                        ? 'bg-blue-500/10 border border-blue-500/20 text-blue-400'
+                        : connectionStatus === 'error'
+                        ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                        : 'bg-zinc-500/10 border border-zinc-500/20 text-zinc-400'
+                }`}>
+                    {connectionStatus === 'checking' ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : connectionStatus === 'connected' ? (
+                        <Wifi className="w-3.5 h-3.5" />
+                    ) : connectionStatus === 'error' ? (
+                        <AlertCircle className="w-3.5 h-3.5" />
+                    ) : (
+                        <WifiOff className="w-3.5 h-3.5" />
+                    )}
+                    <span className="flex-1">{connectionMessage}</span>
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={checkFigmaConnection}
+                        className="h-5 px-2 text-[10px]"
+                    >
+                        Refresh
+                    </Button>
+                </div>
+
+                <div className="space-y-4 py-2">
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Figma File URL</label>
                         <Input 

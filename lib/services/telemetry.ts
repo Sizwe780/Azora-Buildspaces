@@ -74,6 +74,8 @@ class TelemetryService {
   private events: TelemetryEvent[] = []
   private sessions = new Map<string, TelemetrySession>()
   private metrics: MetricPoint[] = []
+  private sessionCounter = 0
+  private eventCounter = 0
   private config: TelemetryConfig = {
     enabled: true,
     anonymize: true,
@@ -85,6 +87,22 @@ class TelemetryService {
   }
   private batchQueue: TelemetryEvent[] = []
   private flushTimer: NodeJS.Timeout | null = null
+
+  private deterministicHash(value: string): number {
+    let hash = 0
+    for (let index = 0; index < value.length; index += 1) {
+      hash = (hash * 31 + value.charCodeAt(index)) >>> 0
+    }
+    return hash
+  }
+
+  private shouldSample(type: TelemetryEventType, sessionId: string, data: Record<string, any>): boolean {
+    if (this.config.sampleRate >= 1) return true
+    if (this.config.sampleRate <= 0) return false
+    const signature = `${type}|${sessionId}|${JSON.stringify(data)}`
+    const normalized = this.deterministicHash(signature) / 0xffffffff
+    return normalized <= this.config.sampleRate
+  }
 
   constructor() {
     this.startFlushTimer()
@@ -104,7 +122,7 @@ class TelemetryService {
 
   startSession(userId?: string, metadata?: Record<string, string>): TelemetrySession {
     const session: TelemetrySession = {
-      id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `session-${++this.sessionCounter}`,
       userId: this.config.anonymize ? undefined : userId,
       startedAt: Date.now(),
       events: 0,
@@ -126,10 +144,10 @@ class TelemetryService {
   track(type: TelemetryEventType, sessionId: string, data: Record<string, any> = {}, tags: string[] = []): TelemetryEvent | null {
     if (!this.config.enabled) return null
     if (this.config.excludeEvents.includes(type)) return null
-    if (Math.random() > this.config.sampleRate) return null
+    if (!this.shouldSample(type, sessionId, data)) return null
 
     const event: TelemetryEvent = {
-      id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      id: `evt-${++this.eventCounter}`,
       type,
       timestamp: Date.now(),
       sessionId,
@@ -240,15 +258,35 @@ class TelemetryService {
     return this.sessions.get(id)
   }
 
-  private flush(): void {
+  private async flush(): Promise<void> {
     if (this.batchQueue.length === 0) return
-    // In production, send to telemetry endpoint
+
+    const endpoint = process.env.TELEMETRY_ENDPOINT_URL
+    if (!endpoint) {
+      return
+    }
+
+    const payload = this.batchQueue.map(event => ({ ...event }))
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ events: payload }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Telemetry flush failed: ${response.status} ${response.statusText}`)
+    }
+
     this.batchQueue = []
   }
 
   private startFlushTimer(): void {
     if (this.flushTimer) clearInterval(this.flushTimer)
-    this.flushTimer = setInterval(() => this.flush(), this.config.flushInterval)
+    this.flushTimer = setInterval(() => {
+      void this.flush().catch(() => {
+        // Keep queue for retry; errors are intentionally swallowed for background flush timer.
+      })
+    }, this.config.flushInterval)
   }
 
   private anonymizeData(data: Record<string, any>): Record<string, any> {

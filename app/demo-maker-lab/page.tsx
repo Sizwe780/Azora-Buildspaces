@@ -1,9 +1,11 @@
 'use client'
 
-import MakerLab from '@/components/rooms/maker-lab'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Sparkles, Lock, Zap } from 'lucide-react'
 import Link from 'next/link'
+
+const MakerLab = dynamic(() => import('@/components/rooms/maker-lab'), { ssr: false })
 
 export default function DemoMakerLabPage() {
     return (

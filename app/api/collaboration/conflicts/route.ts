@@ -25,6 +25,7 @@ interface ConflictRecord {
 
 // In-memory conflict store
 const conflicts = new Map<string, ConflictRecord>()
+let conflictCounter = 0
 
 export async function GET(req: NextRequest) {
   const fileId = req.nextUrl.searchParams.get('fileId')
@@ -80,21 +81,12 @@ export async function POST(req: NextRequest) {
       }
 
       const conflict: ConflictRecord = {
-        id: `conflict_${Date.now()}`,
+        id: `conflict_${++conflictCounter}`,
         fileId,
         baseVersion: baseVersion || 1,
         userA: { ...userA, timestamp: new Date().toISOString() },
         userB: { ...userB, timestamp: new Date().toISOString() },
-        status: 'detected',
-      }
-
-      // Attempt auto-resolution: if changes are in different line ranges
-      // For now, mark as auto-resolved with concatenated changes
-      if (userA.changes && userB.changes && userA.changes !== userB.changes) {
-        conflict.status = 'auto-resolved'
-        conflict.resolution = `${userA.changes}\n${userB.changes}`
-      } else {
-        conflict.status = 'manual-pending'
+        status: 'manual-pending',
       }
 
       conflicts.set(conflict.id, conflict)

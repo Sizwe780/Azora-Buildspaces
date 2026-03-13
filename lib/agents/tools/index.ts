@@ -3,6 +3,22 @@ import { syncFileToFirestore } from '@/lib/agents/persistence'
 import { runCommand } from '@/lib/runtime/command-runner'
 import { z } from 'zod'
 
+const BLOCKED_COMMAND_PATTERNS = [
+  /(^|\s)rm\s+-rf\s+\//i,
+  /(^|\s)mkfs(\s|$)/i,
+  /(^|\s)dd\s+if=/i,
+  /(^|\s)shutdown(\s|$)/i,
+  /(^|\s)reboot(\s|$)/i,
+  /(^|\s)format(\s|$)/i,
+  /:\(\)\s*\{\s*:\|:&\s*\};:/,
+]
+
+function isBlockedCommand(command: string): boolean {
+  const normalized = command.trim()
+  if (!normalized || normalized.length > 2000) return true
+  return BLOCKED_COMMAND_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
 /**
  * A "tool" is any callable action that an agent workflow can invoke.
  * Each tool is registered with a name, optional schema, and an async
@@ -86,9 +102,14 @@ registerTool({
     timeout: z.string().optional(),
   }),
   async execute(_input, config) {
+    const command = config.command || ''
+    if (isBlockedCommand(command)) {
+      return { status: 'error', output: 'Command blocked by security policy' }
+    }
+
     const result = await runCommand({
       type: 'bash',
-      command: config.command || '',
+      command,
       timeout: parseInt(config.timeout || '30000', 10),
     })
     return {
@@ -146,13 +167,7 @@ registerTool({
         break
     }
     if (config.script) {
-      try {
-        // eslint-disable-next-line no-new-func
-        const fn = new Function('input', config.script)
-        output = String(fn(output))
-      } catch (e) {
-        output = `[Transform error: ${(e as Error).message}] ${output}`
-      }
+      output = '[Transform script execution disabled by policy] ' + output
     }
     return { status: 'success', output }
   },

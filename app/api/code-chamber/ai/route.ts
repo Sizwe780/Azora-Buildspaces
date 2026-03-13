@@ -11,6 +11,73 @@ import { NextRequest } from 'next/server'
 import { openai } from '@ai-sdk/openai'
 import { streamText, generateText } from 'ai'
 
+const CITADELSM_ENDPOINT = process.env.CITADELSM_ENDPOINT || 'http://localhost:8000/citadelsm'
+
+function createCompatStreamResponse(text: string) {
+  const encoder = new TextEncoder()
+  const chunkSize = 256
+  let offset = 0
+
+  const stream = new ReadableStream({
+    pull(controller) {
+      if (offset >= text.length) {
+        controller.close()
+        return
+      }
+
+      const chunk = text.slice(offset, offset + chunkSize)
+      offset += chunkSize
+      controller.enqueue(encoder.encode(`0:${JSON.stringify(chunk)}\n`))
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+    },
+  })
+}
+
+async function callCitadelsM(prompt: string, maxNewTokens = 512) {
+  const response = await fetch(CITADELSM_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt: `${SYSTEM_PROMPT}\n\nUser:\n${prompt}`,
+      max_new_tokens: maxNewTokens,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Citadels M request failed: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return String(data?.response ?? '')
+}
+
+// Citadels G endpoint (Gemma-powered, for high-complexity tasks)
+const CITADELSG_ENDPOINT = process.env.CITADELSG_ENDPOINT || 'http://localhost:8001/citadelsg'
+
+async function callCitadelsG(prompt: string, maxNewTokens = 1024) {
+  const response = await fetch(CITADELSG_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt: `${SYSTEM_PROMPT}\n\nUser:\n${prompt}`,
+      max_new_tokens: maxNewTokens,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Citadels G request failed: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return String(data?.response ?? '')
+}
+
 const SYSTEM_PROMPT = `You are Elara Code, the AI coding assistant embedded in Azora BuildSpaces Code Chamber.
 You are an expert programmer who helps developers write, understand, and improve code.
 
@@ -77,7 +144,7 @@ Include:
 - Happy path tests
 - Edge cases
 - Error cases
-- Mock any external dependencies`,
+- Prefer real integrations; where isolation is required, use deterministic test doubles only for strict test boundaries`,
 
   chat: '',  // Free-form chat, no extra prompt
 }
@@ -131,6 +198,29 @@ export async function POST(request: NextRequest) {
 
     if (context) {
       userMessage += `Additional context:\n${context}\n`
+    }
+
+    const useCitadels = process.env.CODE_CHAMBER_PROVIDER === 'citadelsm' || Boolean(process.env.CITADELSM_ENDPOINT)
+
+    // High complexity actions use Citadels G (Gemma) if available
+    const highComplexityActions: ActionType[] = ['analyze', 'refactor', 'debug']
+    const useCitadelsG = Boolean(process.env.CITADELSG_ENDPOINT) && highComplexityActions.includes(action)
+
+    if (useCitadels || useCitadelsG) {
+      try {
+        const text = useCitadelsG
+          ? await callCitadelsG(userMessage, 1024)
+          : await callCitadelsM(userMessage)
+
+        if (stream) {
+          return createCompatStreamResponse(text)
+        }
+
+        return Response.json({ text })
+      } catch (citadelsError) {
+        // If Citadels M/G fails, fall through to OpenAI fallback
+        console.warn('[Code Chamber AI] Citadels backend unavailable, falling back to OpenAI:', citadelsError)
+      }
     }
 
     const model = openai('gpt-4o')

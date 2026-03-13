@@ -63,6 +63,18 @@ export interface AuditLogEntry {
   error?: string
 }
 
+function resolveOptionalModule(moduleName: string): any {
+  try {
+    const runtimeRequire =
+      typeof (globalThis as { require?: unknown }).require === 'function'
+        ? (globalThis as { require: (name: string) => unknown }).require
+        : Function('return require')()
+    return runtimeRequire(moduleName)
+  } catch {
+    return undefined
+  }
+}
+
 class AuditLogger {
   private logs: AuditLogEntry[] = []
   private maxLogsInMemory = 1000
@@ -94,7 +106,11 @@ class AuditLogger {
     // Persist to database if DATABASE_URL is configured
     if (process.env.DATABASE_URL) {
       try {
-        const { PrismaClient } = await import("@prisma/client")
+        const prismaModule = await import("@prisma/client")
+        const PrismaClient = (prismaModule as any)?.PrismaClient || (prismaModule as any)?.default?.PrismaClient
+        if (typeof PrismaClient !== 'function') {
+          throw new Error('PrismaClient constructor is unavailable')
+        }
         const prisma = new PrismaClient()
         await prisma.auditLog.create({
           data: {
@@ -123,9 +139,11 @@ class AuditLogger {
     // Send to external monitoring if configured
     if (process.env.SENTRY_DSN && (entry.severity === AuditSeverity.ERROR || entry.severity === AuditSeverity.CRITICAL)) {
       try {
-        // @ts-ignore
-        const Sentry = await import("@sentry/node")
-        Sentry.captureMessage(`[AUDIT] ${auditEntry.severity} - ${auditEntry.eventType}: ${auditEntry.error || ''}`)
+        const sentryModule = resolveOptionalModule('@sentry/node')
+        const captureMessage = sentryModule?.captureMessage ?? sentryModule?.default?.captureMessage
+        if (typeof captureMessage === 'function') {
+          captureMessage(`[AUDIT] ${auditEntry.severity} - ${auditEntry.eventType}: ${auditEntry.error || ''}`)
+        }
       } catch (err) {
         console.error('[AUDIT] Failed to send to Sentry:', err)
       }

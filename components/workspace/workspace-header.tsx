@@ -68,9 +68,15 @@ export function WorkspaceHeader({
       const response = await fetch("/api/deploy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: currentProject || "default" }),
+        body: JSON.stringify({
+          action: "deploy",
+          projectId: currentProject || "default",
+          projectName: currentProject || "default",
+          environment: "development",
+          buildType: "preview",
+        }),
       })
-      if (response.ok) {
+      if (response.ok || response.status === 503) {
         onToggleTerminal()
       }
     } catch {

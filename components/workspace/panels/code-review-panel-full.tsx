@@ -66,6 +66,23 @@ interface CodeReviewPanelProps {
 }
 
 // ═══════════════════════════════════════════════════════════
+// INLINE COMMENT TYPES
+// ═══════════════════════════════════════════════════════════
+
+interface InlineComment {
+  id: string
+  file: string
+  line: number
+  author: string
+  content: string
+  timestamp: number
+  resolved: boolean
+  replies: InlineComment[]
+}
+
+type ApprovalStatus = "pending" | "approved" | "changes-requested" | "commented"
+
+// ═══════════════════════════════════════════════════════════
 // DEMO DATA
 // ═══════════════════════════════════════════════════════════
 
@@ -122,6 +139,51 @@ export function CodeReviewPanelFull({ projectId, activeFile, onNavigateToFile }:
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [filterSeverity, setFilterSeverity] = useState<IssueSeverity | "all">("all")
   const [dismissedIssues, setDismissedIssues] = useState<Set<string>>(new Set())
+  const [inlineComments, setInlineComments] = useState<InlineComment[]>([])
+  const [newCommentText, setNewCommentText] = useState("")
+  const [commentingOn, setCommentingOn] = useState<{ file: string; line: number } | null>(null)
+  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("pending")
+  const [showComments, setShowComments] = useState(true)
+
+  const addInlineComment = useCallback((file: string, line: number, content: string) => {
+    const comment: InlineComment = {
+      id: `comment_${Date.now()}`,
+      file,
+      line,
+      author: "You",
+      content,
+      timestamp: Date.now(),
+      resolved: false,
+      replies: [],
+    }
+    setInlineComments((prev) => [...prev, comment])
+    setNewCommentText("")
+    setCommentingOn(null)
+  }, [])
+
+  const resolveComment = useCallback((id: string) => {
+    setInlineComments((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, resolved: true } : c))
+    )
+  }, [])
+
+  const replyToComment = useCallback((parentId: string, content: string) => {
+    const reply: InlineComment = {
+      id: `reply_${Date.now()}`,
+      file: "",
+      line: 0,
+      author: "You",
+      content,
+      timestamp: Date.now(),
+      resolved: false,
+      replies: [],
+    }
+    setInlineComments((prev) =>
+      prev.map((c) =>
+        c.id === parentId ? { ...c, replies: [...c.replies, reply] } : c
+      )
+    )
+  }, [])
 
   const runReview = useCallback(() => {
     setIsAnalyzing(true)
@@ -213,6 +275,34 @@ export function CodeReviewPanelFull({ projectId, activeFile, onNavigateToFile }:
         </div>
       )}
 
+      {/* Approval & Comments Bar */}
+      {review && (
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/5">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-muted-foreground">Status:</span>
+            <select
+              value={approvalStatus}
+              onChange={(e) => setApprovalStatus(e.target.value as ApprovalStatus)}
+              className="text-[10px] bg-transparent border border-border rounded px-1 py-0.5 focus:outline-none"
+            >
+              <option value="pending">⏳ Pending</option>
+              <option value="approved">✅ Approved</option>
+              <option value="changes-requested">🔄 Changes Requested</option>
+              <option value="commented">💬 Commented</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowComments(!showComments)}
+              className={`flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded transition-colors ${showComments ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/50"}`}
+            >
+              <MessageSquare className="w-3 h-3" />
+              Comments ({inlineComments.filter((c) => !c.resolved).length})
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {isAnalyzing && (
@@ -268,6 +358,55 @@ export function CodeReviewPanelFull({ projectId, activeFile, onNavigateToFile }:
                               <Zap className="w-3 h-3 mt-0.5 flex-shrink-0" />
                               {issue.suggestion}
                             </p>
+                          )}
+                          {/* Inline Comment Thread */}
+                          {showComments && (
+                            <div className="mt-2 space-y-1">
+                              {inlineComments
+                                .filter((c) => c.file === issue.file && c.line === issue.line && !c.resolved)
+                                .map((comment) => (
+                                  <div key={comment.id} className="pl-2 border-l-2 border-primary/30">
+                                    <div className="flex items-center gap-1 text-[10px]">
+                                      <User className="w-2.5 h-2.5" />
+                                      <span className="font-medium">{comment.author}</span>
+                                      <span className="text-muted-foreground">{new Date(comment.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                                    </div>
+                                    <p className="text-[10px] text-foreground/80">{comment.content}</p>
+                                    {comment.replies.map((r) => (
+                                      <div key={r.id} className="ml-2 mt-0.5 pl-2 border-l border-border">
+                                        <span className="text-[10px] font-medium">{r.author}: </span>
+                                        <span className="text-[10px] text-foreground/70">{r.content}</span>
+                                      </div>
+                                    ))}
+                                    <button onClick={() => resolveComment(comment.id)} className="text-[10px] text-green-400 hover:underline mt-0.5">
+                                      Resolve
+                                    </button>
+                                  </div>
+                                ))}
+                              {commentingOn?.file === issue.file && commentingOn?.line === issue.line ? (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <input
+                                    type="text"
+                                    value={newCommentText}
+                                    onChange={(e) => setNewCommentText(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" && newCommentText.trim()) addInlineComment(issue.file, issue.line, newCommentText.trim())
+                                      if (e.key === "Escape") setCommentingOn(null)
+                                    }}
+                                    placeholder="Add comment..."
+                                    className="flex-1 text-[10px] bg-background border border-border rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                                    autoFocus
+                                  />
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setCommentingOn({ file: issue.file, line: issue.line })}
+                                  className="text-[10px] text-muted-foreground hover:text-primary flex items-center gap-0.5 mt-0.5"
+                                >
+                                  <MessageSquare className="w-2.5 h-2.5" /> Comment
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                         <button onClick={() => dismissIssue(issue.id)} className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-muted/50 transition-opacity">

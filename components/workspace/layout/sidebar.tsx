@@ -13,6 +13,7 @@ const VIEW_TITLES: Record<string, string> = {
     explorer: 'EXPLORER',
     search: 'SEARCH',
     git: 'SOURCE CONTROL',
+    'task-runner': 'TASK RUNNER',
     extensions: 'EXTENSIONS',
     chat: 'COLLABORATION',
     'ai-assistant': 'AI ASSISTANT',
@@ -40,9 +41,9 @@ export function Sidebar({ children }: SidebarProps) {
 
     return (
         <TooltipProvider delayDuration={400}>
-            <div className="flex flex-col h-full bg-background/60 backdrop-blur-sm text-foreground border-r border-border/40">
+            <div role="complementary" aria-label={title} className="flex flex-col h-full bg-background/50 backdrop-blur-sm text-foreground border-r border-border/20">
                 {/* Sidebar header */}
-                <div className="h-9 flex items-center justify-between px-3 border-b border-border/20 bg-background/40 flex-shrink-0">
+                <div className="h-7 flex items-center justify-between px-2 border-b border-border/15 bg-background/30 flex-shrink-0" role="banner">
                     <span className="text-[11px] font-semibold text-muted-foreground tracking-wider select-none truncate">
                         {title}
                     </span>

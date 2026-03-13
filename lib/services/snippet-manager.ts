@@ -696,7 +696,7 @@ class SnippetManagerService {
       CURRENT_HOUR: String(new Date().getHours()).padStart(2, '0'),
       CURRENT_MINUTE: String(new Date().getMinutes()).padStart(2, '0'),
       CLIPBOARD: variables?.CLIPBOARD || '',
-      UUID: crypto.randomUUID?.() || Math.random().toString(36).slice(2),
+      UUID: crypto.randomUUID(),
     }
 
     for (const [key, value] of Object.entries(builtinVars)) {

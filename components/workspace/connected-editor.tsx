@@ -94,7 +94,7 @@ export function ConnectedEditor() {
 
   if (isLoadingFile) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-[#1e1e1e] text-gray-400">
+      <div className="h-full w-full flex items-center justify-center bg-[var(--ide-editor-bg)] text-gray-400">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
           <p className="text-sm">Loading file...</p>
@@ -105,7 +105,7 @@ export function ConnectedEditor() {
 
   if (openFiles.length === 0) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-[#1e1e1e]">
+      <div className="h-full w-full flex items-center justify-center bg-[var(--ide-editor-bg)]">
         <div className="text-center">
           <h3 className="text-xl font-semibold text-white mb-2">No File Open</h3>
           <p className="text-gray-400 text-sm">
@@ -117,9 +117,9 @@ export function ConnectedEditor() {
   }
 
   return (
-    <div className="h-full w-full flex flex-col bg-[#1e1e1e]">
+    <div className="h-full w-full flex flex-col bg-[var(--ide-editor-bg)]">
       {/* File Tabs */}
-      <div className="flex items-center border-b border-[#3e3e42] bg-[#252526] overflow-x-auto">
+      <div className="flex items-center border-b border-[var(--ide-border)] bg-[var(--ide-sidebar-bg)] overflow-x-auto">
         {openFiles.map(filePath => {
           const fileName = getFileName(filePath)
           const isActive = filePath === activeFilePath
@@ -127,10 +127,10 @@ export function ConnectedEditor() {
           return (
             <div
               key={filePath}
-              className={`flex items-center gap-2 px-4 py-2 border-r border-[#3e3e42] cursor-pointer transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2 border-r border-[var(--ide-border)] cursor-pointer transition-colors ${
                 isActive
-                  ? 'bg-[#1e1e1e] text-white'
-                  : 'bg-[#2d2d2d] text-gray-400 hover:text-white'
+                  ? 'bg-[var(--ide-editor-bg)] text-white'
+                  : 'bg-[var(--ide-breadcrumb-bg)] text-gray-400 hover:text-white'
               }`}
               onClick={() => openFile(filePath)}
             >
@@ -150,7 +150,7 @@ export function ConnectedEditor() {
       </div>
 
       {/* Editor Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[#3e3e42] bg-[#252526]">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--ide-border)] bg-[var(--ide-sidebar-bg)]">
         <div className="text-xs text-gray-400">
           {activeFilePath && <span>{activeFilePath}</span>}
         </div>

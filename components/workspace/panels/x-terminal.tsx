@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { terminalTheme } from "@/lib/ide-terminal-theme"
 
 interface XTerminalProps {
   onData?: (data: string) => void
@@ -35,28 +36,7 @@ export function XTerminal({ onData, socket }: XTerminalProps) {
           cursorBlink: true,
           fontSize: 13,
           fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-          theme: {
-            background: "#0d1117",
-            foreground: "#c9d1d9",
-            cursor: "#58a6ff",
-            selectionBackground: "#264f78",
-            black: "#0d1117",
-            red: "#ff7b72",
-            green: "#3fb950",
-            yellow: "#d29922",
-            blue: "#58a6ff",
-            magenta: "#bc8cff",
-            cyan: "#39d353",
-            white: "#c9d1d9",
-            brightBlack: "#484f58",
-            brightRed: "#ffa198",
-            brightGreen: "#56d364",
-            brightYellow: "#e3b341",
-            brightBlue: "#79c0ff",
-            brightMagenta: "#d2a8ff",
-            brightCyan: "#56d364",
-            brightWhite: "#f0f6fc",
-          },
+          theme: terminalTheme,
           allowProposedApi: true,
         })
 
@@ -162,7 +142,7 @@ export function XTerminal({ onData, socket }: XTerminalProps) {
   return (
     <div
       ref={terminalRef}
-      className="h-full w-full bg-[#0d1117]"
+      className="h-full w-full bg-[var(--ide-terminal-bg)]"
       style={{ padding: "4px 8px" }}
     />
   )

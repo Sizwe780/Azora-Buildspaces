@@ -4,6 +4,22 @@ import { authOptions } from '@/lib/auth/config'
 import fs from 'fs/promises'
 import path from 'path'
 
+const WORKSPACE_ID_PATTERN = /^[a-zA-Z0-9._-]{1,128}$/
+
+function resolveWorkspaceRoot(workspaceId: string): string | null {
+    if (!WORKSPACE_ID_PATTERN.test(workspaceId)) {
+        return null
+    }
+
+    const workspacesBase = path.resolve(process.cwd(), 'workspaces')
+    const workspaceRoot = path.resolve(workspacesBase, workspaceId)
+    if (!workspaceRoot.startsWith(workspacesBase + path.sep) && workspaceRoot !== workspacesBase) {
+        return null
+    }
+
+    return workspaceRoot
+}
+
 /**
  * GET /api/fs/tree?workspaceId=xxx
  * 
@@ -60,9 +76,12 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const workspaceId = searchParams.get('workspaceId') || session.user?.id || 'default'
+    const workspaceId = String(searchParams.get('workspaceId') || session.user?.id || 'default')
 
-    const workspaceRoot = path.join(process.cwd(), 'workspaces', workspaceId)
+    const workspaceRoot = resolveWorkspaceRoot(workspaceId)
+    if (!workspaceRoot) {
+        return NextResponse.json({ error: 'Invalid workspaceId' }, { status: 400 })
+    }
 
     try {
         await fs.access(workspaceRoot)

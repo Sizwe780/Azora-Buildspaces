@@ -17,26 +17,42 @@ let pfs: any
 let git: any
 let isNodeFallback = false
 let nodeBasePath = ''
+const isBrowserRuntime = typeof window !== 'undefined'
 
-try {
-  // Prefer lightning-fs in browser-like environments
-  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-  const LightningFS = require('@isomorphic-git/lightning-fs')
-  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-  git = require('isomorphic-git')
-  fs = new LightningFS('azora-workspace')
-  pfs = fs.promises
-} catch (err) {
-  // Fallback for Node (tests, server-side). Use native fs.promises
-  // We'll map the VFS root ('/') to a workspace-local directory to avoid
-  // attempting writes at the real filesystem root which can fail in tests.
-  if (typeof window === 'undefined') {
+function resolveNodeRequire(): ((moduleName: string) => any) | undefined {
+  try {
+    if (typeof (globalThis as { require?: unknown }).require === 'function') {
+      return (globalThis as { require: (moduleName: string) => any }).require
+    }
+    return Function('return require')() as (moduleName: string) => any
+  } catch {
+    return undefined
+  }
+}
+
+if (isBrowserRuntime) {
+  try {
+    // Prefer lightning-fs in browser-like environments only.
     // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-    const nodeFs = eval('require')('fs')
-    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-    const path = eval('require')('path')
+    const LightningFS = require('@isomorphic-git/lightning-fs')
     // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
     git = require('isomorphic-git')
+    fs = new LightningFS('azora-workspace')
+    pfs = fs.promises
+  } catch {
+    // Leave unresolved in browser; operations will throw explicit errors later.
+  }
+}
+
+if (!isBrowserRuntime) {
+  // Server/tests: use native fs.promises and avoid any IndexedDB-backed imports.
+  // We'll map the VFS root ('/') to a workspace-local directory to avoid
+  // attempting writes at the real filesystem root which can fail in tests.
+  const nodeRequire = resolveNodeRequire()
+  if (nodeRequire) {
+    const nodeFs = nodeRequire('fs')
+    const path = nodeRequire('path')
+    git = nodeRequire('isomorphic-git')
     fs = nodeFs
     pfs = nodeFs.promises
     isNodeFallback = true
@@ -47,7 +63,7 @@ try {
       if (!nodeFs.existsSync(nodeBasePath)) {
         nodeFs.mkdirSync(nodeBasePath, { recursive: true })
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   }
@@ -82,6 +98,13 @@ export interface FileSystemAPI {
   initProject: (projectName: string) => Promise<void>
   getGitStatus: () => Promise<any[]>
   gitCommit: (message: string) => Promise<string>
+  watchFiles: (dir: string, callback: (event: FileWatchEvent) => void) => () => void
+}
+
+export interface FileWatchEvent {
+  type: 'create' | 'update' | 'delete'
+  path: string
+  isDirectory: boolean
 }
 
 /**
@@ -461,8 +484,101 @@ async function gitCommit(message: string): Promise<string> {
 }
 
 /**
- * Export the file system API
+ * Watch files in a directory for changes (polling-based for browser environment)
  */
+function watchFiles(dir: string, callback: (event: FileWatchEvent) => void): () => void {
+  let previousFiles: Set<string> = new Set()
+  let previousStats: Map<string, { mtime: number; size: number }> = new Map()
+  let intervalId: NodeJS.Timeout | null = null
+
+  const scanDirectory = async () => {
+    try {
+      const currentFiles = await listFiles(dir)
+      const currentFilePaths = new Set<string>()
+      const currentStats = new Map<string, { mtime: number; size: number }>()
+
+      // Flatten file tree to get all paths
+      const flattenFiles = async (nodes: FileNode[], basePath = ''): Promise<void> => {
+        for (const node of nodes) {
+          const fullPath = basePath ? `${basePath}/${node.name}` : node.name
+          currentFilePaths.add(fullPath)
+
+          if (node.type === 'file') {
+            try {
+              const stat = await pfs.stat(pathJoin(`${dir}/${fullPath}`))
+              currentStats.set(fullPath, {
+                mtime: stat.mtime?.getTime() || 0,
+                size: stat.size || 0
+              })
+            } catch {
+              // File might have been deleted
+            }
+          } else if (node.children) {
+            await flattenFiles(node.children, fullPath)
+          }
+        }
+      }
+
+      await flattenFiles(currentFiles)
+
+      // Check for new files
+      for (const path of currentFilePaths) {
+        if (!previousFiles.has(path)) {
+          const isDirectory = !path.includes('.')
+          callback({
+            type: 'create',
+            path: `${dir}/${path}`,
+            isDirectory
+          })
+        } else {
+          // Check for modifications
+          const prevStat = previousStats.get(path)
+          const currStat = currentStats.get(path)
+          if (prevStat && currStat && (
+            prevStat.mtime !== currStat.mtime ||
+            prevStat.size !== currStat.size
+          )) {
+            callback({
+              type: 'update',
+              path: `${dir}/${path}`,
+              isDirectory: false
+            })
+          }
+        }
+      }
+
+      // Check for deleted files
+      for (const path of previousFiles) {
+        if (!currentFilePaths.has(path)) {
+          const wasDirectory = !path.includes('.')
+          callback({
+            type: 'delete',
+            path: `${dir}/${path}`,
+            isDirectory: wasDirectory
+          })
+        }
+      }
+
+      previousFiles = currentFilePaths
+      previousStats = currentStats
+    } catch (error) {
+      console.error('File watching error:', error)
+    }
+  }
+
+  // Initial scan
+  scanDirectory()
+
+  // Start polling every 2 seconds
+  intervalId = setInterval(scanDirectory, 2000)
+
+  // Return cleanup function
+  return () => {
+    if (intervalId) {
+      clearInterval(intervalId)
+    }
+  }
+}
 export const fileSystem: FileSystemAPI = {
   readFile,
   writeFile,
@@ -473,6 +589,7 @@ export const fileSystem: FileSystemAPI = {
   initProject,
   getGitStatus,
   gitCommit,
+  watchFiles,
 }
 
 // Export for use in hooks

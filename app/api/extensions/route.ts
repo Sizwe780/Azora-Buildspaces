@@ -1,29 +1,53 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { extensionMarketplace } from '@/lib/services/extension-marketplace'
-
 /**
  * Extension Marketplace API
- * GET  /api/extensions?q=search&category=themes&sort=installs&page=1&pageSize=20
- * POST /api/extensions  - install/uninstall/rate
+ * 
+ * Search, install, uninstall, and manage Code Chamber extensions.
  */
+
+import { NextRequest, NextResponse } from 'next/server'
+import { extensionMarketplace, type ExtensionSearchQuery, type ExtensionCategory } from '@/lib/services/extension-marketplace'
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const text = searchParams.get('q') || undefined
-    const category = searchParams.get('category') || undefined
-    const sortBy = (searchParams.get('sort') || 'installs') as 'relevance' | 'installs' | 'rating' | 'name' | 'publishedDate'
-    const page = parseInt(searchParams.get('page') || '1', 10)
-    const pageSize = parseInt(searchParams.get('pageSize') || '20', 10)
+    const action = searchParams.get('action') || 'search'
 
-    const results = extensionMarketplace.searchExtensions({
-      text,
-      category: category as any,
-      sortBy,
-      page,
-      pageSize,
-    })
+    switch (action) {
+      case 'search': {
+        const query: ExtensionSearchQuery = {
+          text: searchParams.get('q') || undefined,
+          category: (searchParams.get('category') as ExtensionCategory) || undefined,
+          sortBy: (searchParams.get('sortBy') as any) || 'relevance',
+          sortOrder: (searchParams.get('sortOrder') as any) || 'desc',
+          page: parseInt(searchParams.get('page') || '1'),
+          pageSize: parseInt(searchParams.get('pageSize') || '20'),
+          verified: searchParams.get('verified') === 'true' || undefined,
+        }
 
-    return NextResponse.json(results)
+        const tags = searchParams.get('tags')
+        if (tags) query.tags = tags.split(',')
+
+        const results = await extensionMarketplace.search(query)
+        return NextResponse.json(results)
+      }
+
+      case 'installed':
+        return NextResponse.json({
+          extensions: await extensionMarketplace.getInstalled(searchParams.get('projectId') || 'default'),
+          total: (await extensionMarketplace.getInstalled(searchParams.get('projectId') || 'default')).length,
+        })
+
+      case 'featured':
+        return NextResponse.json({
+          extensions: extensionMarketplace.getFeatured(),
+        })
+
+      case 'stats':
+        return NextResponse.json(extensionMarketplace.getStats())
+
+      default:
+        return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
+    }
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
@@ -32,47 +56,57 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { action, extensionId } = body
+    const { action, extensionId, userId } = body
 
     switch (action) {
-      case 'install':
+      case 'install': {
         if (!extensionId) return NextResponse.json({ error: 'extensionId required' }, { status: 400 })
-        await extensionMarketplace.installExtension(extensionId)
-        return NextResponse.json({ success: true, action: 'installed', extensionId })
-
-      case 'uninstall':
-        if (!extensionId) return NextResponse.json({ error: 'extensionId required' }, { status: 400 })
-        await extensionMarketplace.uninstallExtension(extensionId)
-        return NextResponse.json({ success: true, action: 'uninstalled', extensionId })
-
-      case 'rate': {
-        if (!extensionId) return NextResponse.json({ error: 'extensionId required' }, { status: 400 })
-        const { rating, title, body: reviewBody } = body
-        if (!rating) return NextResponse.json({ error: 'rating required' }, { status: 400 })
-        extensionMarketplace.rateExtension(extensionId, {
-          id: `review-${Date.now()}`,
-          extensionId,
-          userId: 'current-user',
-          userName: 'Current User',
-          rating,
-          title: title || '',
-          body: reviewBody || '',
-          createdAt: Date.now(),
-          helpful: 0,
-        })
-        return NextResponse.json({ success: true, action: 'rated', extensionId })
+        const installed = await extensionMarketplace.install(extensionId, userId || 'anonymous', body.projectId || 'default')
+        return NextResponse.json({ success: true, extension: installed })
       }
 
-      case 'installed':
-        return NextResponse.json({
-          extensions: extensionMarketplace.getInstalledExtensions(),
-        })
+      case 'uninstall': {
+        if (!extensionId) return NextResponse.json({ error: 'extensionId required' }, { status: 400 })
+        const removed = await extensionMarketplace.uninstall(extensionId)
+        return NextResponse.json({ success: removed })
+      }
+
+      case 'enable': {
+        if (!extensionId) return NextResponse.json({ error: 'extensionId required' }, { status: 400 })
+        await extensionMarketplace.enable(extensionId)
+        return NextResponse.json({ success: true })
+      }
+
+      case 'disable': {
+        if (!extensionId) return NextResponse.json({ error: 'extensionId required' }, { status: 400 })
+        await extensionMarketplace.disable(extensionId)
+        return NextResponse.json({ success: true })
+      }
+
+      case 'update': {
+        if (!extensionId) return NextResponse.json({ error: 'extensionId required' }, { status: 400 })
+        const updated = await extensionMarketplace.update(extensionId)
+        return NextResponse.json({ success: !!updated, extension: updated })
+      }
+
+      case 'review': {
+        const { rating, title, body: reviewBody } = body
+        if (!extensionId || !rating) {
+          return NextResponse.json({ error: 'extensionId and rating required' }, { status: 400 })
+        }
+        const review = await extensionMarketplace.addReview(
+          extensionId,
+          userId || 'anonymous',
+          body.userName || 'Anonymous',
+          rating,
+          title || '',
+          reviewBody || ''
+        )
+        return NextResponse.json({ success: true, review })
+      }
 
       default:
-        return NextResponse.json(
-          { error: 'Invalid action. Use: install, uninstall, rate, installed' },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

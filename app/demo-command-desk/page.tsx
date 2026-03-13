@@ -1,10 +1,12 @@
 'use client'
 
-import { CommandDesk } from '@/components/rooms/command-desk'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Sparkles, Lock, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { WorkspaceProvider } from '@/lib/contexts/workspace-context'
+
+const CommandDesk = dynamic(() => import('@/components/rooms/command-desk').then(m => m.CommandDesk), { ssr: false })
 
 export default function DemoCommandDeskPage() {
     return (

@@ -4,6 +4,22 @@ import { authOptions } from '@/lib/auth/config'
 import fs from 'fs/promises'
 import path from 'path'
 
+const WORKSPACE_ID_PATTERN = /^[a-zA-Z0-9._-]{1,128}$/
+
+function resolveWorkspaceRoot(workspaceId: string): string | null {
+    if (!WORKSPACE_ID_PATTERN.test(workspaceId)) {
+        return null
+    }
+
+    const workspacesBase = path.resolve(process.cwd(), 'workspaces')
+    const workspaceRoot = path.resolve(workspacesBase, workspaceId)
+    if (!workspaceRoot.startsWith(workspacesBase + path.sep) && workspaceRoot !== workspacesBase) {
+        return null
+    }
+
+    return workspaceRoot
+}
+
 /**
  * GET /api/fs/content?path=src/app/page.tsx&workspaceId=xxx
  * 
@@ -12,13 +28,17 @@ import path from 'path'
  */
 
 function validateWorkspacePath(targetPath: string, workspaceId: string) {
+    const workspaceRoot = resolveWorkspaceRoot(workspaceId)
+    if (!workspaceRoot) {
+        return { valid: false, error: 'Invalid workspaceId' }
+    }
+
     const normalizedPath = path.normalize(targetPath)
     if (normalizedPath.includes('..')) {
         return { valid: false, error: 'Path traversal detected' }
     }
-    const workspaceRoot = path.join(process.cwd(), 'workspaces', workspaceId)
     const absolutePath = path.resolve(workspaceRoot, normalizedPath)
-    if (!absolutePath.startsWith(workspaceRoot)) {
+    if (absolutePath !== workspaceRoot && !absolutePath.startsWith(workspaceRoot + path.sep)) {
         return { valid: false, error: 'Access denied: Path outside workspace' }
     }
     return { valid: true, absolutePath }
@@ -32,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const targetPath = searchParams.get('path')
-    const workspaceId = searchParams.get('workspaceId') || session.user?.id || 'default'
+    const workspaceId = String(searchParams.get('workspaceId') || session.user?.id || 'default')
 
     if (!targetPath) {
         return NextResponse.json({ error: 'Path is required' }, { status: 400 })

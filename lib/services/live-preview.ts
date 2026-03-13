@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 /**
  * Live Preview Service (Task 18)
  * 
@@ -28,6 +30,15 @@ export interface PreviewConfig {
   consoleEnabled: boolean
   networkEnabled: boolean
   performanceOverlay: boolean
+}
+
+export interface PreviewStatus {
+  id: string
+  url: string
+  online: boolean
+  latencyMs: number
+  statusCode?: number
+  checkedAt: number
 }
 
 export interface ViewportConfig {
@@ -136,7 +147,7 @@ class LivePreviewService {
   addConsoleMessage(msg: Omit<ConsoleMessage, 'id' | 'timestamp'>): void {
     this.consoleMessages.push({
       ...msg,
-      id: `console-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      id: `console-${randomUUID()}`,
       timestamp: Date.now(),
     })
   }
@@ -153,7 +164,7 @@ class LivePreviewService {
   addNetworkRequest(req: Omit<NetworkRequest, 'id'>): void {
     this.networkRequests.push({
       ...req,
-      id: `net-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      id: `net-${randomUUID()}`,
     })
   }
 
@@ -172,6 +183,66 @@ class LivePreviewService {
 
   getMetrics(): PerformanceMetrics | null {
     return this.metrics
+  }
+
+  getPerformanceMetrics(): PerformanceMetrics | null {
+    return this.metrics
+  }
+
+  async getStatus(previewId: string): Promise<PreviewStatus | null> {
+    const preview = this.previews.get(previewId)
+    if (!preview) return null
+
+    const started = Date.now()
+    try {
+      const response = await fetch(preview.url, { method: 'HEAD' })
+      return {
+        id: preview.id,
+        url: preview.url,
+        online: response.ok,
+        latencyMs: Date.now() - started,
+        statusCode: response.status,
+        checkedAt: Date.now(),
+      }
+    } catch {
+      return {
+        id: preview.id,
+        url: preview.url,
+        online: false,
+        latencyMs: Date.now() - started,
+        checkedAt: Date.now(),
+      }
+    }
+  }
+
+  startPreview(options?: Partial<PreviewConfig>): PreviewConfig {
+    return this.createPreview(options)
+  }
+
+  stopPreview(id: string): void {
+    this.closePreview(id)
+  }
+
+  refreshPreview(previewId: string): void {
+    const preview = this.previews.get(previewId)
+    if (!preview) return
+    this.addConsoleMessage({
+      type: 'info',
+      message: `Preview refreshed: ${preview.url}`,
+      source: 'live-preview',
+    })
+  }
+
+  setDevice(previewId: string, deviceName: string): void {
+    const preset = DEVICE_PRESETS.find((device) => device.name === deviceName)
+    if (!preset) return
+    this.setViewport(previewId, preset)
+  }
+
+  setUrl(previewId: string, url: string): void {
+    const preview = this.previews.get(previewId)
+    if (!preview) return
+    preview.url = url
   }
 
   // Cleanup

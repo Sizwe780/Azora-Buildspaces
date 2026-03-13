@@ -8,11 +8,9 @@ import {
     Box,
     MessageSquare,
     Settings,
-    User,
     Cpu,
     Zap,
     Sparkles,
-    Code2,
     Palette,
     Database,
     Cloud,
@@ -28,25 +26,51 @@ import {
     ChevronUp,
     FlaskConical,
     Activity,
-    LineChart
+    LineChart,
+    Play,
+    ListTree,
+    Menu,
+    LayoutDashboard,
+    Code,
+    FileText,
+    Lightbulb,
+    Wand2,
+    Focus,
+    BookOpen,
+    ClipboardList,
+    Trophy,
+    Store,
+    Users,
+    Theater,
+    Wrench,
+    Check,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useWorkbench, SidebarView } from "@/lib/stores/workbench-store"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { useWorkspace } from "@/lib/contexts/workspace-context"
+import { useWorkspace, RoomType } from "@/lib/contexts/workspace-context"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
-export function ActivityBar() {
+export function ActivityBar({ onZenMode, onCollapse }: { onZenMode?: () => void; onCollapse?: () => void } = {}) {
     const { activeSidebarView, setSidebarView, isSidebarVisible, toggleSidebar } = useWorkbench()
-    const { activeRoom } = useWorkspace()
+    const { activeRoom, setActiveRoom } = useWorkspace()
     const [showMore, setShowMore] = useState(false)
 
     // Primary items always visible
     const primaryItems: { view: SidebarView; icon: any; label: string; badge?: string; notification?: number }[] = [
         { view: 'explorer', icon: Files, label: 'Explorer', badge: 'Ctrl+Shift+E' },
+        { view: 'outline', icon: ListTree, label: 'Outline', badge: 'Ctrl+Shift+O' },
         { view: 'search', icon: Search, label: 'Search', badge: 'Ctrl+Shift+F' },
         { view: 'git', icon: GitBranch, label: 'Source Control', badge: 'Ctrl+Shift+G', notification: 3 },
+        { view: 'task-runner', icon: Play, label: 'Tasks', badge: 'Ctrl+Shift+T' },
         { view: 'extensions', icon: Box, label: 'Extensions', badge: 'Ctrl+Shift+X' },
         { view: 'ai-assistant', icon: Sparkles, label: 'AI Assistant', badge: 'Ctrl+Shift+I' },
         { view: 'chat', icon: MessageSquare, label: 'Collaboration', badge: 'Ctrl+Shift+A' },
@@ -147,18 +171,88 @@ export function ActivityBar() {
         </Tooltip>
     )
 
+    // Room definitions for hamburger menu
+    const rooms: { id: RoomType; label: string; icon: any }[] = [
+        { id: 'code-chamber', label: 'Code Chamber', icon: Code },
+        { id: 'spec-chamber', label: 'Spec Chamber', icon: FileText },
+        { id: 'design-studio', label: 'Design Studio', icon: Palette },
+        { id: 'ai-studio', label: 'AI Studio', icon: Sparkles },
+        { id: 'command-desk', label: 'Command Desk', icon: LayoutDashboard },
+        { id: 'maker-lab', label: 'Maker Lab', icon: Wrench },
+        { id: 'collaboration-pod', label: 'Collab Pod', icon: Users },
+        { id: 'innovation-theater', label: 'Innovation Theater', icon: Theater },
+        { id: 'deep-focus', label: 'Deep Focus', icon: Focus },
+        { id: 'knowledge-ocean', label: 'Knowledge Ocean', icon: BookOpen },
+        { id: 'task-board', label: 'Task Board', icon: ClipboardList },
+        { id: 'collectible-showcase', label: 'Collectibles', icon: Trophy },
+        { id: 'marketplace', label: 'Marketplace', icon: Store },
+    ]
+
     return (
         <TooltipProvider delayDuration={300}>
-            <div className="w-12 flex flex-col items-center py-2 bg-background/80 backdrop-blur-sm border-r border-border/40 h-full">
-                {/* Logo */}
+            <div className="w-12 flex flex-col items-center py-2 bg-background/80 backdrop-blur-sm border-r border-border/20 h-full">
+                {/* Buildspaces Logo + Hamburger Room Menu */}
                 <div className="mb-3 mt-0.5">
-                    <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-violet-600/20">
-                        <Code2 className="w-4 h-4 text-white" />
-                    </div>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button className="w-8 h-8 rounded-lg flex items-center justify-center group relative transition-all hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
+                                {/* Buildspaces brand icon — teal/gold gradient */}
+                                <svg viewBox="0 0 32 32" className="w-6 h-6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <defs>
+                                        <linearGradient id="bs-teal" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" stopColor="#21d4b3" />
+                                            <stop offset="100%" stopColor="#0d5c4d" />
+                                        </linearGradient>
+                                        <linearGradient id="bs-gold" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" stopColor="#f5c349" />
+                                            <stop offset="100%" stopColor="#7a5c1f" />
+                                        </linearGradient>
+                                    </defs>
+                                    {/* Citadel "A" tower */}
+                                    <path d="M8 26 L16 6 L24 26 M11 18 L21 18" stroke="url(#bs-teal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                                    {/* Gold convergence dot */}
+                                    <circle cx="16" cy="12" r="1.5" fill="url(#bs-gold)" />
+                                </svg>
+                                {/* Hamburger indicator on hover */}
+                                <div className="absolute inset-0 rounded-lg bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Menu className="w-3.5 h-3.5 text-primary/60" />
+                                </div>
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent side="right" align="start" sideOffset={8} className="w-56 bg-popover/95 backdrop-blur-md border border-border/40 shadow-xl">
+                            <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Switch Room</div>
+                            {rooms.map((room) => (
+                                <DropdownMenuItem
+                                    key={room.id}
+                                    onClick={() => setActiveRoom(room.id)}
+                                    className={cn(
+                                        "flex items-center gap-2 cursor-pointer",
+                                        activeRoom === room.id && "bg-primary/10 text-primary"
+                                    )}
+                                >
+                                    <room.icon className="w-4 h-4" />
+                                    <span className="flex-1 text-sm">{room.label}</span>
+                                    {activeRoom === room.id && <Check className="w-3.5 h-3.5 text-primary" />}
+                                </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                onClick={() => {
+                                    if (typeof window !== 'undefined') {
+                                        window.location.href = '/features/buildspaces'
+                                    }
+                                }}
+                                className="flex items-center gap-2 cursor-pointer"
+                            >
+                                <LayoutDashboard className="w-4 h-4" />
+                                <span className="text-sm">Back to Dashboard</span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
 
                 {/* Divider */}
-                <div className="w-6 h-px bg-border/60 mb-2" />
+                <div className="w-6 h-px bg-border/40 mb-2" />
 
                 {/* Primary Items */}
                 <div className="flex-1 space-y-0.5 w-full flex flex-col items-center overflow-y-auto scrollbar-hide">
@@ -189,30 +283,9 @@ export function ActivityBar() {
                     )}
                 </div>
 
-                {/* Bottom Section */}
+                {/* Bottom Section — Settings only (profile/secondary sidebar removed) */}
                 <div className="mt-auto space-y-0.5 flex flex-col items-center">
                     <div className="w-5 h-px bg-border/40 mb-1.5" />
-
-                    {/* User Avatar */}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="w-10 h-10 rounded-lg hover:bg-accent/50 transition-all"
-                            >
-                                <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-background">
-                                    U
-                                </div>
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" sideOffset={8}>
-                            <div className="text-sm">
-                                <div className="font-semibold">User Profile</div>
-                                <div className="text-[11px] text-muted-foreground">Account & Settings</div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
 
                     {/* Settings */}
                     <Tooltip>

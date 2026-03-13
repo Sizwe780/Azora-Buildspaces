@@ -90,7 +90,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           exit={{ scale: 0.9, opacity: 0 }}
           className="max-w-md w-full"
         >
-          <Card className="relative bg-[#0d1117] border-white/10 shadow-2xl shadow-emerald-500/5">
+          <Card className="relative bg-[var(--ide-terminal-bg)] border-white/10 shadow-2xl shadow-emerald-500/5">
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 p-3 rounded-full bg-emerald-500/10 w-fit ring-1 ring-emerald-500/20">
                 <CurrentIcon className="w-6 h-6 text-emerald-400" />

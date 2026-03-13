@@ -58,15 +58,16 @@ export function NewWorkspaceWizard({ onComplete, onCancel }: NewWorkspaceWizardP
   const handleCreate = async () => {
     if (!selectedTemplate) return
     setIsCreating(true)
-    
-    // Simulate creation delay
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    
-    onComplete({
-      projectName: projectName.trim(),
-      template: selectedTemplate,
-      repoUrl: repoUrl.trim() || undefined,
-    })
+
+    try {
+      onComplete({
+        projectName: projectName.trim(),
+        template: selectedTemplate,
+        repoUrl: repoUrl.trim() || undefined,
+      })
+    } finally {
+      setIsCreating(false)
+    }
   }
 
   const steps: { key: WizardStep; label: string; number: number }[] = [

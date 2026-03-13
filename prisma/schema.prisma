@@ -2015,8 +2015,7 @@ model BuildSpaceProject {
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   specs BuildSpaceSpec[]
   executions BuildSpaceExecution[]
-
-  @@index([ownerId])
+    extensions InstalledExtension[]
   @@map("buildspaces_projects")
 }
 
@@ -2055,4 +2054,23 @@ model BuildSpaceExecution {
   @@index([agentName])
   @@index([status])
   @@map("buildspaces_executions")
+}
+
+model InstalledExtension {
+  id              String   @id @default(cuid())
+  projectId       String
+  extensionId     String
+  version         String
+  name            String
+  publisher       String
+  description     String?
+  installedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isActive        Boolean  @default(true)
+  settings        Json?
+
+  project         BuildSpaceProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, extensionId])
+  @@index([projectId])
 }

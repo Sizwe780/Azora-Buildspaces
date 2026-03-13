@@ -5,6 +5,8 @@ import fs from 'fs/promises'
 import path from 'path'
 import { projectTemplates } from '@/lib/templates/project-templates'
 
+const WORKSPACE_ID_PATTERN = /^[a-zA-Z0-9._-]{1,128}$/
+
 /**
  * POST /api/fs/scaffold
  * 
@@ -22,7 +24,12 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { templateId, workspaceId: reqWorkspaceId } = body
-    const workspaceId = reqWorkspaceId || session.user?.id || 'default'
+    const workspaceIdRaw = reqWorkspaceId || session.user?.id || 'default'
+    const workspaceId = String(workspaceIdRaw)
+
+    if (!WORKSPACE_ID_PATTERN.test(workspaceId)) {
+        return NextResponse.json({ error: 'Invalid workspaceId' }, { status: 400 })
+    }
 
     // Find template
     const template = projectTemplates.find(t => t.id === templateId)
@@ -30,7 +37,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Template "${templateId}" not found` }, { status: 404 })
     }
 
-    const workspaceRoot = path.join(process.cwd(), 'workspaces', workspaceId)
+    const workspacesBase = path.resolve(process.cwd(), 'workspaces')
+    const workspaceRoot = path.resolve(workspacesBase, workspaceId)
+    if (!workspaceRoot.startsWith(workspacesBase + path.sep) && workspaceRoot !== workspacesBase) {
+        return NextResponse.json({ error: 'Invalid workspace path' }, { status: 400 })
+    }
 
     try {
         // Create workspace root
@@ -38,7 +49,10 @@ export async function POST(request: NextRequest) {
 
         // Write all template files
         for (const [filePath, fileData] of Object.entries(template.files)) {
-            const fullPath = path.join(workspaceRoot, filePath)
+            const fullPath = path.resolve(workspaceRoot, filePath)
+            if (!fullPath.startsWith(workspaceRoot + path.sep) && fullPath !== workspaceRoot) {
+                throw new Error(`Template path escapes workspace root: ${filePath}`)
+            }
 
             if (fileData.type === 'directory') {
                 await fs.mkdir(fullPath, { recursive: true })

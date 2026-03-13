@@ -34,6 +34,19 @@ interface AuditEntry {
   risk: 'high' | 'medium' | 'low'
 }
 
+function scopeToEnvironment(scope: string): string {
+  if (scope === 'project') return 'production'
+  if (scope === 'organization') return 'all'
+  if (scope === 'user') return 'development'
+  return 'development'
+}
+
+function environmentToScope(environment: string): 'workspace' | 'project' | 'user' | 'organization' {
+  if (environment === 'production') return 'project'
+  if (environment === 'all') return 'organization'
+  return 'workspace'
+}
+
 export function SecurityView() {
   const [tab, setTab] = useState('scanner')
   const [scanResults, setScanResults] = useState<ScanResult[]>([])
@@ -57,14 +70,17 @@ export function SecurityView() {
     try {
       const res = await fetch('/api/security?action=secrets')
       const data = await res.json()
-      setSecrets(data.secrets || [])
+      const normalized = Array.isArray(data.secrets)
+        ? data.secrets.map((item: any) => ({
+            name: String(item?.name || ''),
+            environment: scopeToEnvironment(String(item?.scope || 'workspace')),
+            lastUpdated: Number(item?.updatedAt || item?.createdAt || Date.now()),
+            masked: true,
+          })).filter((item: Secret) => item.name)
+        : []
+      setSecrets(normalized)
     } catch {
-      setSecrets([
-        { name: 'DATABASE_URL', environment: 'production', lastUpdated: Date.now() - 86400000, masked: true },
-        { name: 'OPENAI_API_KEY', environment: 'all', lastUpdated: Date.now() - 172800000, masked: true },
-        { name: 'NEXT_PUBLIC_SUPABASE_URL', environment: 'all', lastUpdated: Date.now() - 259200000, masked: true },
-        { name: 'STRIPE_SECRET_KEY', environment: 'production', lastUpdated: Date.now() - 345600000, masked: true },
-      ])
+      setSecrets([])
     }
   }
 
@@ -72,15 +88,18 @@ export function SecurityView() {
     try {
       const res = await fetch('/api/security?action=audit-log')
       const data = await res.json()
-      setAuditLog(data.log || [])
+      const normalized = Array.isArray(data.log)
+        ? data.log.map((entry: any) => ({
+            timestamp: Number(entry?.timestamp || Date.now()),
+            action: String(entry?.action || 'unknown'),
+            actor: String(entry?.userId || entry?.actor || 'system'),
+            resource: String(entry?.resource || 'unknown'),
+            risk: (entry?.risk === 'high' || entry?.risk === 'medium' || entry?.risk === 'low') ? entry.risk : 'low',
+          }))
+        : []
+      setAuditLog(normalized)
     } catch {
-      setAuditLog([
-        { timestamp: Date.now() - 60000, action: 'code.execute', actor: 'user@azora.dev', resource: 'terminal', risk: 'medium' },
-        { timestamp: Date.now() - 300000, action: 'secret.read', actor: 'user@azora.dev', resource: 'DATABASE_URL', risk: 'low' },
-        { timestamp: Date.now() - 900000, action: 'network.request', actor: 'system', resource: 'api.openai.com', risk: 'low' },
-        { timestamp: Date.now() - 1800000, action: 'file.write', actor: 'user@azora.dev', resource: '/src/config.ts', risk: 'low' },
-        { timestamp: Date.now() - 3600000, action: 'package.install', actor: 'user@azora.dev', resource: 'lodash@4.17.21', risk: 'medium' },
-      ])
+      setAuditLog([])
     }
   }
 
@@ -88,7 +107,7 @@ export function SecurityView() {
     try {
       const res = await fetch('/api/security?action=policy')
       const data = await res.json()
-      setActivePolicy(data.policy?.id || 'standard')
+      setActivePolicy(data.policy?.level || 'standard')
     } catch { /* noop */ }
   }
 
@@ -98,16 +117,30 @@ export function SecurityView() {
       const res = await fetch('/api/security', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'scan', code: codeToScan || 'const key = "sk_live_abc123";\neval(userInput);\nfetch("http://malicious.com");', filename: 'test.ts' }),
+        body: JSON.stringify({
+          action: 'scan',
+          files: [{
+            path: 'inline.ts',
+            content: codeToScan || '',
+          }],
+        }),
       })
       const data = await res.json()
-      setScanResults(data.results || [])
+      const resultPayload = data.results
+      const findings = Array.isArray(resultPayload?.findings)
+        ? resultPayload.findings.map((finding: any) => ({
+            id: String(finding?.id || crypto.randomUUID()),
+            type: finding?.type === 'secret-leak' ? 'secret' : (finding?.type || 'vulnerability'),
+            severity: finding?.severity || 'info',
+            message: String(finding?.title || finding?.description || 'Security issue'),
+            file: finding?.file,
+            line: finding?.line,
+            suggestion: finding?.recommendation,
+          }))
+        : (Array.isArray(resultPayload) ? resultPayload : [])
+      setScanResults(findings)
     } catch {
-      setScanResults([
-        { id: '1', type: 'secret', severity: 'critical', message: 'Hardcoded API key detected', file: 'test.ts', line: 1, suggestion: 'Move to environment variables' },
-        { id: '2', type: 'unsafe-code', severity: 'high', message: 'eval() usage detected - potential code injection', file: 'test.ts', line: 2, suggestion: 'Use safer alternatives like JSON.parse()' },
-        { id: '3', type: 'vulnerability', severity: 'medium', message: 'Unvalidated external URL in fetch call', file: 'test.ts', line: 3, suggestion: 'Validate URLs against an allowlist' },
-      ])
+      setScanResults([])
     }
     setIsScanning(false)
   }
@@ -118,7 +151,12 @@ export function SecurityView() {
       await fetch('/api/security', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add-secret', name: newSecretName, value: newSecretValue, environment: newSecretEnv }),
+        body: JSON.stringify({
+          action: 'set-secret',
+          name: newSecretName,
+          value: newSecretValue,
+          scope: environmentToScope(newSecretEnv),
+        }),
       })
       setNewSecretName('')
       setNewSecretValue('')
@@ -131,7 +169,7 @@ export function SecurityView() {
       await fetch('/api/security', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'remove-secret', name }),
+        body: JSON.stringify({ action: 'delete-secret', name }),
       })
       await fetchSecrets()
     } catch { /* noop */ }
@@ -143,7 +181,7 @@ export function SecurityView() {
       await fetch('/api/security', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'set-policy', policyId }),
+        body: JSON.stringify({ action: 'set-policy', level: policyId }),
       })
     } catch { /* noop */ }
   }

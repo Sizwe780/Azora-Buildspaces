@@ -6,6 +6,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Tailwind CLI output (built from app/globals.css)
+app/tailwind-output.css
+
 # Next.js
 .next/
 out/
@@ -51,6 +54,7 @@ logs/
 # Misc
 .vercel
 .cache
+.data/
 tmp/
 temp/
 

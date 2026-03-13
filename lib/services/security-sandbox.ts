@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto'
+import { SecurityLayer } from './security-layer'
+
 /**
  * Security & Sandboxing Service (Task 16)
  * 
@@ -191,6 +194,7 @@ class SecurityService {
   private secrets: Map<string, SecretEntry & { value: string }> = new Map()
   private auditLog: AuditLogEntry[] = []
   private scanResults: SecurityScanResult[] = []
+  private crypto = SecurityLayer.getInstance()
 
   constructor() {
     this.activePolicy = {
@@ -215,8 +219,9 @@ class SecurityService {
   // Secrets management
   setSecret(name: string, value: string, scope: SecretEntry['scope'] = 'workspace'): SecretEntry {
     const id = `secret-${name}-${Date.now()}`
+    const encryptedValue = this.crypto.encrypt(value)
     const entry = {
-      id, name, value,
+      id, name, value: encryptedValue,
       encrypted: true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -232,7 +237,12 @@ class SecurityService {
     const entry = this.secrets.get(name)
     if (!entry) return null
     this.audit('system', 'secret.accessed', name, {})
-    return entry.value
+    try {
+      return this.crypto.decrypt(entry.value)
+    } catch {
+      this.audit('system', 'secret.decrypt_failed', name, {})
+      return null
+    }
   }
 
   listSecrets(): SecretEntry[] {
@@ -264,7 +274,7 @@ class SecurityService {
         for (const match of matches) {
           const line = file.content.substring(0, match.index).split('\n').length
           findings.push({
-            id: `finding-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            id: `finding-${randomUUID()}`,
             severity: 'critical',
             type: 'secret-leak',
             title,
@@ -316,7 +326,7 @@ class SecurityService {
   // Audit logging
   audit(userId: string, action: string, resource: string, details: Record<string, any>): void {
     this.auditLog.push({
-      id: `audit-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      id: `audit-${randomUUID()}`,
       timestamp: Date.now(),
       userId,
       action,
@@ -335,6 +345,56 @@ class SecurityService {
 
   getAuditLog(limit = 100): AuditLogEntry[] {
     return this.auditLog.slice(-limit)
+  }
+
+  getAvailablePolicies(): { name: string; level: SecurityLevel }[] {
+    return SECURITY_POLICIES.map((policy) => ({ name: policy.name, level: policy.level }))
+  }
+
+  getLastScanResults(limit = 10): SecurityScanResult[] {
+    return this.getRecentScans(limit)
+  }
+
+  addSecret(name: string, value: string, scope: SecretEntry['scope'] = 'workspace'): SecretEntry {
+    return this.setSecret(name, value, scope)
+  }
+
+  removeSecret(name: string): boolean {
+    return this.deleteSecret(name)
+  }
+
+  checkNetworkAccess(url: string): boolean {
+    try {
+      const parsed = new URL(url)
+      const domain = parsed.hostname
+      const port = parsed.port ? parseInt(parsed.port, 10) : (parsed.protocol === 'https:' ? 443 : 80)
+
+      if (!this.activePolicy.networkPolicy.allowOutbound) return false
+      if (this.activePolicy.networkPolicy.blockedPorts.includes(port)) return false
+      if (this.activePolicy.networkPolicy.allowedPorts.length > 0 && !this.activePolicy.networkPolicy.allowedPorts.includes(port)) return false
+
+      if (this.activePolicy.blockedDomains.some((blocked) => this.matchesDomain(domain, blocked))) return false
+      if (
+        this.activePolicy.allowedDomains.length > 0 &&
+        !this.activePolicy.allowedDomains.includes('*') &&
+        !this.activePolicy.allowedDomains.some((allowed) => this.matchesDomain(domain, allowed))
+      ) {
+        return false
+      }
+
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private matchesDomain(domain: string, pattern: string): boolean {
+    if (pattern === '*') return true
+    if (pattern.startsWith('*.')) {
+      const suffix = pattern.slice(2)
+      return domain === suffix || domain.endsWith(`.${suffix}`)
+    }
+    return domain === pattern
   }
 }
 

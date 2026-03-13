@@ -25,12 +25,14 @@ import { GripVertical, GripHorizontal } from 'lucide-react'
 interface WorkbenchLayoutProps {
   /** Left sidebar content (file explorer) */
   sidebarContent: React.ReactNode
-  /** Main editor area content */
+  /** Main editor area content - can be a single editor or editor groups */
   editorContent: React.ReactNode
   /** Bottom panel content (terminal, output, etc.) */
   panelContent?: React.ReactNode
   /** Right agent rail content (AI assistant) */
   agentRailContent?: React.ReactNode
+  /** Editor layout mode: 'single', 'horizontal-split', 'vertical-split', 'grid-2x2' */
+  editorLayout?: 'single' | 'horizontal-split' | 'vertical-split' | 'grid-2x2'
 }
 
 export function WorkbenchLayout({
@@ -38,11 +40,87 @@ export function WorkbenchLayout({
   editorContent,
   panelContent,
   agentRailContent,
+  editorLayout = 'single',
 }: WorkbenchLayoutProps) {
   const { layoutPreferences } = useWorkspace()
 
+  // Render editor content based on layout mode
+  const renderEditorContent = () => {
+    switch (editorLayout) {
+      case 'horizontal-split':
+        return (
+          <PanelGroup direction="vertical">
+            <Panel defaultSize={50} minSize={20}>
+              {editorContent}
+            </Panel>
+            <ResizeHandle direction="horizontal" />
+            <Panel defaultSize={50} minSize={20}>
+              {/* Second editor group would go here */}
+              <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-gray-500">
+                Second Editor Group
+              </div>
+            </Panel>
+          </PanelGroup>
+        )
+
+      case 'vertical-split':
+        return (
+          <PanelGroup direction="horizontal">
+            <Panel defaultSize={50} minSize={20}>
+              {editorContent}
+            </Panel>
+            <ResizeHandle direction="vertical" />
+            <Panel defaultSize={50} minSize={20}>
+              {/* Second editor group would go here */}
+              <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-gray-500">
+                Second Editor Group
+              </div>
+            </Panel>
+          </PanelGroup>
+        )
+
+      case 'grid-2x2':
+        return (
+          <PanelGroup direction="vertical">
+            <Panel defaultSize={50} minSize={20}>
+              <PanelGroup direction="horizontal">
+                <Panel defaultSize={50} minSize={20}>
+                  {editorContent}
+                </Panel>
+                <ResizeHandle direction="vertical" />
+                <Panel defaultSize={50} minSize={20}>
+                  <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-gray-500">
+                    Top-Right Editor
+                  </div>
+                </Panel>
+              </PanelGroup>
+            </Panel>
+            <ResizeHandle direction="horizontal" />
+            <Panel defaultSize={50} minSize={20}>
+              <PanelGroup direction="horizontal">
+                <Panel defaultSize={50} minSize={20}>
+                  <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-gray-500">
+                    Bottom-Left Editor
+                  </div>
+                </Panel>
+                <ResizeHandle direction="vertical" />
+                <Panel defaultSize={50} minSize={20}>
+                  <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-gray-500">
+                    Bottom-Right Editor
+                  </div>
+                </Panel>
+              </PanelGroup>
+            </Panel>
+          </PanelGroup>
+        )
+
+      default:
+        return editorContent
+    }
+  }
+
   return (
-    <div className="h-full w-full bg-[#1e1e1e]">
+    <div className="h-full w-full bg-[var(--ide-editor-bg)]">
       <PanelGroup direction="horizontal" className="h-full">
         {/* Sidebar (File Explorer) */}
         {layoutPreferences.sidebarVisible && (
@@ -51,7 +129,7 @@ export function WorkbenchLayout({
               defaultSize={20}
               minSize={15}
               maxSize={35}
-              className="bg-[#252526] border-r border-[#3e3e42]"
+              className="bg-[var(--ide-sidebar-bg)] border-r border-[var(--ide-border)]"
             >
               {sidebarContent}
             </Panel>
@@ -64,14 +142,14 @@ export function WorkbenchLayout({
           <PanelGroup direction="vertical">
             {/* Editor */}
             <Panel defaultSize={layoutPreferences.panelVisible ? 70 : 100} minSize={30}>
-              <div className="h-full w-full bg-[#1e1e1e]">{editorContent}</div>
+              {renderEditorContent()}
             </Panel>
 
             {/* Bottom Panel (Terminal/Output) */}
             {layoutPreferences.panelVisible && panelContent && (
               <>
                 <ResizeHandle direction="horizontal" />
-                <Panel defaultSize={30} minSize={10} maxSize={50} className="bg-[#1e1e1e]">
+                <Panel defaultSize={30} minSize={10} maxSize={50} className="bg-[var(--ide-editor-bg)]">
                   {panelContent}
                 </Panel>
               </>
@@ -87,7 +165,7 @@ export function WorkbenchLayout({
               defaultSize={20}
               minSize={15}
               maxSize={35}
-              className="bg-[#252526] border-l border-[#3e3e42]"
+              className="bg-[var(--ide-sidebar-bg)] border-l border-[var(--ide-border)]"
             >
               {agentRailContent}
             </Panel>
@@ -107,9 +185,9 @@ function ResizeHandle({ direction }: { direction: 'horizontal' | 'vertical' }) {
     <PanelResizeHandle
       className={`group relative ${
         direction === 'vertical'
-          ? 'w-1 hover:w-2 transition-all'
-          : 'h-1 hover:h-2 transition-all'
-      } bg-[#3e3e42] hover:bg-emerald-500/50 flex items-center justify-center`}
+          ? 'w-[1px] hover:w-[3px] active:w-[3px] transition-all duration-150'
+          : 'h-[1px] hover:h-[3px] active:h-[3px] transition-all duration-150'
+      } bg-[var(--ide-border)]/50 hover:bg-[var(--ide-tab-active-indicator)] active:bg-[var(--ide-tab-active-indicator)] flex items-center justify-center`}
     >
       <div
         className={`absolute ${

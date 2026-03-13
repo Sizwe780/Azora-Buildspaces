@@ -24,7 +24,6 @@ import {
   type AgentSignalPayload,
 } from '@/lib/agent-bridge'
 import { useWorkspaceStore } from '@/lib/stores/workspace-store'
-import { logConstitutionalCheck } from '@/lib/constitutional-guard'
 
 export interface UseAgentOptions {
   /** Automatically include active file in payload */

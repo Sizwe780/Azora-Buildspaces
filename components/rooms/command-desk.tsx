@@ -288,7 +288,7 @@ function getOutputLineClass(line: string): string {
 }
 
 /* ───────── message bubble ───────── */
-function MessageBubble({ message, onRate }: { message: Message; onRate: (id: string, rating: "up" | "down") => void }) {
+function MessageBubble({ message, onRate, onRegenerate }: { message: Message; onRate: (id: string, rating: "up" | "down") => void; onRegenerate?: (id: string) => void }) {
   const isUser = message.role === "user"
   const { text, codeBlocks } = parseMessageContent(message.content)
   const [showActions, setShowActions] = useState(false)
@@ -393,6 +393,7 @@ function MessageBubble({ message, onRate }: { message: Message; onRate: (id: str
                     variant="ghost"
                     size="sm"
                     className="h-7 px-2 text-xs text-zinc-500 hover:text-zinc-200"
+                    onClick={() => onRegenerate?.(message.id)}
                   >
                     <RotateCcw className="w-3 h-3 mr-1" />
                     Regenerate
@@ -432,8 +433,16 @@ export function CommandDesk() {
   const [showModelPicker, setShowModelPicker] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  // Pinned commands (upgrade 1)
-  const [pinnedCommands, setPinnedCommands] = useState<Set<string>>(new Set())
+  // Pinned commands (upgrade 1) — persist to localStorage
+  const [pinnedCommands, setPinnedCommands] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('azora-pinned-commands')
+        return saved ? new Set(JSON.parse(saved)) : new Set()
+      } catch { return new Set() }
+    }
+    return new Set()
+  })
   // Command history (upgrade 2)
   const [commandHistory, setCommandHistory] = useState<CommandHistoryItem[]>([])
   const [historySearch, setHistorySearch] = useState("")
@@ -443,6 +452,7 @@ export function CommandDesk() {
   const [deployToast, setDeployToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -461,13 +471,18 @@ export function CommandDesk() {
   useEffect(() => {
     async function initSession() {
       try {
-        const res = await fetch("/api/chat/sessions", { method: "POST" })
+        const res = await fetch("/api/chat/sessions", { method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ aiPersona: "elara" }),
+        })
         if (!res.ok) throw new Error("Failed to create session")
-        const session = await res.json()
-        setSessionId(session.id)
-        setExecutionId(session.id)
+        const data = await res.json()
+        // API returns { session: { id, ... } }
+        const sessionId_ = data.session?.id ?? data.id ?? `local-${Date.now()}`
+        setSessionId(sessionId_)
+        setExecutionId(sessionId_)
 
-        const msgRes = await fetch(`/api/chat/sessions/${session.id}/messages`)
+        const msgRes = await fetch(`/api/chat/sessions/${sessionId_}/messages`)
         if (msgRes.ok) {
           const history = await msgRes.json()
           setMessages(
@@ -628,6 +643,7 @@ export function CommandDesk() {
           executionId: execId,
           projectId: (typeof window !== 'undefined' && localStorage.getItem('citadel-active-project')) || 'default',
         }),
+        signal: abortControllerRef.current?.signal,
       })
 
       if (!res.ok || !res.body) throw new Error("Streaming failed")
@@ -758,18 +774,51 @@ export function CommandDesk() {
   }
 
   const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
     setIsLoading(false)
     setIsStreaming(false)
   }
+
+  const handleRegenerate = (messageId: string) => {
+    // Find the last user message before this assistant response, re-send it
+    const idx = messages.findIndex(m => m.id === messageId)
+    if (idx < 0) return
+    // Remove the assistant message and find the preceding user message
+    const preceding = messages.slice(0, idx).reverse().find(m => m.role === 'user')
+    if (preceding) {
+      setMessages(prev => prev.filter(m => m.id !== messageId))
+      setInput(preceding.content)
+      // Auto-submit after a tick
+      setTimeout(() => {
+        const form = document.querySelector('[data-command-desk-form]') as HTMLFormElement
+        form?.requestSubmit()
+      }, 100)
+    }
+  }
+
+  // Persist pinned commands
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('azora-pinned-commands', JSON.stringify([...pinnedCommands]))
+    }
+  }, [pinnedCommands])
 
   // Deploy handler (upgrade 5)
   const handleDeploy = async () => {
     setIsDeploying(true)
     try {
-      const res = await fetch("/api/deploy/trigger", {
+      const res = await fetch("/api/deploy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ environment: "production" }),
+        body: JSON.stringify({
+          action: "deploy",
+          projectName: "command-desk",
+          environment: "development",
+          buildType: "preview",
+        }),
       })
       if (!res.ok) throw new Error("Deploy failed")
       setDeployToast({ message: "Deployment triggered! ✓", type: "success" })
@@ -1166,7 +1215,7 @@ export function CommandDesk() {
             /* ── Messages ── */
             <div className="py-4">
               {messages.map((message) => (
-                <MessageBubble key={message.id} message={message} onRate={handleRate} />
+                <MessageBubble key={message.id} message={message} onRate={handleRate} onRegenerate={handleRegenerate} />
               ))}
 
               {isLoading && <ThinkingIndicator agent={selectedModel.name} />}

@@ -16,6 +16,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ requests: livePreview.getNetworkRequests() })
     case 'metrics':
       return NextResponse.json({ metrics: livePreview.getMetrics() })
+    case 'performance':
+      return NextResponse.json({ metrics: livePreview.getPerformanceMetrics() })
+    case 'status': {
+      const id = searchParams.get('id')
+      if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+      const status = await livePreview.getStatus(id)
+      return NextResponse.json({ status })
+    }
     case 'preview': {
       const id = searchParams.get('id')
       if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
@@ -37,10 +45,27 @@ export async function POST(request: NextRequest) {
         const preview = livePreview.createPreview({ url, viewport })
         return NextResponse.json({ preview })
       }
+      case 'start': {
+        const { url, viewport, mode } = body
+        const preview = livePreview.startPreview({ url, viewport, mode })
+        return NextResponse.json({ preview })
+      }
       case 'close': {
         const { id } = body
         if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
         livePreview.closePreview(id)
+        return NextResponse.json({ success: true })
+      }
+      case 'stop': {
+        const { id } = body
+        if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+        livePreview.stopPreview(id)
+        return NextResponse.json({ success: true })
+      }
+      case 'refresh': {
+        const { id } = body
+        if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+        livePreview.refreshPreview(id)
         return NextResponse.json({ success: true })
       }
       case 'close-all':
@@ -49,6 +74,16 @@ export async function POST(request: NextRequest) {
       case 'set-viewport': {
         const { previewId, viewport } = body
         livePreview.setViewport(previewId, viewport)
+        return NextResponse.json({ success: true })
+      }
+      case 'set-device': {
+        const { previewId, deviceName } = body
+        livePreview.setDevice(previewId, deviceName)
+        return NextResponse.json({ success: true })
+      }
+      case 'set-url': {
+        const { previewId, url } = body
+        livePreview.setUrl(previewId, url)
         return NextResponse.json({ success: true })
       }
       case 'clear-console':

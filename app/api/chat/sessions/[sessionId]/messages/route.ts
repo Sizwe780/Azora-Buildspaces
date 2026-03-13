@@ -17,23 +17,20 @@ export async function GET(
   try {
     const { sessionId } = await params
 
-    // For now, return BuildSpaceExecution records as messages
-    // Since ChatSession model doesn't exist in schema
     const executions = await prisma.buildSpaceExecution.findMany({
       where: {
-        specId: sessionId, // Using specId as sessionId for now
+        specId: sessionId,
       },
       orderBy: { createdAt: 'asc' },
     })
 
-    // Format executions as chat messages
-    // Note: User messages are stored with agentName='user' (not the target agent name)
-    // This is a limitation of using BuildSpaceExecution for chat storage
-    // Consider adding proper ChatSession/ChatMessage models in the future [Target: Q1 2026]
     const messages = executions.map((exec: any) => {
-      // User messages have input, assistant messages have output
       const isUserMessage = exec.agentName === AGENT_ROLE_USER;
-      const content = isUserMessage ? exec.input : (exec.output || '');
+      const inputPayload = typeof exec.input === 'string' ? { content: exec.input } : exec.input
+      const outputPayload = typeof exec.output === 'string' ? { content: exec.output } : exec.output
+      const content = isUserMessage
+        ? (inputPayload?.content || '')
+        : (outputPayload?.content || '')
       
       return {
         id: exec.id,
@@ -99,8 +96,12 @@ export async function POST(
         specId: sessionId,
         agentName: role === AGENT_ROLE_USER ? AGENT_ROLE_USER : (metadata?.agent || 'Elara'),
         status: role === AGENT_ROLE_USER ? 'pending' : 'complete',
-        input: role === AGENT_ROLE_USER ? content : '',
-        output: role === AGENT_ROLE_ASSISTANT ? content : null,
+        input: role === AGENT_ROLE_USER
+          ? { content, role, metadata: metadata || null, createdAt: new Date().toISOString() }
+          : { content: '', role, metadata: metadata || null, createdAt: new Date().toISOString() },
+        output: role === AGENT_ROLE_ASSISTANT
+          ? { content, role, metadata: metadata || null, createdAt: new Date().toISOString() }
+          : null,
         tokensUsed: metadata?.tokensUsed || 0,
         startedAt: role === AGENT_ROLE_ASSISTANT ? new Date() : null,
         finishedAt: role === AGENT_ROLE_ASSISTANT ? new Date() : null,

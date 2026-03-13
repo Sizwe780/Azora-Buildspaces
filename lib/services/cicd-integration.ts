@@ -16,6 +16,8 @@
  * - Environment management
  */
 
+import { randomUUID } from 'crypto'
+
 export type CIProvider =
   | 'github-actions'
   | 'gitlab-ci'
@@ -286,6 +288,36 @@ class CICDService {
   private deployments: Map<string, DeploymentPreview> = new Map()
   private environments: Map<string, CICDEnvironment> = new Map()
 
+  private nextPipelineId(): string {
+    return `pipeline-${randomUUID()}`
+  }
+
+  private requiredPreviewEnv(provider: DeployProvider): string[] {
+    switch (provider) {
+      case 'vercel':
+        return ['VERCEL_TOKEN']
+      case 'netlify':
+        return ['NETLIFY_AUTH_TOKEN']
+      case 'cloudflare-pages':
+        return ['CLOUDFLARE_API_TOKEN']
+      case 'aws-amplify':
+        return ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']
+      case 'firebase-hosting':
+        return ['FIREBASE_TOKEN']
+      case 'fly-io':
+        return ['FLY_API_TOKEN']
+      case 'railway':
+        return ['RAILWAY_TOKEN']
+      case 'render':
+        return ['RENDER_API_KEY']
+      case 'docker':
+      case 'kubernetes':
+        return []
+      default:
+        return []
+    }
+  }
+
   // Templates
   getTemplates(provider?: CIProvider, language?: string): CIConfigTemplate[] {
     let templates = [...CI_TEMPLATES]
@@ -309,11 +341,11 @@ class CICDService {
 
   /**
    * convenience helper used by API route to create a bare pipeline from
-   * name/provider/config. Internally we just generate a pipeline entry with
-   * placeholder values and store it.
+   * name/provider/config.
    */
   async createPipeline(name: string, provider: CIProvider, config: any): Promise<Pipeline> {
-    const id = `pipeline-${Date.now()}`
+    void config
+    const id = this.nextPipelineId()
     const pipeline: Pipeline = {
       id,
       name,
@@ -337,28 +369,15 @@ class CICDService {
    * updates its branch. Used by API when triggering by id.
    */
   async runPipeline(pipelineId: string, branch: string): Promise<Pipeline> {
-    let pipeline = this.pipelines.get(pipelineId)
+    const pipeline = this.pipelines.get(pipelineId)
     if (!pipeline) {
-      // create a placeholder if missing
-      pipeline = {
-        id: pipelineId,
-        name: pipelineId,
-        provider: 'custom',
-        status: 'running',
-        branch,
-        commit: '',
-        commitMessage: '',
-        author: '',
-        trigger: 'manual',
-        startedAt: Date.now(),
-        stages: [],
-        artifacts: [],
-      }
-    } else {
-      pipeline.status = 'running'
-      pipeline.branch = branch
-      pipeline.startedAt = Date.now()
+      throw new Error(`Pipeline not found: ${pipelineId}`)
     }
+
+    pipeline.status = 'running'
+    pipeline.branch = branch
+    pipeline.startedAt = Date.now()
+
     this.pipelines.set(pipelineId, pipeline)
     return pipeline
   }
@@ -396,7 +415,7 @@ class CICDService {
     trigger: Pipeline['trigger']
     stages: { name: string; jobs: { name: string; steps: { name: string; command?: string }[] }[] }[]
   }): Promise<Pipeline> {
-    const id = `pipeline-${Date.now()}`
+    const id = this.nextPipelineId()
     const pipeline: Pipeline = {
       id,
       name: options.name,
@@ -472,10 +491,9 @@ class CICDService {
 
     this.deployments.set(id, preview)
 
-    // Simulate build
-    setTimeout(() => {
-      preview.status = 'ready'
-    }, 5000)
+    const required = this.requiredPreviewEnv(options.provider)
+    const missing = required.filter((key) => !process.env[key])
+    preview.status = missing.length === 0 ? 'ready' : 'failed'
 
     return preview
   }

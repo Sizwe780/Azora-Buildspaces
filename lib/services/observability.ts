@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto'
+import os from 'node:os'
+
 // ═══════════════════════════════════════════════════════════════════════
 // TASK 22: OBSERVABILITY & MONITORING SERVICE
 // ═══════════════════════════════════════════════════════════════════════
@@ -100,6 +103,7 @@ class ObservabilityService {
   private logs: LogEntry[] = []
   private traces = new Map<string, Trace>()
   private alerts = new Map<string, Alert>()
+  private metricHistory = new Map<string, number[]>()
   private maxLogs = 10000
   private maxTraces = 1000
 
@@ -152,7 +156,7 @@ class ObservabilityService {
   // ─── Logging ────────────────────────────────────────────────
   log(level: LogLevel, message: string, service: string, metadata: Record<string, any> = {}, traceId?: string): LogEntry {
     const entry: LogEntry = {
-      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      id: `log-${randomUUID()}`,
       level,
       message,
       timestamp: Date.now(),
@@ -188,7 +192,7 @@ class ObservabilityService {
   // ─── Tracing ────────────────────────────────────────────────
   startTrace(name: string, service: string, metadata: Record<string, any> = {}): Trace {
     const trace: Trace = {
-      id: `trace-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`,
+      id: `trace-${randomUUID()}`,
       name,
       service,
       startTime: Date.now(),
@@ -221,7 +225,7 @@ class ObservabilityService {
 
     const fullSpan: Span = {
       ...span,
-      id: `span-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      id: `span-${randomUUID()}`,
       traceId,
     }
     trace.spans.push(fullSpan)
@@ -241,7 +245,7 @@ class ObservabilityService {
   // ─── Alerts ─────────────────────────────────────────────────
   createAlert(name: string, message: string, severity: AlertSeverity, service: string, metadata: Record<string, any> = {}): Alert {
     const alert: Alert = {
-      id: `alert-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      id: `alert-${randomUUID()}`,
       name,
       severity,
       message,
@@ -284,30 +288,128 @@ class ObservabilityService {
   // ─── Dashboard ──────────────────────────────────────────────
   getDashboard(): ObservabilityDashboard {
     const services = this.getAllServices()
-    const now = Date.now()
 
-    const generateSparkline = () =>
-      Array.from({ length: 20 }, () => Math.floor(Math.random() * 100))
+    const oneMinuteAgo = Date.now() - 60_000
+    const fiveMinutesAgo = Date.now() - 5 * 60_000
+    const recentLogs = this.logs.filter((entry) => entry.timestamp >= oneMinuteAgo)
+    const recentLogs5m = this.logs.filter((entry) => entry.timestamp >= fiveMinutesAgo)
+
+    const requestsPerMinute = recentLogs.length
+    const latencySamples = recentLogs
+      .map((entry) => Number(entry.metadata?.latencyMs))
+      .filter((value) => Number.isFinite(value) && value >= 0)
+    const avgLatency = latencySamples.length
+      ? Math.round(latencySamples.reduce((sum, value) => sum + value, 0) / latencySamples.length)
+      : Math.round(
+          services.reduce((sum, service) => sum + service.latency, 0) / Math.max(1, services.length)
+        )
+
+    const errorLogs = recentLogs.filter((entry) => entry.level === 'error' || entry.level === 'fatal')
+    const errorRate = requestsPerMinute > 0
+      ? Number(((errorLogs.length / requestsPerMinute) * 100).toFixed(2))
+      : 0
+
+    const activeUsers = new Set(
+      recentLogs5m
+        .map((entry) => entry.metadata?.userId)
+        .filter((userId) => typeof userId === 'string' && userId.length > 0)
+    ).size
+
+    const activeSpans = this.getRecentTraces(50)
+      .flatMap((trace) => trace.spans)
+      .filter((span) => span.endTime >= fiveMinutesAgo)
+    const recentCpuSpans = activeSpans
+      .map((span) => Number(span.attributes?.cpuPercent))
+      .filter((value) => Number.isFinite(value) && value >= 0)
+
+    const loadAvg = os.loadavg()[0]
+    const cpuFromLoad = Math.round((loadAvg / Math.max(1, os.cpus().length)) * 100)
+    const cpuUsage = Math.max(0, Math.min(100, recentCpuSpans[recentCpuSpans.length - 1] ?? cpuFromLoad))
+
+    const memoryUsage = process.memoryUsage()
+    const totalMem = os.totalmem()
+    const memoryPercent = totalMem > 0 ? Math.round((memoryUsage.rss / totalMem) * 100) : 0
+
+    const networkIn = recentLogs5m.reduce((sum, entry) => sum + Number(entry.metadata?.bytesIn || 0), 0)
+    const networkOut = recentLogs5m.reduce((sum, entry) => sum + Number(entry.metadata?.bytesOut || 0), 0)
+
+    const traceDurations = this.getRecentTraces(20)
+      .map((trace) => trace.duration)
+      .filter((duration): duration is number => typeof duration === 'number' && duration >= 0)
+    const trend = (current: number, previous: number) => {
+      if (current > previous) return 'up' as const
+      if (current < previous) return 'down' as const
+      return 'stable' as const
+    }
+
+    const previousRequests = this.peekPreviousMetric('Requests/min')
+    const previousLatency = this.peekPreviousMetric('Avg Latency')
+    const previousErrorRate = this.peekPreviousMetric('Error Rate')
+    const previousUsers = this.peekPreviousMetric('Active Users')
+    const previousCpu = this.peekPreviousMetric('CPU Usage')
+    const previousMemory = this.peekPreviousMetric('Memory')
 
     return {
       overallHealth: this.getOverallHealth(),
       services,
       activeAlerts: this.getActiveAlerts(),
       metrics: [
-        { name: 'Requests/min', value: 342, unit: 'req/min', trend: 'up', change: 12, sparkline: generateSparkline() },
-        { name: 'Avg Latency', value: 45, unit: 'ms', trend: 'down', change: -8, sparkline: generateSparkline() },
-        { name: 'Error Rate', value: 0.3, unit: '%', trend: 'stable', change: 0, sparkline: generateSparkline() },
-        { name: 'Active Users', value: 128, unit: 'users', trend: 'up', change: 5, sparkline: generateSparkline() },
-        { name: 'CPU Usage', value: 42, unit: '%', trend: 'stable', change: 2, sparkline: generateSparkline() },
-        { name: 'Memory', value: 68, unit: '%', trend: 'up', change: 3, sparkline: generateSparkline() },
+        {
+          name: 'Requests/min',
+          value: requestsPerMinute,
+          unit: 'req/min',
+          trend: trend(requestsPerMinute, previousRequests),
+          change: this.percentDelta(requestsPerMinute, previousRequests),
+          sparkline: this.recordMetric('Requests/min', requestsPerMinute),
+        },
+        {
+          name: 'Avg Latency',
+          value: avgLatency,
+          unit: 'ms',
+          trend: trend(avgLatency, previousLatency),
+          change: this.percentDelta(avgLatency, previousLatency),
+          sparkline: this.recordMetric('Avg Latency', avgLatency),
+        },
+        {
+          name: 'Error Rate',
+          value: errorRate,
+          unit: '%',
+          trend: trend(errorRate, previousErrorRate),
+          change: this.percentDelta(errorRate, previousErrorRate),
+          sparkline: this.recordMetric('Error Rate', errorRate),
+        },
+        {
+          name: 'Active Users',
+          value: activeUsers,
+          unit: 'users',
+          trend: trend(activeUsers, previousUsers),
+          change: this.percentDelta(activeUsers, previousUsers),
+          sparkline: this.recordMetric('Active Users', activeUsers),
+        },
+        {
+          name: 'CPU Usage',
+          value: cpuUsage,
+          unit: '%',
+          trend: trend(cpuUsage, previousCpu),
+          change: this.percentDelta(cpuUsage, previousCpu),
+          sparkline: this.recordMetric('CPU Usage', cpuUsage),
+        },
+        {
+          name: 'Memory',
+          value: memoryPercent,
+          unit: '%',
+          trend: trend(memoryPercent, previousMemory),
+          change: this.percentDelta(memoryPercent, previousMemory),
+          sparkline: this.recordMetric('Memory', memoryPercent),
+        },
       ],
       recentLogs: this.getLogs({ limit: 20 }),
       recentTraces: this.getRecentTraces(10),
       resourceUsage: {
-        cpu: 42 + Math.floor(Math.random() * 10),
-        memory: 68 + Math.floor(Math.random() * 8),
-        disk: 35 + Math.floor(Math.random() * 5),
-        network: { in: 1250 + Math.floor(Math.random() * 200), out: 890 + Math.floor(Math.random() * 150) },
+        cpu: cpuUsage,
+        memory: memoryPercent,
+        disk: 0,
+        network: { in: networkIn, out: networkOut },
       },
     }
   }
@@ -326,18 +428,59 @@ class ObservabilityService {
   }
 
   private startHealthChecks(): void {
-    // Simulate periodic health checks
     setInterval(() => {
       for (const service of this.services.values()) {
-        service.latency = Math.floor(Math.random() * 50) + 5
+        const dependencyStatuses = service.dependencies
+          .map((dependencyName) => this.services.get(dependencyName)?.status)
+          .filter((status): status is HealthStatus => typeof status === 'string')
+
+        if (dependencyStatuses.some((status) => status === 'unhealthy')) {
+          service.status = 'degraded'
+        } else if (dependencyStatuses.some((status) => status === 'degraded')) {
+          service.status = 'degraded'
+        } else if (service.status === 'unhealthy') {
+          service.status = 'degraded'
+        } else {
+          service.status = 'healthy'
+        }
+
+        const recentLatencySamples = this.logs
+          .filter((entry) => entry.service === service.name && entry.timestamp >= Date.now() - 5 * 60_000)
+          .map((entry) => Number(entry.metadata?.latencyMs))
+          .filter((value) => Number.isFinite(value) && value >= 0)
+
+        if (recentLatencySamples.length > 0) {
+          service.latency = Math.round(
+            recentLatencySamples.reduce((sum, value) => sum + value, 0) / recentLatencySamples.length
+          )
+        }
+
+        const unresolvedCriticalAlerts = this.getActiveAlerts().filter(
+          (alert) => alert.service === service.name && alert.severity === 'critical'
+        ).length
+        service.uptime = unresolvedCriticalAlerts > 0 ? 99 : 100
         service.lastCheck = Date.now()
-        // Random degradation for simulation
-        const rand = Math.random()
-        if (rand > 0.98) service.status = 'unhealthy'
-        else if (rand > 0.93) service.status = 'degraded'
-        else service.status = 'healthy'
       }
     }, 10000)
+  }
+
+  private recordMetric(name: string, value: number): number[] {
+    const current = this.metricHistory.get(name) || []
+    current.push(value)
+    const normalized = current.slice(-20)
+    this.metricHistory.set(name, normalized)
+    return normalized
+  }
+
+  private peekPreviousMetric(name: string): number {
+    const current = this.metricHistory.get(name) || []
+    if (current.length === 0) return 0
+    return current[current.length - 1]
+  }
+
+  private percentDelta(current: number, previous: number): number {
+    if (previous === 0) return current === 0 ? 0 : 100
+    return Math.round(((current - previous) / Math.abs(previous)) * 100)
   }
 }
 

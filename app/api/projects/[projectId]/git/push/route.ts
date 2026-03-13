@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 // POST /api/projects/[projectId]/git/push
 export async function POST(request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Perform git push (may fail if no remote is configured)
     const projectPath = process.cwd()
     try {
-      const { stdout, stderr } = await execAsync('git push --all --no-verify', { cwd: projectPath })
+      const { stdout, stderr } = await execFileAsync('git', ['push', '--all', '--no-verify'], { cwd: projectPath })
       return NextResponse.json({ success: true, stdout, stderr, message: 'Push attempted' })
     } catch (e: any) {
       // Return error details to the caller

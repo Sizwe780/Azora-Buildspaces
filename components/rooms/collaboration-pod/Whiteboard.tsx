@@ -8,11 +8,12 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Pen, Eraser, Square, Circle, Type, Undo, Redo, Download, Upload, Users, Palette, Minus, Plus } from "lucide-react";
 import * as Y from "yjs";
-import { WebsocketProvider } from "y-websocket";
+// Dynamic import for browser-only module
+const getWebsocketProvider = () => import("y-websocket").then(m => m.WebsocketProvider);
 
 interface WhiteboardProps {
     ydoc: Y.Doc;
-    provider: WebsocketProvider;
+    provider: any;
 }
 
 interface Path {
@@ -30,8 +31,44 @@ export default function Whiteboard({ ydoc, provider }: WhiteboardProps) {
     const [brushSize, setBrushSize] = useState([5]);
     const [isDrawing, setIsDrawing] = useState(false);
     const [collaborators, setCollaborators] = useState<any[]>([]);
+    const [undoStack, setUndoStack] = useState<Path[][]>([]);
+    const [redoStack, setRedoStack] = useState<Path[][]>([]);
 
     const sharedPaths = ydoc.getArray<Path>("whiteboard-paths");
+
+    // Snapshot for undo
+    const takeSnapshot = () => {
+        setUndoStack(prev => [...prev.slice(-30), sharedPaths.toArray()]);
+        setRedoStack([]);
+    };
+
+    const undo = () => {
+        if (undoStack.length === 0) return;
+        const prev = undoStack[undoStack.length - 1];
+        setRedoStack(r => [...r, sharedPaths.toArray()]);
+        setUndoStack(u => u.slice(0, -1));
+        sharedPaths.delete(0, sharedPaths.length);
+        if (prev.length > 0) sharedPaths.push(prev);
+    };
+
+    const redo = () => {
+        if (redoStack.length === 0) return;
+        const next = redoStack[redoStack.length - 1];
+        setUndoStack(u => [...u, sharedPaths.toArray()]);
+        setRedoStack(r => r.slice(0, -1));
+        sharedPaths.delete(0, sharedPaths.length);
+        if (next.length > 0) sharedPaths.push(next);
+    };
+
+    const downloadCanvas = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const url = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `whiteboard-${new Date().toISOString().slice(0, 10)}.png`;
+        a.click();
+    };
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -43,16 +80,40 @@ export default function Whiteboard({ ydoc, provider }: WhiteboardProps) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             sharedPaths.forEach((path) => {
                 if (path.points.length < 2) return;
-                ctx.beginPath();
                 ctx.strokeStyle = path.tool === 'eraser' ? '#ffffff' : path.color;
                 ctx.lineWidth = path.size;
                 ctx.lineCap = "round";
                 ctx.lineJoin = "round";
-                ctx.moveTo(path.points[0].x, path.points[0].y);
-                for (let i = 1; i < path.points.length; i++) {
-                    ctx.lineTo(path.points[i].x, path.points[i].y);
+
+                const start = path.points[0];
+                const end = path.points[path.points.length - 1];
+
+                if (path.tool === 'rectangle') {
+                    ctx.beginPath();
+                    const w = end.x - start.x;
+                    const h = end.y - start.y;
+                    ctx.strokeRect(start.x, start.y, w, h);
+                } else if (path.tool === 'circle') {
+                    ctx.beginPath();
+                    const rx = Math.abs(end.x - start.x) / 2;
+                    const ry = Math.abs(end.y - start.y) / 2;
+                    const cx = (start.x + end.x) / 2;
+                    const cy = (start.y + end.y) / 2;
+                    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                } else if (path.tool === 'text') {
+                    ctx.font = `${Math.max(path.size * 3, 14)}px sans-serif`;
+                    ctx.fillStyle = path.color;
+                    ctx.fillText('Text', start.x, start.y);
+                } else {
+                    // pen / eraser — freehand polyline
+                    ctx.beginPath();
+                    ctx.moveTo(start.x, start.y);
+                    for (let i = 1; i < path.points.length; i++) {
+                        ctx.lineTo(path.points[i].x, path.points[i].y);
+                    }
+                    ctx.stroke();
                 }
-                ctx.stroke();
             });
         };
 
@@ -61,8 +122,8 @@ export default function Whiteboard({ ydoc, provider }: WhiteboardProps) {
 
         // Awareness for cursors
         provider.awareness.on("change", () => {
-            const states = Array.from(provider.awareness.getStates().entries());
-            setCollaborators(states.map(([id, state]: [number, any]) => ({
+            const states = Array.from(provider.awareness.getStates().entries()) as [number, any][];
+            setCollaborators(states.map(([id, state]) => ({
                 id,
                 name: state.user?.name || "Anonymous",
                 color: state.user?.color || "#3b82f6",
@@ -82,6 +143,7 @@ export default function Whiteboard({ ydoc, provider }: WhiteboardProps) {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
+        takeSnapshot(); // Snapshot for undo before drawing
         setIsDrawing(true);
         const newPath: Path = {
             id: Math.random().toString(36).substr(2, 9),
@@ -106,11 +168,17 @@ export default function Whiteboard({ ydoc, provider }: WhiteboardProps) {
         if (!isDrawing) return;
 
         const lastPath = sharedPaths.get(sharedPaths.length - 1);
-        if (lastPath) {
+        if (!lastPath) return;
+
+        if (tool === 'rectangle' || tool === 'circle') {
+            // For shapes, keep only start + current endpoint (live preview)
+            const start = lastPath.points[0];
+            const updated = { ...lastPath, points: [start, { x, y }] };
+            sharedPaths.delete(sharedPaths.length - 1);
+            sharedPaths.push([updated]);
+        } else {
+            // pen / eraser — accumulate points
             lastPath.points.push({ x, y });
-            // We need to re-push or update the array to trigger observation
-            // In Yjs, modifying an object inside an array doesn't always trigger observation
-            // So we replace the last element
             sharedPaths.delete(sharedPaths.length - 1);
             sharedPaths.push([lastPath]);
         }
@@ -119,6 +187,16 @@ export default function Whiteboard({ ydoc, provider }: WhiteboardProps) {
     const stopDrawing = () => {
         setIsDrawing(false);
     };
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [undo, redo]);
 
     const tools = [
         { id: 'pen', icon: Pen, label: 'Pen' },
@@ -204,16 +282,16 @@ export default function Whiteboard({ ydoc, provider }: WhiteboardProps) {
 
                 {/* Actions */}
                 <div className="flex gap-1 ml-auto">
-                    <Button variant="outline" size="sm" onClick={() => sharedPaths.delete(0, sharedPaths.length)}>
+                    <Button variant="outline" size="sm" onClick={() => { takeSnapshot(); sharedPaths.delete(0, sharedPaths.length); }}>
                         Clear
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={undo} disabled={undoStack.length === 0} title="Undo">
                         <Undo className="w-4 h-4" />
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={redo} disabled={redoStack.length === 0} title="Redo">
                         <Redo className="w-4 h-4" />
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={downloadCanvas} title="Download as PNG">
                         <Download className="w-4 h-4" />
                     </Button>
                 </div>

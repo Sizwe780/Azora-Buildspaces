@@ -16,13 +16,12 @@ import SlideEditor from "./SlideEditor";
 import LiveDemo from "./LiveDemo";
 import AudienceFeedback from "./AudienceFeedback";
 
-const SAMPLE_SLIDES = [
-    { id: 1, title: "Introduction", body: "Welcome to the Innovation Theater\n\nPresenting breakthrough ideas that reshape the future.", notes: "Start with a strong hook. Mention key stakeholders in the room. Target: 2 minutes." },
-    { id: 2, title: "The Problem", body: "Current State\n\n• 73% of teams lack real-time collaboration\n• Manual workflows cost 4hrs/day per person\n• Context-switching reduces productivity by 40%", notes: "Use the statistics to create urgency. Pause after each stat." },
-    { id: 3, title: "Our Solution", body: "Azora Buildspaces\n\nA unified workspace that brings every tool into one intelligent platform.", notes: "Emphasize the word 'unified'. Show demo after this slide." },
-    { id: 4, title: "Architecture", body: "Technical Overview\n\n┌─────────────────┐\n│   Elara AI Core │\n└────────┬────────┘\n         │\n  ┌──────┴──────┐\n  │  9 Rooms    │\n  └─────────────┘", notes: "Technical audience — go deeper here. Have diagram ready." },
-    { id: 5, title: "Roadmap", body: "What's Next\n\nQ1: Multi-agent workflows\nQ2: Enterprise SSO\nQ3: Mobile apps\nQ4: API marketplace", notes: "Keep this brief — 90 seconds max. Q&A will cover specifics." },
+// Default starter slide — user creates their own deck
+const DEFAULT_SLIDES = [
+    { id: "1", title: "Untitled Presentation", content: "Click to add content\n\nUse the slide editor to build your deck.", notes: "" },
 ];
+
+const SLIDE_STORAGE_KEY = 'azora-slide-deck';
 
 interface QaQuestion {
     id: number;
@@ -38,21 +37,87 @@ export default function InnovationTheater() {
     const [isMicOn, setIsMicOn] = useState(true);
     const [isVideoOn, setIsVideoOn] = useState(true);
     const [activeTab, setActiveTab] = useState("slides");
+    const [slides, setSlides] = useState(DEFAULT_SLIDES);
     const [currentSlide, setCurrentSlide] = useState(1);
-    const [totalSlides] = useState(SAMPLE_SLIDES.length);
+    const totalSlides = slides.length;
+
+    // Sync slides from SlideEditor's localStorage
+    useEffect(() => {
+        const loadSlides = () => {
+            try {
+                const saved = localStorage.getItem(SLIDE_STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].title) {
+                        setSlides(parsed);
+                        return;
+                    }
+                }
+            } catch { /* ignore */ }
+        };
+        loadSlides();
+        // Listen for slide updates from SlideEditor
+        const handler = () => loadSlides();
+        window.addEventListener('design:version-save', handler);
+        return () => window.removeEventListener('design:version-save', handler);
+    }, []);
     const [showNotes, setShowNotes] = useState(false);
     const [isTeleprompter, setIsTeleprompter] = useState(false);
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const [isTimerRunning, setIsTimerRunning] = useState(false);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recordedChunksRef = useRef<Blob[]>([]);
+    const [viewerCount, setViewerCount] = useState(0);
+    const [audienceChat, setAudienceChat] = useState<{ name: string; msg: string; time: string; avatar: string; color: string }[]>([]);
+    const [chatInput, setChatInput] = useState("");
 
-    const [qaQuestions, setQaQuestions] = useState<QaQuestion[]>([
-        { id: 1, question: "Can you explain the architecture diagram in more detail?", author: "Sarah Chen", votes: 5, answered: false },
-        { id: 2, question: "What's the performance impact of this implementation?", author: "Mike Ross", votes: 3, answered: false },
-        { id: 3, question: "Are there any security considerations?", author: "Jessica P", votes: 2, answered: true },
-    ]);
+    // Listen for real viewer count updates
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const { count } = (e as CustomEvent).detail || {};
+            if (typeof count === 'number') setViewerCount(count);
+        };
+        window.addEventListener('theater:viewer-count', handler);
+        return () => window.removeEventListener('theater:viewer-count', handler);
+    }, []);
 
-    const activeSlide = SAMPLE_SLIDES[currentSlide - 1];
+    // Listen for audience chat messages
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const { name, message, avatar, color } = (e as CustomEvent).detail || {};
+            if (message) {
+                setAudienceChat(prev => [...prev.slice(-50), {
+                    name: name || 'Anonymous',
+                    msg: message,
+                    time: 'now',
+                    avatar: avatar || (name?.[0] || 'A'),
+                    color: color || 'bg-blue-500',
+                }]);
+            }
+        };
+        window.addEventListener('theater:audience-comment', handler);
+        return () => window.removeEventListener('theater:audience-comment', handler);
+    }, []);
+
+    const sendChatMessage = () => {
+        if (!chatInput.trim()) return;
+        const msg = {
+            name: 'Presenter',
+            msg: chatInput,
+            time: 'now',
+            avatar: 'P',
+            color: 'bg-purple-500',
+        };
+        setAudienceChat(prev => [...prev, msg]);
+        window.dispatchEvent(new CustomEvent('theater:audience-comment', { detail: { name: 'Presenter', message: chatInput, avatar: 'P', color: 'bg-purple-500' } }));
+        setChatInput("");
+    };
+
+    // Q&A starts empty — audience submits questions during the live session
+    const [qaQuestions, setQaQuestions] = useState<QaQuestion[]>([]);
+
+    const activeSlide = slides[currentSlide - 1];
 
     // Presentation timer
     useEffect(() => {
@@ -76,6 +141,47 @@ export default function InnovationTheater() {
         setQaQuestions(prev => prev.map(q => q.id === id ? { ...q, answered: true } : q));
     };
 
+    // Real recording via MediaRecorder + getDisplayMedia
+    const toggleRecording = async () => {
+        if (isRecording) {
+            // Stop recording
+            mediaRecorderRef.current?.stop();
+            setIsRecording(false);
+        } else {
+            // Start recording
+            try {
+                const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                const recorder = new MediaRecorder(displayStream, { mimeType: 'video/webm;codecs=vp9' });
+                recordedChunksRef.current = [];
+
+                recorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+                };
+                recorder.onstop = () => {
+                    const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `presentation-${new Date().toISOString().slice(0, 10)}.webm`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    displayStream.getTracks().forEach(t => t.stop());
+                };
+                // Auto-stop when user stops sharing
+                displayStream.getVideoTracks()[0].addEventListener('ended', () => {
+                    recorder.stop();
+                    setIsRecording(false);
+                });
+
+                recorder.start(1000);
+                mediaRecorderRef.current = recorder;
+                setIsRecording(true);
+            } catch {
+                setIsRecording(false);
+            }
+        }
+    };
+
     return (
         <div className="h-full flex flex-col bg-slate-950 text-white">
             {/* Header */}
@@ -89,7 +195,7 @@ export default function InnovationTheater() {
                     {isRecording && <Badge className="bg-red-700 text-xs">REC</Badge>}
                     <div className="flex items-center gap-1.5 text-sm text-slate-400">
                         <Users className="w-4 h-4" />
-                        <span>124 viewers</span>
+                        <span>{viewerCount} viewer{viewerCount !== 1 ? 's' : ''}</span>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -114,7 +220,7 @@ export default function InnovationTheater() {
                         className={`h-8 w-8 p-0 ${!isVideoOn && "bg-red-600/20 text-red-400"}`}>
                         {isVideoOn ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
                     </Button>
-                    <Button variant={isRecording ? "destructive" : "outline"} size="sm" onClick={() => setIsRecording(!isRecording)} className="gap-1 text-xs">
+                    <Button variant={isRecording ? "destructive" : "outline"} size="sm" onClick={toggleRecording} className="gap-1 text-xs">
                         <Record className="w-3.5 h-3.5" />
                         {isRecording ? "Stop Rec" : "Record"}
                     </Button>
@@ -141,7 +247,7 @@ export default function InnovationTheater() {
                         </TabsList>
 
                         <TabsContent value="slides" className="flex-1 m-0 overflow-y-auto p-3 space-y-2">
-                            {SAMPLE_SLIDES.map((slide, i) => (
+                            {slides.map((slide, i) => (
                                 <button
                                     key={slide.id}
                                     onClick={() => goToSlide(i + 1)}
@@ -158,7 +264,7 @@ export default function InnovationTheater() {
                                         </span>
                                         <div>
                                             <div className="text-[10px] font-semibold text-white truncate">{slide.title}</div>
-                                            <div className="text-[8px] text-slate-500 line-clamp-2 mt-0.5">{slide.body.substring(0, 60)}</div>
+                                            <div className="text-[8px] text-slate-500 line-clamp-2 mt-0.5">{slide.content?.substring(0, 60)}</div>
                                         </div>
                                     </div>
                                 </button>
@@ -218,7 +324,7 @@ export default function InnovationTheater() {
                             {isStreaming && (
                                 <div className="flex items-center gap-2 text-red-400 text-xs font-medium mb-3">
                                     <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
-                                    LIVE — {124} viewers
+                                    LIVE — {viewerCount} viewer{viewerCount !== 1 ? 's' : ''}
                                 </div>
                             )}
                             {/* 16:9 slide */}
@@ -239,7 +345,7 @@ export default function InnovationTheater() {
                                         <div>
                                             <h2 className="text-4xl font-bold text-white mb-6">{activeSlide?.title}</h2>
                                             <pre className="text-lg text-slate-300 font-sans whitespace-pre-wrap leading-relaxed">
-                                                {activeSlide?.body}
+                                                {activeSlide?.content}
                                             </pre>
                                         </div>
                                         <div className="flex items-center justify-between">
@@ -311,26 +417,34 @@ export default function InnovationTheater() {
                         </h3>
                     </div>
                     <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                        {[
-                        { name: "Alex Johnson", msg: "Amazing demo! Can you show the API integration?", time: "2m", avatar: "A", color: "bg-blue-500" },
-                        { name: "Maria Santos", msg: "The performance metrics are impressive 🔥", time: "1m", avatar: "M", color: "bg-emerald-500" },
-                        { name: "David Kim", msg: "How does this compare to existing solutions?", time: "30s", avatar: "D", color: "bg-orange-500" },
-                        ].map((c, i) => (
-                            <div key={i} className="bg-slate-800/40 p-2.5 rounded-lg border border-white/5">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <div className={`w-5 h-5 ${c.color} rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0`}>{c.avatar}</div>
-                                    <span className="text-xs font-medium text-white">{c.name}</span>
-                                    <span className="text-[10px] text-slate-500 ml-auto">{c.time} ago</span>
-                                </div>
-                                <p className="text-xs text-slate-300 pl-7 leading-relaxed">{c.msg}</p>
+                        {audienceChat.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-full text-center">
+                                <MessageSquare className="w-8 h-8 text-slate-700 mb-2" />
+                                <p className="text-[10px] text-slate-600">No messages yet.<br />Chat will appear here during the live session.</p>
                             </div>
-                        ))}
+                        ) : (
+                            audienceChat.map((c, i) => (
+                                <div key={i} className="bg-slate-800/40 p-2.5 rounded-lg border border-white/5">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <div className={`w-5 h-5 ${c.color} rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0`}>{c.avatar}</div>
+                                        <span className="text-xs font-medium text-white">{c.name}</span>
+                                        <span className="text-[10px] text-slate-500 ml-auto">{c.time}</span>
+                                    </div>
+                                    <p className="text-xs text-slate-300 pl-7 leading-relaxed">{c.msg}</p>
+                                </div>
+                            ))
+                        )}
                     </div>
                     <div className="p-3 border-t border-white/10">
-                        <input
-                            placeholder="Reply to audience..."
-                            className="w-full bg-slate-800 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-purple-500/50 transition-colors"
-                        />
+                        <form onSubmit={(e) => { e.preventDefault(); sendChatMessage(); }} className="flex gap-2">
+                            <input
+                                value={chatInput}
+                                onChange={(e) => setChatInput(e.target.value)}
+                                placeholder="Reply to audience..."
+                                className="flex-1 bg-slate-800 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-purple-500/50 transition-colors"
+                            />
+                            <Button type="submit" size="sm" className="h-8 px-3 bg-purple-600 hover:bg-purple-700 text-xs">Send</Button>
+                        </form>
                     </div>
                 </div>
             </div>

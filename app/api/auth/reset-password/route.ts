@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/database/client';
-import crypto from 'crypto';
 
 /**
  * POST /api/auth/reset-password
@@ -21,6 +19,13 @@ import crypto from 'crypto';
  */
 export async function POST(req: Request) {
   try {
+    if (process.env.AUTH_PASSWORD_RESET_ENABLED !== 'true') {
+      return NextResponse.json(
+        { error: 'Password reset is not configured in this environment' },
+        { status: 503 }
+      );
+    }
+
     const { token, password } = await req.json();
 
     if (!token || !password) {
@@ -37,34 +42,13 @@ export async function POST(req: Request) {
       );
     }
 
-    // Hash the token to verify against stored hash
-    const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    void token;
+    void password;
 
-    // NOTE: Requires database schema update for password reset tokens
-    // Uncomment when User model includes: passwordResetToken, passwordResetExpires
-    // const user = await prisma.user.findFirst({
-    //   where: {
-    //     passwordResetToken: resetTokenHash,
-    //     passwordResetExpires: {
-    //       gt: new Date() // Token must not be expired
-    //     }
-    //   }
-    // });
-
-    // if (!user) {
-    //   return NextResponse.json(
-    //     { error: 'Invalid or expired reset token' },
-    //     { status: 400 }
-    //   );
-    // }
-
-    // For now, just return success (until schema is updated)
-    console.log('[AUTH] Password reset attempted with token (schema not yet updated)');
-
-    return NextResponse.json({
-      success: true,
-      message: 'Password reset feature will be available soon. Schema updates needed.'
-    });
+    return NextResponse.json(
+      { error: 'Password reset backend is unavailable: reset-token schema fields are not configured' },
+      { status: 503 }
+    );
 
     // NOTE: Implementation ready - awaiting schema migration
     // Uncomment when database schema is updated with reset token fields

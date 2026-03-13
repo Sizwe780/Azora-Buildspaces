@@ -17,24 +17,29 @@ const specSchema = {
   required: ['id', 'type', 'name', 'version'],
   properties: {
     id: { type: 'string', minLength: 1 },
-    type: { type: 'string', enum: ['component', 'api', 'workflow', 'service', 'model'] },
+    type: { type: 'string', enum: ['component', 'api', 'database', 'workflow', 'feature', 'service', 'model'] },
     name: { type: 'string', minLength: 1, maxLength: 200 },
     version: { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+$' },
     description: { type: 'string', maxLength: 2000 },
     requirements: {
       type: 'array',
       items: {
-        type: 'object',
-        required: ['id', 'description'],
-        properties: {
-          id: { type: 'string' },
-          description: { type: 'string' },
-          priority: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
-          acceptanceCriteria: {
-            type: 'array',
-            items: { type: 'string' },
+        oneOf: [
+          { type: 'string' },
+          {
+            type: 'object',
+            required: ['id', 'description'],
+            properties: {
+              id: { type: 'string' },
+              description: { type: 'string' },
+              priority: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
+              acceptanceCriteria: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+            },
           },
-        },
+        ],
       },
     },
     endpoints: {
@@ -149,11 +154,13 @@ function computeCompletenessScore(spec: Record<string, unknown>): {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { spec, format = 'json' } = body
+    // Accept both { spec, format } (legacy) and { content, type } (frontend)
+    const rawSpec = body.spec ?? body.content
+    const format = body.format ?? 'yaml'
 
-    if (!spec) {
+    if (!rawSpec) {
       return NextResponse.json(
-        { error: 'Spec content is required' },
+        { error: 'Spec content is required (pass "content" or "spec")' },
         { status: 400 }
       )
     }
@@ -161,12 +168,17 @@ export async function POST(req: NextRequest) {
     // Parse spec content
     let parsedSpec: Record<string, unknown>
     try {
-      if (format === 'yaml') {
-        // YAML input: currently expects pre-parsed object or JSON string.
-        // For raw YAML string support, integrate a YAML parser (e.g. js-yaml).
-        parsedSpec = typeof spec === 'string' ? JSON.parse(spec) : spec
+      if (typeof rawSpec === 'string') {
+        // Try YAML first (superset of JSON), fall back to JSON
+        try {
+          const { load } = await import('js-yaml')
+          const parsed = load(rawSpec)
+          parsedSpec = (parsed && typeof parsed === 'object') ? parsed as Record<string, unknown> : JSON.parse(rawSpec)
+        } catch {
+          parsedSpec = JSON.parse(rawSpec)
+        }
       } else {
-        parsedSpec = typeof spec === 'string' ? JSON.parse(spec) : spec
+        parsedSpec = rawSpec
       }
     } catch (parseError) {
       return NextResponse.json({

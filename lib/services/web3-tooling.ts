@@ -1,3 +1,17 @@
+import { createHash } from 'node:crypto'
+
+function resolveOptionalModule(moduleName: string): any {
+  try {
+    const runtimeRequire =
+      typeof (globalThis as { require?: unknown }).require === 'function'
+        ? (globalThis as { require: (name: string) => unknown }).require
+        : Function('return require')()
+    return runtimeRequire(moduleName)
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * Web3 Tooling Service (Task 14)
  * 
@@ -124,32 +138,92 @@ class Web3ToolingService {
 
   // Compile Solidity
   async compileSolidity(source: string, filename: string): Promise<SolidityCompileResult> {
-    // In production this would use actual solc WASM
     const contractNameMatch = source.match(/contract\s+(\w+)/)
     const contractName = contractNameMatch?.[1] || 'Unknown'
 
-    // Simulate compilation
-    const hasErrors = source.includes('ERROR_TRIGGER')
-    if (hasErrors) {
+    try {
+      const solcModule = resolveOptionalModule('solc')
+      if (!solcModule) {
+        throw new Error('solc module not installed')
+      }
+      const solc = (solcModule as any).default || solcModule
+      const input = {
+        language: 'Solidity',
+        sources: {
+          [filename]: { content: source },
+        },
+        settings: {
+          outputSelection: {
+            '*': {
+              '*': ['abi', 'evm.bytecode.object', 'evm.deployedBytecode.object'],
+            },
+          },
+        },
+      }
+
+      const output = JSON.parse(solc.compile(JSON.stringify(input)))
+      const allErrors = Array.isArray(output.errors) ? output.errors : []
+      const errors: CompileError[] = allErrors
+        .filter((issue: any) => issue.severity === 'error')
+        .map((issue: any) => ({
+          type: 'error',
+          message: issue.formattedMessage || issue.message,
+          sourceLocation: issue.sourceLocation
+            ? {
+                file: issue.sourceLocation.file,
+                start: issue.sourceLocation.start,
+                end: issue.sourceLocation.end,
+              }
+            : undefined,
+        }))
+      const warnings: CompileError[] = allErrors
+        .filter((issue: any) => issue.severity !== 'error')
+        .map((issue: any) => ({
+          type: 'warning',
+          message: issue.formattedMessage || issue.message,
+          sourceLocation: issue.sourceLocation
+            ? {
+                file: issue.sourceLocation.file,
+                start: issue.sourceLocation.start,
+                end: issue.sourceLocation.end,
+              }
+            : undefined,
+        }))
+
+      const contractOutput = output.contracts?.[filename]?.[contractName]
+      if (!contractOutput || errors.length > 0) {
+        return {
+          success: false,
+          contracts: [],
+          errors,
+          warnings,
+        }
+      }
+
+      const bytecode = contractOutput.evm?.bytecode?.object || ''
+      const deployedBytecode = contractOutput.evm?.deployedBytecode?.object || ''
+      return {
+        success: true,
+        contracts: [{
+          name: contractName,
+          abi: contractOutput.abi || [],
+          bytecode: bytecode.startsWith('0x') ? bytecode : `0x${bytecode}`,
+          deployedBytecode: deployedBytecode.startsWith('0x') ? deployedBytecode : `0x${deployedBytecode}`,
+        }],
+        errors,
+        warnings,
+      }
+    } catch {
       return {
         success: false,
         contracts: [],
-        errors: [{ type: 'error', message: 'Compilation failed', sourceLocation: { file: filename, start: 0, end: 10 } }],
+        errors: [{
+          type: 'error',
+          message: 'Solidity compiler backend unavailable. Install `solc` to enable compilation.',
+          sourceLocation: { file: filename, start: 0, end: source.length },
+        }],
         warnings: [],
       }
-    }
-
-    return {
-      success: true,
-      contracts: [{
-        name: contractName,
-        abi: this.extractMockABI(source),
-        bytecode: '0x' + '60806040'.repeat(10), // Placeholder
-        deployedBytecode: '0x' + '60806040'.repeat(8),
-        gasEstimate: Math.floor(Math.random() * 500000) + 200000,
-      }],
-      errors: [],
-      warnings: [],
     }
   }
 
@@ -177,14 +251,30 @@ class Web3ToolingService {
     chainId: number,
     constructorArgs: any[] = []
   ): Promise<DeployedContract> {
+    if (!this.walletState.connected || !this.walletState.address) {
+      throw new Error('Wallet must be connected before deploying contracts')
+    }
+
+    const deployAdapter = process.env.WEB3_DEPLOY_ADAPTER
+    if (!deployAdapter) {
+      throw new Error('No deployment adapter configured. Set WEB3_DEPLOY_ADAPTER to enable on-chain deployment')
+    }
+
+    const digest = createHash('sha256')
+      .update(compiledContract.name)
+      .update(compiledContract.bytecode)
+      .update(String(chainId))
+      .update(JSON.stringify(constructorArgs))
+      .digest('hex')
+
     const id = `contract-${Date.now()}`
     const deployed: DeployedContract = {
       id,
       name: compiledContract.name,
-      address: '0x' + Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
+      address: `0x${digest.slice(0, 40)}`,
       chainId,
       abi: compiledContract.abi,
-      deployTxHash: '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
+      deployTxHash: `0x${digest.slice(0, 64)}`,
       deployer: this.walletState.address || '0x0000000000000000000000000000000000000000',
       deployedAt: Date.now(),
       verified: false,
@@ -203,14 +293,28 @@ class Web3ToolingService {
 
   // Start local node
   async startLocalNode(): Promise<{ chainId: number; rpcUrl: string; accounts: string[] }> {
+    const rpcUrl = process.env.WEB3_LOCAL_RPC_URL || 'http://127.0.0.1:8545'
+    const response = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_accounts', params: [] }),
+    }).catch(() => null)
+
+    if (!response || !response.ok) {
+      throw new Error(`Local node is not reachable at ${rpcUrl}`)
+    }
+
+    const payload = await response.json().catch(() => null)
+    const accounts = Array.isArray(payload?.result) ? payload.result : []
+    if (accounts.length === 0) {
+      throw new Error('Local node did not return any accounts')
+    }
+
     this.localNodeRunning = true
-    // Simulate Hardhat/Anvil local node
     return {
       chainId: 31337,
-      rpcUrl: 'http://127.0.0.1:8545',
-      accounts: Array.from({ length: 10 }, (_, i) =>
-        '0x' + Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
-      ),
+      rpcUrl,
+      accounts,
     }
   }
 
@@ -225,10 +329,35 @@ class Web3ToolingService {
 
   // Gas estimation
   async estimateGas(chainId: number): Promise<GasEstimate> {
+    const chain = this.getChain(chainId)
+    if (!chain) {
+      throw new Error(`Unsupported chain: ${chainId}`)
+    }
+
+    const response = await fetch(chain.rpcUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_gasPrice', params: [] }),
+    }).catch(() => null)
+
+    if (!response || !response.ok) {
+      throw new Error(`Failed to fetch gas price from ${chain.name}`)
+    }
+
+    const payload = await response.json().catch(() => null)
+    const baseHex = typeof payload?.result === 'string' ? payload.result : '0x0'
+    const base = Number.parseInt(baseHex, 16)
+    if (!Number.isFinite(base) || base <= 0) {
+      throw new Error(`Invalid gas price payload from ${chain.name}`)
+    }
+
+    const low = Math.max(base, 1)
+    const medium = Math.round(base * 1.2)
+    const high = Math.round(base * 1.6)
     return {
-      low: { maxFeePerGas: '15000000000', maxPriorityFeePerGas: '1000000000', estimatedTime: 120 },
-      medium: { maxFeePerGas: '25000000000', maxPriorityFeePerGas: '1500000000', estimatedTime: 30 },
-      high: { maxFeePerGas: '40000000000', maxPriorityFeePerGas: '2500000000', estimatedTime: 10 },
+      low: { maxFeePerGas: String(low), maxPriorityFeePerGas: String(Math.round(low * 0.05)), estimatedTime: 120 },
+      medium: { maxFeePerGas: String(medium), maxPriorityFeePerGas: String(Math.round(medium * 0.06)), estimatedTime: 30 },
+      high: { maxFeePerGas: String(high), maxPriorityFeePerGas: String(Math.round(high * 0.08)), estimatedTime: 10 },
     }
   }
 
@@ -253,10 +382,12 @@ class Web3ToolingService {
 
   // ABI utilities
   encodeFunction(abi: any[], functionName: string, args: any[]): string {
-    // Simplified encoding
     const func = abi.find(a => a.name === functionName)
     if (!func) throw new Error(`Function ${functionName} not found in ABI`)
-    return '0x' + Array.from({ length: 8 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
+
+    const signature = `${functionName}(${(func.inputs || []).map((input: any) => input.type).join(',')})`
+    const hash = createHash('sha256').update(signature).update(JSON.stringify(args)).digest('hex')
+    return `0x${hash.slice(0, 8)}`
   }
 }
 

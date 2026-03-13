@@ -151,11 +151,23 @@ function generateTestsFromSpec(spec: Spec): string {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { spec } = body
+    let spec = body.spec
+
+    // Support frontend format: { content, type } where content is YAML string
+    if (!spec && body.content) {
+      try {
+        const { load } = await import('js-yaml')
+        const parsed = load(body.content)
+        spec = (parsed && typeof parsed === 'object') ? parsed : null
+      } catch {
+        // If YAML parse fails, try JSON
+        try { spec = JSON.parse(body.content) } catch { /* noop */ }
+      }
+    }
 
     if (!spec || !spec.name) {
       return NextResponse.json(
-        { error: 'A spec object with at least a "name" field is required' },
+        { error: 'A spec object with at least a "name" field is required. Pass { spec } or { content } (YAML string).' },
         { status: 400 },
       )
     }

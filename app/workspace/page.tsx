@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react"
 import dynamic from 'next/dynamic'
+import { SessionProvider } from "next-auth/react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { WorkspaceHeader } from "@/components/workspace/workspace-header"
 import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar"
@@ -17,7 +18,8 @@ const RoomLoader = () => (
 )
 
 // Dynamic imports for heavy room components
-const CodeChamber = dynamic(() => import("@/components/rooms/code-chamber").then(mod => mod.CodeChamber), { ssr: false, loading: RoomLoader })
+// Use the componentized Code Chamber with full IDE parity (30+ specialized views)
+const CodeChamber = dynamic(() => import("@/components/workspace/code-chamber").then(mod => mod.CodeChamber), { ssr: false, loading: RoomLoader })
 const SpecChamber = dynamic(() => import("@/components/rooms/spec-chamber").then(mod => mod.SpecChamber), { ssr: false, loading: RoomLoader })
 const DesignStudio = dynamic(() => import("@/components/rooms/design-studio"), { ssr: false, loading: RoomLoader })
 const CommandDesk = dynamic(() => import("@/components/rooms/command-desk").then(mod => mod.CommandDesk), { ssr: false, loading: RoomLoader })
@@ -65,9 +67,11 @@ function WorkspaceWithParams() {
 
 export default function WorkspacePage() {
   return (
-    <Suspense fallback={<WorkspaceLoader />}>
-      <WorkspaceWithParams />
-    </Suspense>
+    <SessionProvider>
+      <Suspense fallback={<WorkspaceLoader />}>
+        <WorkspaceWithParams />
+      </Suspense>
+    </SessionProvider>
   )
 }
 

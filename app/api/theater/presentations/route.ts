@@ -24,10 +24,13 @@ interface Presentation {
   updatedAt: string
 }
 
-// In-memory store (swap for Prisma when DATABASE_URL is set)
-let presentations: Presentation[] = [
-  {
-    id: 'pres-default',
+const sessionPresentations = new Map<string, Presentation[]>()
+
+function createDefaultPresentation(sessionId: string): Presentation {
+  const normalizedId = sessionId.replace(/[^a-zA-Z0-9_-]/g, '-')
+
+  return {
+    id: `pres-${normalizedId}`,
     title: 'Welcome to Innovation Theater',
     slides: [
       {
@@ -68,12 +71,25 @@ let presentations: Presentation[] = [
     ],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-  },
-]
+  }
+}
 
-export async function GET() {
+function getSessionPresentations(sessionId: string): Presentation[] {
+  if (!sessionPresentations.has(sessionId)) {
+    sessionPresentations.set(sessionId, [createDefaultPresentation(sessionId)])
+  }
+
+  return sessionPresentations.get(sessionId)!
+}
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const sessionId = searchParams.get('sessionId') ?? 'default'
+  const presentations = getSessionPresentations(sessionId)
   const active = presentations[0]
+
   return NextResponse.json({
+    sessionId,
     presentations: presentations.map((p) => ({ id: p.id, title: p.title, slideCount: p.slides.length })),
     slides: active?.slides ?? [],
     activePresentation: active?.id,
@@ -83,28 +99,36 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    const sessionId = body.sessionId || 'default'
+    const presentationId = body.presentationId
+    const presentations = getSessionPresentations(sessionId)
+    let activeIndex = presentationId
+      ? presentations.findIndex((presentation) => presentation.id === presentationId)
+      : 0
+
+    if (activeIndex === -1) {
+      presentations.push({
+        id: presentationId || `pres-${Date.now()}`,
+        title: body.title || 'Untitled',
+        slides: Array.isArray(body.slides) ? body.slides : [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      activeIndex = presentations.length - 1
+    }
 
     if (body.slides) {
-      // Update slides of active presentation
-      if (presentations.length === 0) {
-        presentations.push({
-          id: `pres-${Date.now()}`,
-          title: body.title || 'Untitled',
-          slides: body.slides,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
-      } else {
-        presentations[0] = {
-          ...presentations[0],
-          slides: body.slides,
-          title: body.title || presentations[0].title,
-          updatedAt: new Date().toISOString(),
-        }
+      presentations[activeIndex] = {
+        ...presentations[activeIndex],
+        slides: body.slides,
+        title: body.title || presentations[activeIndex].title,
+        updatedAt: new Date().toISOString(),
       }
     }
 
-    return NextResponse.json({ success: true, presentation: presentations[0] })
+    sessionPresentations.set(sessionId, presentations)
+
+    return NextResponse.json({ success: true, sessionId, presentation: presentations[activeIndex] })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

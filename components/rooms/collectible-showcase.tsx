@@ -28,7 +28,11 @@ import {
     Infinity,
     Heart,
     Lock,
-    CheckCircle2
+    CheckCircle2,
+    ExternalLink,
+    Wallet,
+    RefreshCw,
+    Copy
 } from "lucide-react";
 import { useRoomEvents } from "@/lib/hooks/use-room-events";
 
@@ -194,12 +198,21 @@ export default function CollectibleShowcase() {
         fetchProfile();
     }, []);
 
+    const [mintChain, setMintChain] = useState<'sepolia' | 'polygon' | 'base' | 'ethereum'>('sepolia')
+    const [mintStatus, setMintStatus] = useState<'idle' | 'minting' | 'success' | 'error'>('idle')
+    const [recentMints, setRecentMints] = useState<{ txHash: string; cardId: string; chain: string; explorerUrl: string }[]>([])
+
     const mintCard = async (cardId: string) => {
+        setMintStatus('minting')
         try {
             const response = await fetch('/api/web3/mint', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ cardId, userId: "did:key:z6MkpTHR8V369" })
+                body: JSON.stringify({
+                    cardId,
+                    chain: mintChain,
+                    metadata: { source: 'collectible-showcase', mintedAt: new Date().toISOString() },
+                }),
             });
 
             if (!response.ok) throw new Error(await response.text());
@@ -209,10 +222,20 @@ export default function CollectibleShowcase() {
                 card.id === cardId ? { ...card, minted: true, owner: "You" } : card
             ));
             setTotalMinted(prev => prev + 1);
+            setRecentMints(prev => [{
+                txHash: result.receipt?.txHash || '',
+                cardId,
+                chain: mintChain,
+                explorerUrl: result.receipt?.explorerUrl || ''
+            }, ...prev].slice(0, 5))
+            setMintStatus('success')
+            setTimeout(() => setMintStatus('idle'), 3000)
 
-            console.log("Minted successfully:", result.transactionHash);
+            console.log("Minted successfully:", result.receipt?.txHash, "Explorer:", result.receipt?.explorerUrl);
         } catch (error) {
             console.error("Minting failed:", error);
+            setMintStatus('error')
+            setTimeout(() => setMintStatus('idle'), 3000)
         }
     };
 
@@ -548,22 +571,148 @@ export default function CollectibleShowcase() {
 
                         <TabsContent value="mint" className="h-full m-0 p-6 overflow-y-auto">
                             <div className="space-y-6">
-                                <h2 className="text-xl font-bold text-white mb-4">Mint New Card</h2>
-                                <Card className="bg-white/10 border-white/20">
-                                    <CardContent className="p-6">
-                                        <div className="text-center space-y-4">
-                                            <Gem className="w-16 h-16 text-purple-400 mx-auto" />
-                                            <h3 className="text-lg font-bold text-white">Mint Achievement Card</h3>
-                                            <p className="text-slate-400">
-                                                Transform your achievements into collectible NFT cards
-                                            </p>
-                                            <Button className="bg-purple-600 hover:bg-purple-700">
-                                                <Gem className="w-4 h-4 mr-2" />
-                                                Mint Card (2 AZR)
-                                            </Button>
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xl font-bold text-white">Mint NFT Cards</h2>
+                                    <div className="flex items-center gap-3">
+                                        <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30">
+                                            <Wallet className="w-3 h-3 mr-1" />
+                                            Connected
+                                        </Badge>
+                                    </div>
+                                </div>
+
+                                {/* Chain Selection */}
+                                <Card className="bg-white/5 border-white/10">
+                                    <CardContent className="p-4">
+                                        <h4 className="text-sm font-medium text-slate-300 mb-3">Select Chain</h4>
+                                        <div className="grid grid-cols-4 gap-2">
+                                            {(['sepolia', 'polygon', 'base', 'ethereum'] as const).map((chain) => (
+                                                <button
+                                                    key={chain}
+                                                    onClick={() => setMintChain(chain)}
+                                                    className={`p-3 rounded-lg border text-center transition-all ${
+                                                        mintChain === chain
+                                                            ? 'bg-purple-500/20 border-purple-500 text-white'
+                                                            : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/30'
+                                                    }`}
+                                                >
+                                                    <span className="text-xs font-medium capitalize">{chain}</span>
+                                                    {chain === 'sepolia' && (
+                                                        <Badge className="ml-1 text-[8px] bg-yellow-500/20 text-yellow-400 px-1">Test</Badge>
+                                                    )}
+                                                </button>
+                                            ))}
                                         </div>
                                     </CardContent>
                                 </Card>
+
+                                {/* Cards Available for Minting */}
+                                <div>
+                                    <h4 className="text-sm font-medium text-slate-300 mb-3">Available to Mint</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {cards.filter(c => !c.minted).slice(0, 6).map((card) => {
+                                            const tierConfig = RARITY_CONFIG[card.tier]
+                                            const TierIcon = tierConfig.icon
+                                            return (
+                                                <Card key={card.id} className="bg-white/5 border-white/10 hover:border-purple-500/50 transition-all">
+                                                    <CardContent className="p-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`p-2 rounded-lg ${tierConfig.color}/20`}>
+                                                                <TierIcon className={`w-5 h-5 ${tierConfig.textColor}`} />
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <h5 className="text-sm font-medium text-white truncate">{card.name}</h5>
+                                                                <span className="text-xs text-slate-500">{card.power} power</span>
+                                                            </div>
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => mintCard(card.id)}
+                                                                disabled={mintStatus === 'minting'}
+                                                                className="bg-purple-600 hover:bg-purple-700 text-xs px-2"
+                                                            >
+                                                                {mintStatus === 'minting' ? (
+                                                                    <RefreshCw className="w-3 h-3 animate-spin" />
+                                                                ) : (
+                                                                    <Gem className="w-3 h-3" />
+                                                                )}
+                                                            </Button>
+                                                        </div>
+                                                    </CardContent>
+                                                </Card>
+                                            )
+                                        })}
+                                    </div>
+                                    {cards.filter(c => !c.minted).length === 0 && (
+                                        <div className="text-center py-8">
+                                            <Gem className="w-10 h-10 text-white/20 mx-auto mb-2" />
+                                            <p className="text-slate-500 text-sm">All cards minted!</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Mint Status */}
+                                {mintStatus !== 'idle' && (
+                                    <Card className={`border ${
+                                        mintStatus === 'minting' ? 'bg-blue-500/10 border-blue-500/30' :
+                                        mintStatus === 'success' ? 'bg-green-500/10 border-green-500/30' :
+                                        'bg-red-500/10 border-red-500/30'
+                                    }`}>
+                                        <CardContent className="p-4 flex items-center gap-3">
+                                            {mintStatus === 'minting' && <RefreshCw className="w-5 h-5 text-blue-400 animate-spin" />}
+                                            {mintStatus === 'success' && <CheckCircle2 className="w-5 h-5 text-green-400" />}
+                                            {mintStatus === 'error' && <Shield className="w-5 h-5 text-red-400" />}
+                                            <span className={`text-sm font-medium ${
+                                                mintStatus === 'minting' ? 'text-blue-400' :
+                                                mintStatus === 'success' ? 'text-green-400' :
+                                                'text-red-400'
+                                            }`}>
+                                                {mintStatus === 'minting' && 'Minting in progress...'}
+                                                {mintStatus === 'success' && 'Successfully minted!'}
+                                                {mintStatus === 'error' && 'Minting failed. Please try again.'}
+                                            </span>
+                                        </CardContent>
+                                    </Card>
+                                )}
+
+                                {/* Recent Mints */}
+                                {recentMints.length > 0 && (
+                                    <div>
+                                        <h4 className="text-sm font-medium text-slate-300 mb-3">Recent Mints</h4>
+                                        <div className="space-y-2">
+                                            {recentMints.map((mint, i) => (
+                                                <div key={i} className="flex items-center justify-between bg-white/5 rounded-lg p-3 border border-white/10">
+                                                    <div className="flex items-center gap-2">
+                                                        <CheckCircle2 className="w-4 h-4 text-green-400" />
+                                                        <span className="text-sm text-slate-300 font-mono">
+                                                            {mint.txHash.slice(0, 10)}...{mint.txHash.slice(-6)}
+                                                        </span>
+                                                        <Badge variant="outline" className="text-[9px] text-slate-500 capitalize">
+                                                            {mint.chain}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => navigator.clipboard.writeText(mint.txHash)}
+                                                            className="p-1.5 hover:bg-white/10 rounded transition-colors"
+                                                        >
+                                                            <Copy className="w-3 h-3 text-slate-500" />
+                                                        </button>
+                                                        {mint.explorerUrl && (
+                                                            <a
+                                                                href={mint.explorerUrl}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="p-1.5 hover:bg-white/10 rounded transition-colors"
+                                                            >
+                                                                <ExternalLink className="w-3 h-3 text-slate-500" />
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </TabsContent>
                     </div>

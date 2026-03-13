@@ -2,7 +2,8 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Analytics } from "@vercel/analytics/next"
 import SentryInit from "./sentry-client"
-import "./globals.css"
+import SessionProvider from "@/components/providers/session-provider"
+import "./tailwind-output.css"
 
 export const metadata: Metadata = {
   title: "Citadel BuildSpaces | AI-Powered Development Environment",
@@ -70,7 +71,9 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className="font-sans antialiased bg-[#0d1117] text-white">
         <SentryInit />
-        {children}
+        <SessionProvider>
+          {children}
+        </SessionProvider>
         <Analytics />
       </body>
     </html>

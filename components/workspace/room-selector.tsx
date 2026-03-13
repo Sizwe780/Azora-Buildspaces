@@ -17,6 +17,7 @@ import {
   Trophy,
   Store,
   Home,
+  type LucideIcon,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
@@ -35,7 +36,7 @@ type RoomType =
   | "collectible-showcase"
   | "marketplace"
 
-const ROOMS: Array<{ id: RoomType; name: string; icon: React.ElementType; shortcut: number }> = [
+const ROOMS: Array<{ id: RoomType; name: string; icon: LucideIcon; shortcut: number }> = [
   { id: "code-chamber", name: "Code Chamber", icon: Code2, shortcut: 1 },
   { id: "ai-studio", name: "AI Studio", icon: Brain, shortcut: 2 },
   { id: "design-studio", name: "Design Studio", icon: Palette, shortcut: 3 },
@@ -60,7 +61,7 @@ export function RoomSelector({ activeRoom, onRoomChange }: RoomBarProps) {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="w-12 bg-[#0a0e14] border-r border-white/[0.06] flex flex-col items-center py-2 shrink-0">
+      <div className="w-12 bg-[var(--ide-widget-bg)] border-r border-white/[0.06] flex flex-col items-center py-2 shrink-0">
         {/* Logo / Dashboard */}
         <Tooltip>
           <TooltipTrigger asChild>

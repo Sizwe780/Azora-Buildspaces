@@ -64,6 +64,7 @@ interface LivePreviewPanelProps {
 
 export function LivePreviewPanel({ projectId }: LivePreviewPanelProps) {
   const [previewUrl, setPreviewUrl] = useState('http://localhost:3000')
+  const [previewId, setPreviewId] = useState<string | null>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [selectedDevice, setSelectedDevice] = useState('Responsive')
   const [consoleMessages, setConsoleMessages] = useState<ConsoleMessage[]>([])
@@ -76,47 +77,96 @@ export function LivePreviewPanel({ projectId }: LivePreviewPanelProps) {
   const currentDevice = DEVICE_PRESETS.find(d => d.name === selectedDevice) || DEVICE_PRESETS[0]
 
   useEffect(() => {
-    // Mock console messages
-    setConsoleMessages([
-      { type: 'info', message: '[Next.js] Ready on http://localhost:3000', timestamp: Date.now() - 5000, source: 'server' },
-      { type: 'log', message: 'Page rendered: /', timestamp: Date.now() - 3000, source: 'client' },
-      { type: 'warn', message: 'Image optimization disabled', timestamp: Date.now() - 2000, source: 'next' },
-    ])
-    setNetworkRequests([
-      { url: '/', method: 'GET', status: 200, size: 15420, time: 120, type: 'document' },
-      { url: '/_next/static/chunks/main.js', method: 'GET', status: 200, size: 245000, time: 85, type: 'script' },
-      { url: '/_next/static/css/app.css', method: 'GET', status: 200, size: 32000, time: 45, type: 'stylesheet' },
-      { url: '/api/health', method: 'GET', status: 200, size: 42, time: 12, type: 'fetch' },
-    ])
+    const loadRuntimeData = async () => {
+      try {
+        const [consoleRes, networkRes] = await Promise.all([
+          fetch('/api/live-preview?action=console'),
+          fetch('/api/live-preview?action=network'),
+        ])
+
+        if (consoleRes.ok) {
+          const consoleData = await consoleRes.json()
+          setConsoleMessages(consoleData.messages || [])
+        }
+
+        if (networkRes.ok) {
+          const networkData = await networkRes.json()
+          setNetworkRequests(networkData.requests || [])
+        }
+      } catch {
+        setConsoleMessages([])
+        setNetworkRequests([])
+      }
+    }
+
+    void loadRuntimeData()
   }, [])
 
   const handleStart = async () => {
-    setIsRunning(true)
     try {
-      await fetch('/api/live-preview', {
+      const response = await fetch('/api/live-preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start', url: previewUrl, device: selectedDevice }),
+        body: JSON.stringify({ action: 'start', url: previewUrl, mode: 'development' }),
       })
+      if (!response.ok) {
+        throw new Error(await response.text())
+      }
+      const data = await response.json()
+      if (data?.preview?.id) {
+        setPreviewId(data.preview.id)
+        setIsRunning(true)
+      }
     } catch { /* noop */ }
   }
 
   const handleStop = async () => {
-    setIsRunning(false)
+    if (!previewId) return
     try {
       await fetch('/api/live-preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'stop' }),
+        body: JSON.stringify({ action: 'stop', id: previewId }),
       })
+      setIsRunning(false)
     } catch { /* noop */ }
   }
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
+    if (previewId) {
+      try {
+        await fetch('/api/live-preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'refresh', id: previewId }),
+        })
+      } catch {
+        // no-op
+      }
+    }
+
     if (iframeRef.current) {
       iframeRef.current.src = previewUrl
     }
   }
+
+  useEffect(() => {
+    if (!previewId) return
+    void fetch('/api/live-preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set-device', previewId, deviceName: selectedDevice }),
+    })
+  }, [previewId, selectedDevice])
+
+  useEffect(() => {
+    if (!previewId) return
+    void fetch('/api/live-preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set-url', previewId, url: previewUrl }),
+    })
+  }, [previewId, previewUrl])
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes}B`

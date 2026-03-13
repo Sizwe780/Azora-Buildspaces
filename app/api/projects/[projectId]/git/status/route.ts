@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 interface GitStatus {
   branch: string
@@ -27,8 +27,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const projectPath = process.cwd()
 
     try {
-      const { stdout } = await execAsync('git status --porcelain', { cwd: projectPath })
-      const { stdout: branchOut } = await execAsync('git branch --show-current', { cwd: projectPath })
+      const { stdout } = await execFileAsync('git', ['status', '--porcelain'], { cwd: projectPath })
+      const { stdout: branchOut } = await execFileAsync('git', ['branch', '--show-current'], { cwd: projectPath })
 
       const lines = stdout.split('\n').filter(Boolean)
       const stagedFiles: string[] = []

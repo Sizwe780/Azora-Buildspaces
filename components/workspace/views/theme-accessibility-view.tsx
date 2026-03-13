@@ -24,6 +24,7 @@ import {
   Plus,
   Check,
   Download,
+  Package,
 } from "lucide-react"
 import {
   Select,
@@ -62,6 +63,7 @@ interface AccessibilitySettings {
 export function ThemeAccessibilityPanel() {
   const [themes, setThemes] = useState<ThemeSummary[]>([])
   const [activeTheme, setActiveTheme] = useState<string>('azora-dark')
+  const [activeIconTheme, setActiveIconTheme] = useState<string>('material-icon-theme')
   const [accessibility, setAccessibility] = useState<AccessibilitySettings>({
     reduceMotion: false,
     highContrast: false,
@@ -83,6 +85,10 @@ export function ThemeAccessibilityPanel() {
 
   useEffect(() => {
     fetchThemes()
+    try {
+      const saved = localStorage.getItem('azora-icon-theme')
+      if (saved) setActiveIconTheme(saved)
+    } catch {}
   }, [])
 
   const fetchThemes = async () => {
@@ -197,6 +203,45 @@ export function ThemeAccessibilityPanel() {
                 </div>
               )
             })}
+
+            {/* Icon Theme Packs */}
+            <div>
+              <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                File Icon Theme
+              </h4>
+              <div className="space-y-1">
+                {[
+                  { id: 'material-icon-theme', name: 'Material Icon Theme', description: 'Material Design icons for files & folders' },
+                  { id: 'vscode-icons', name: 'VSCode Icons', description: 'Icons for Visual Studio Code' },
+                  { id: 'seti-icons', name: 'Seti (Visual Studio Code)', description: 'Seti file icon theme ported from Sublime' },
+                  { id: 'catppuccin-icons', name: 'Catppuccin Icons', description: 'Soothing pastel file icons' },
+                  { id: 'none', name: 'None', description: 'No file icons' },
+                ].map(iconTheme => (
+                  <button
+                    key={iconTheme.id}
+                    onClick={() => {
+                      setActiveIconTheme(iconTheme.id)
+                      window.dispatchEvent(new CustomEvent('workspace:iconThemeChanged', { detail: iconTheme.id }))
+                      try { localStorage.setItem('azora-icon-theme', iconTheme.id) } catch {}
+                    }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-left transition-colors ${
+                      activeIconTheme === iconTheme.id
+                        ? 'bg-primary/10 border border-primary/30'
+                        : 'hover:bg-muted/50 border border-transparent'
+                    }`}
+                  >
+                    <Package className="w-4 h-4 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium truncate">{iconTheme.name}</div>
+                      <div className="text-[10px] text-muted-foreground truncate">{iconTheme.description}</div>
+                    </div>
+                    {activeIconTheme === iconTheme.id && (
+                      <Check className="w-4 h-4 text-primary shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         ) : (
           /* ═══ ACCESSIBILITY ═══ */

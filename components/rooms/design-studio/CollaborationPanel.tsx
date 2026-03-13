@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, MessageSquare, Eye, Send, Circle } from "lucide-react";
@@ -14,12 +14,6 @@ interface Collaborator {
   cursor?: { x: number; y: number };
 }
 
-const mockCollaborators: Collaborator[] = [
-  { id: "1", name: "You", avatar: "👤", color: "#10b981", isActive: true },
-  { id: "2", name: "Elara", avatar: "🤖", color: "#6366f1", isActive: true },
-  { id: "3", name: "Sankofa", avatar: "🧠", color: "#f59e0b", isActive: false },
-];
-
 interface Comment {
   id: string;
   author: string;
@@ -27,15 +21,42 @@ interface Comment {
   timestamp: string;
 }
 
-const mockComments: Comment[] = [
-  { id: "1", author: "Elara", text: "Consider using a warmer accent color for the CTA buttons.", timestamp: "5m ago" },
-  { id: "2", author: "You", text: "Good call — switching to amber.", timestamp: "3m ago" },
-];
-
 export default function CollaborationPanel({ onClose }: { onClose?: () => void }) {
-  const [collaborators] = useState<Collaborator[]>(mockCollaborators);
-  const [comments] = useState<Comment[]>(mockComments);
+  // Start empty — populated from real session or workspace context
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([
+    { id: "self", name: "You", avatar: "👤", color: "#10b981", isActive: true },
+  ]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
+
+  // Listen for collaboration events from the workspace event bus
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { user, action } = (e as CustomEvent).detail || {};
+      if (action === 'join' && user) {
+        setCollaborators(prev => {
+          if (prev.find(c => c.id === user.id)) return prev;
+          return [...prev, { ...user, isActive: true }];
+        });
+      } else if (action === 'leave' && user) {
+        setCollaborators(prev => prev.filter(c => c.id !== user.id));
+      }
+    };
+    window.addEventListener('design:collab-update', handler);
+    return () => window.removeEventListener('design:collab-update', handler);
+  }, []);
+
+  const handleSendComment = () => {
+    if (!newComment.trim()) return;
+    const comment: Comment = {
+      id: Date.now().toString(),
+      author: "You",
+      text: newComment.trim(),
+      timestamp: "Just now",
+    };
+    setComments(prev => [...prev, comment]);
+    setNewComment("");
+  };
 
   return (
     <div className="h-full overflow-auto p-4 space-y-4">

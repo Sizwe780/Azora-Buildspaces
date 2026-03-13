@@ -1,9 +1,11 @@
 'use client'
 
-import KnowledgeOcean from '@/components/rooms/knowledge-ocean'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Sparkles, Lock, Zap } from 'lucide-react'
 import Link from 'next/link'
+
+const KnowledgeOcean = dynamic(() => import('@/components/rooms/knowledge-ocean'), { ssr: false })
 
 export default function DemoKnowledgeOceanPage() {
     return (

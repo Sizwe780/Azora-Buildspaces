@@ -188,9 +188,9 @@ export function AgentRail() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#252526]">
+    <div className="flex flex-col h-full bg-[var(--ide-sidebar-bg)]">
       {/* Header with Constitutional Status */}
-      <div className="px-4 py-3 border-b border-[#3e3e42]">
+      <div className="px-4 py-3 border-b border-[var(--ide-border)]">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <AfricanAgentAvatar agent="elara" size="sm" />
@@ -264,7 +264,7 @@ export function AgentRail() {
       </div>
 
       {/* Input Area */}
-      <div className="px-4 py-3 border-t border-[#3e3e42]">
+      <div className="px-4 py-3 border-t border-[var(--ide-border)]">
         <div className="flex gap-2">
           <input
             type="text"
@@ -273,7 +273,7 @@ export function AgentRail() {
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
             placeholder="Ask Elara anything..."
             disabled={isLoading}
-            className="flex-1 bg-[#3c3c3c] border border-[#3e3e42] rounded px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 disabled:opacity-50"
+            className="flex-1 bg-[var(--ide-input-bg)] border border-[var(--ide-border)] rounded px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 disabled:opacity-50"
           />
           <Button
             onClick={handleSend}
@@ -313,7 +313,7 @@ function MessageBubble({ message, onToolApproval }: MessageBubbleProps) {
   if (isSystem) {
     return (
       <div className="flex justify-center">
-        <div className="bg-[#3c3c3c] border border-[#3e3e42] rounded px-3 py-1 text-xs text-gray-400">
+        <div className="bg-[var(--ide-input-bg)] border border-[var(--ide-border)] rounded px-3 py-1 text-xs text-gray-400">
           {message.content}
         </div>
       </div>
@@ -340,7 +340,7 @@ function MessageBubble({ message, onToolApproval }: MessageBubbleProps) {
       <div className="flex justify-start gap-2">
         <AfricanAgentAvatar agent="elara" size="sm" showGlow={false} showAura={false} />
         <div className="max-w-[85%] space-y-2">
-          <div className="rounded-lg px-3 py-2 bg-[#2d2d2d] text-gray-300 border border-[#3e3e42]">
+          <div className="rounded-lg px-3 py-2 bg-[var(--ide-widget-bg)] text-gray-300 border border-[var(--ide-border)]">
             <p className="text-sm whitespace-pre-wrap">{message.content}</p>
 
             {/* Constitutional Check Badge */}

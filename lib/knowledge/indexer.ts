@@ -24,6 +24,7 @@ export interface CodeChunk {
   lineEnd?: number
   language?: string
   relevanceScore?: number
+  embedding?: number[] // Vector embedding for semantic search
 }
 
 export interface SearchResult extends CodeChunk {
@@ -516,23 +517,132 @@ export class KnowledgeIndexer {
   }
 
   /**
-   * Stub for future embedding support
-   * When we add vector embeddings, this will generate embeddings for chunks
+   * Generate vector embeddings for semantic search
+   * Uses OpenAI embeddings API (text-embedding-3-small)
    */
-  async generateEmbeddings(apiKey?: string): Promise<void> {
-    console.log('[KnowledgeIndexer] Embedding generation not yet implemented')
-    console.log('[KnowledgeIndexer] To enable embeddings, integrate with OpenAI/Cohere/local model')
-    
-    if (apiKey) {
-      console.warn('[KnowledgeIndexer] Warning: Sending code to external API for embeddings')
-      console.warn('[KnowledgeIndexer] Ensure user consent for privacy compliance')
+  async generateEmbeddings(apiKey?: string): Promise<{ success: boolean; chunksProcessed: number }> {
+    const key = apiKey || process.env.OPENAI_API_KEY
+    if (!key) {
+      console.warn('[KnowledgeIndexer] No API key provided for embeddings')
+      return { success: false, chunksProcessed: 0 }
     }
+
+    console.log('[KnowledgeIndexer] Generating embeddings for semantic search...')
     
-    // Future implementation:
-    // 1. Iterate through chunks
-    // 2. Generate embeddings via API or local model
-    // 3. Store embeddings with chunks for semantic search
-    // 4. Add vector similarity search capability
+    const chunks = Array.from(this.chunks.values())
+    const batchSize = 100 // OpenAI supports up to 2048 inputs per request
+    let processed = 0
+
+    for (let i = 0; i < chunks.length; i += batchSize) {
+      const batch = chunks.slice(i, i + batchSize)
+      const inputs = batch.map(c => `${c.type}: ${c.name}\n${c.content.slice(0, 1000)}`) // Truncate to first 1000 chars
+
+      try {
+        const response = await fetch('https://api.openai.com/v1/embeddings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`,
+          },
+          body: JSON.stringify({
+            model: 'text-embedding-3-small',
+            input: inputs,
+          }),
+        })
+
+        if (!response.ok) {
+          console.error(`[KnowledgeIndexer] OpenAI API error: ${response.status}`)
+          continue
+        }
+
+        const data = await response.json()
+        
+        // Store embeddings in chunks
+        for (let j = 0; j < data.data.length; j++) {
+          const chunk = batch[j]
+          chunk.embedding = data.data[j].embedding
+          this.chunks.set(chunk.id, chunk)
+        }
+        
+        processed += batch.length
+        console.log(`[KnowledgeIndexer] Embedded ${processed}/${chunks.length} chunks`)
+      } catch (err) {
+        console.error('[KnowledgeIndexer] Embedding batch failed:', err)
+      }
+    }
+
+    console.log(`[KnowledgeIndexer] Embedding generation complete: ${processed} chunks`)
+    return { success: true, chunksProcessed: processed }
+  }
+
+  /**
+   * Semantic search using vector similarity
+   * Returns chunks ranked by cosine similarity to query embedding
+   */
+  async semanticSearch(query: string, apiKey?: string, limit: number = 10): Promise<SearchResult[]> {
+    const key = apiKey || process.env.OPENAI_API_KEY
+    if (!key) {
+      console.warn('[KnowledgeIndexer] No API key for semantic search, falling back to keyword')
+      return this.search(query, limit)
+    }
+
+    // Get query embedding
+    try {
+      const response = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: 'text-embedding-3-small',
+          input: query,
+        }),
+      })
+
+      if (!response.ok) {
+        return this.search(query, limit)
+      }
+
+      const data = await response.json()
+      const queryEmbedding: number[] = data.data[0].embedding
+
+      // Calculate cosine similarity with all chunks that have embeddings
+      const results: SearchResult[] = []
+      for (const chunk of this.chunks.values()) {
+        if (!chunk.embedding) continue
+        
+        const similarity = this.cosineSimilarity(queryEmbedding, chunk.embedding)
+        results.push({
+          ...chunk,
+          score: similarity,
+          match: {},
+        })
+      }
+
+      // Sort by similarity and return top results
+      results.sort((a, b) => b.score - a.score)
+      return results.slice(0, limit)
+    } catch (err) {
+      console.error('[KnowledgeIndexer] Semantic search failed:', err)
+      return this.search(query, limit)
+    }
+  }
+
+  /**
+   * Calculate cosine similarity between two vectors
+   */
+  private cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) return 0
+    let dotProduct = 0
+    let normA = 0
+    let normB = 0
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i]
+      normA += a[i] * a[i]
+      normB += b[i] * b[i]
+    }
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB))
   }
 }
 

@@ -54,6 +54,13 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  // Check if children contain a DialogDescription
+  const hasDescription = React.Children.toArray(children).some(
+    (child) => React.isValidElement(child) && 
+    (child.type === DialogDescription || 
+     (child.props as Record<string, unknown>)?.['data-slot'] === 'dialog-description')
+  )
+  
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -65,6 +72,12 @@ function DialogContent({
         )}
         {...props}
       >
+        {/* Visually hidden description for accessibility when not provided */}
+        {!hasDescription && (
+          <DialogPrimitive.Description className="sr-only">
+            Dialog content
+          </DialogPrimitive.Description>
+        )}
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close

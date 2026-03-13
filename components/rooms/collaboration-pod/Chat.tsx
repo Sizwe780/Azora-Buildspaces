@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Smile, Paperclip, Hash, Users, Settings, Search, Sparkles, FileText } from "lucide-react";
 import * as Y from "yjs";
-import { WebsocketProvider } from "y-websocket";
+// Dynamic import for browser-only module
+const getWebsocketProvider = () => import("y-websocket").then(m => m.WebsocketProvider);
 
 interface Message {
     id: string;
@@ -22,15 +23,15 @@ interface Message {
 
 interface ChatProps {
     ydoc: Y.Doc;
-    provider: WebsocketProvider;
+    provider: any;
 }
 
-const CHANNELS = [
-    { id: "general", name: "general", unread: 0 },
-    { id: "design", name: "design", unread: 3 },
-    { id: "development", name: "development", unread: 7 },
-    { id: "marketing", name: "marketing", unread: 0 },
-    { id: "random", name: "random", unread: 12 }
+const CHANNEL_IDS = [
+    { id: "general", name: "general" },
+    { id: "design", name: "design" },
+    { id: "development", name: "development" },
+    { id: "marketing", name: "marketing" },
+    { id: "random", name: "random" }
 ];
 
 export default function Chat({ ydoc, provider }: ChatProps) {
@@ -39,10 +40,49 @@ export default function Chat({ ydoc, provider }: ChatProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [meetingSummary, setMeetingSummary] = useState<any>(null);
     const [isSummarizing, setIsSummarizing] = useState(false);
+    const [memberCount, setMemberCount] = useState(1);
+    const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+    const lastReadRef = useRef<Record<string, number>>({});
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Get the shared array for the active channel
     const sharedMessages = ydoc.getArray<Message>(`chat-${activeChannel}`);
+
+    // Track awareness for member count
+    useEffect(() => {
+        const updateMembers = () => {
+            const states = provider.awareness.getStates();
+            setMemberCount(Math.max(states.size, 1));
+        };
+        provider.awareness.on('change', updateMembers);
+        updateMembers();
+        return () => { provider.awareness.off('change', updateMembers); };
+    }, [provider]);
+
+    // Track unread counts across channels
+    useEffect(() => {
+        const observers: Array<() => void> = [];
+        CHANNEL_IDS.forEach(ch => {
+            if (ch.id === activeChannel) return; // current channel is always read
+            const arr = ydoc.getArray<Message>(`chat-${ch.id}`);
+            const obs = () => {
+                const total = arr.length;
+                const lastRead = lastReadRef.current[ch.id] || 0;
+                setUnreadCounts(prev => ({ ...prev, [ch.id]: Math.max(0, total - lastRead) }));
+            };
+            arr.observe(obs);
+            obs(); // initial check
+            observers.push(() => arr.unobserve(obs));
+        });
+        return () => { observers.forEach(fn => fn()); };
+    }, [ydoc, activeChannel]);
+
+    // Mark current channel as read when switching
+    useEffect(() => {
+        const arr = ydoc.getArray<Message>(`chat-${activeChannel}`);
+        lastReadRef.current[activeChannel] = arr.length;
+        setUnreadCounts(prev => ({ ...prev, [activeChannel]: 0 }));
+    }, [activeChannel, ydoc]);
 
     useEffect(() => {
         // Initial load
@@ -85,7 +125,7 @@ export default function Chat({ ydoc, provider }: ChatProps) {
         setMessageText("");
     };
 
-    const activeChannelData = CHANNELS.find(c => c.id === activeChannel);
+    const activeChannelData = CHANNEL_IDS.find(c => c.id === activeChannel);
 
     const generateMeetingSummary = async () => {
         if (messages.length === 0 || isSummarizing) return;
@@ -138,7 +178,7 @@ export default function Chat({ ydoc, provider }: ChatProps) {
 
                 <ScrollArea className="flex-1">
                     <div className="p-2">
-                        {CHANNELS.map((channel) => (
+                        {CHANNEL_IDS.map((channel) => (
                             <button
                                 key={channel.id}
                                 onClick={() => setActiveChannel(channel.id)}
@@ -152,9 +192,9 @@ export default function Chat({ ydoc, provider }: ChatProps) {
                                     <Hash className="w-4 h-4" />
                                     <span className="text-sm">{channel.name}</span>
                                 </div>
-                                {channel.unread > 0 && (
+                                {(unreadCounts[channel.id] || 0) > 0 && (
                                     <Badge variant="destructive" className="text-xs">
-                                        {channel.unread}
+                                        {unreadCounts[channel.id]}
                                     </Badge>
                                 )}
                             </button>
@@ -184,7 +224,7 @@ export default function Chat({ ydoc, provider }: ChatProps) {
                         <h2 className="text-lg font-semibold text-white">{activeChannelData?.name}</h2>
                         <Badge variant="secondary" className="bg-slate-700">
                             <Users className="w-3 h-3 mr-1" />
-                            24 members
+                            {memberCount} {memberCount === 1 ? 'member' : 'members'}
                         </Badge>
                     </div>
                     <div className="flex items-center gap-2">

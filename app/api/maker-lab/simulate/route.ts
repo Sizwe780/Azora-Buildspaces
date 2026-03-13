@@ -24,6 +24,20 @@ const BOARD_SPECS: Record<string, { ram: number; flash: number; cpuMHz: number; 
   particle: { ram: 128, flash: 1024, cpuMHz: 120, pins: 24 },
 }
 
+function hashSeed(input: string): number {
+  let hash = 0
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 31 + input.charCodeAt(index)) >>> 0
+  }
+  return hash
+}
+
+function seededValue(seed: number, min: number, max: number, scale = 1): number {
+  const normalized = (seed % 10_000) / 10_000
+  const value = min + (max - min) * normalized
+  return Number(value.toFixed(scale))
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json()
@@ -31,23 +45,31 @@ export async function POST(req: Request) {
 
     const specs = BOARD_SPECS[board] || BOARD_SPECS.esp32
 
-    // Simulate sensor readings
+    const seedBase = hashSeed(`${board}:${project || 'default-project'}`)
+
+    // Deterministic emulated sensor readings
     const sensors = [
-      { sensor: "Temperature", value: +(20 + Math.random() * 15).toFixed(1), unit: "°C", status: "normal" as const },
-      { sensor: "Humidity", value: +(40 + Math.random() * 30).toFixed(1), unit: "%", status: "normal" as const },
-      { sensor: "Light", value: Math.floor(200 + Math.random() * 800), unit: "lux", status: "normal" as const },
-      { sensor: "Pressure", value: +(1000 + Math.random() * 30).toFixed(1), unit: "hPa", status: "normal" as const },
-      { sensor: "CO2", value: Math.floor(400 + Math.random() * 600), unit: "ppm", status: Math.random() > 0.8 ? "warning" as const : "normal" as const },
+      { sensor: "Temperature", value: seededValue(seedBase + 11, 20, 35, 1), unit: "°C", status: "normal" as const },
+      { sensor: "Humidity", value: seededValue(seedBase + 23, 40, 70, 1), unit: "%", status: "normal" as const },
+      { sensor: "Light", value: Math.round(seededValue(seedBase + 37, 200, 1000, 0)), unit: "lux", status: "normal" as const },
+      { sensor: "Pressure", value: seededValue(seedBase + 41, 1000, 1030, 1), unit: "hPa", status: "normal" as const },
+      {
+        sensor: "CO2",
+        value: Math.round(seededValue(seedBase + 53, 400, 1000, 0)),
+        unit: "ppm",
+        status: seededValue(seedBase + 67, 0, 1, 3) > 0.8 ? "warning" as const : "normal" as const,
+      },
     ]
 
-    // Simulate GPIO states
+    // Deterministic GPIO states
     const gpioState: Record<string, boolean> = {}
     for (let i = 0; i < Math.min(8, specs.pins); i++) {
-      gpioState[`GPIO${i}`] = Math.random() > 0.5
+      gpioState[`GPIO${i}`] = ((seedBase + i * 17) % 2) === 0
     }
 
-    // Simulate memory usage
-    const memUsed = Math.floor(specs.ram * (0.3 + Math.random() * 0.4))
+    const memUsed = Math.floor(specs.ram * seededValue(seedBase + 71, 0.3, 0.7, 3))
+    const uptime = Math.floor(seededValue(seedBase + 79, 120, 86400, 0))
+    const wifiOctet = Math.floor(seededValue(seedBase + 83, 100, 254, 0))
 
     const result: SimulationResult = {
       board,
@@ -56,11 +78,11 @@ export async function POST(req: Request) {
       gpioState,
       memoryUsage: { used: memUsed, total: specs.ram },
       cpuFrequency: specs.cpuMHz,
-      uptime: Math.floor(Math.random() * 86400),
+      uptime,
       logs: [
         `[${new Date().toISOString()}] Board initialized: ${board.toUpperCase()}`,
         `[${new Date().toISOString()}] Project loaded: ${project}`,
-        `[${new Date().toISOString()}] WiFi connected: 192.168.1.${Math.floor(100 + Math.random() * 155)}`,
+        `[${new Date().toISOString()}] WiFi connected: 192.168.1.${wifiOctet}`,
         `[${new Date().toISOString()}] Sensors initialized (${sensors.length} active)`,
         `[${new Date().toISOString()}] MQTT broker connected`,
         `[${new Date().toISOString()}] Memory: ${memUsed}KB / ${specs.ram}KB (${Math.floor((memUsed / specs.ram) * 100)}%)`,

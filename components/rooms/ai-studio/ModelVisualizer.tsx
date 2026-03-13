@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import ReactFlow, {
     Controls,
     Background,
@@ -14,70 +14,69 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-const initialNodes: Node[] = [
-    {
-        id: 'input',
-        position: { x: 250, y: 0 },
-        data: { label: 'Input Layer (28x28)' },
-        style: { background: '#3b82f6', color: 'white', border: 'none' }
-    },
-    {
-        id: 'conv1',
-        position: { x: 250, y: 100 },
-        data: { label: 'Conv2d (32, 3x3)' },
-        style: { background: '#8b5cf6', color: 'white', border: 'none' }
-    },
-    {
-        id: 'pool1',
-        position: { x: 250, y: 200 },
-        data: { label: 'MaxPool2d (2x2)' },
-        style: { background: '#ec4899', color: 'white', border: 'none' }
-    },
-    {
-        id: 'conv2',
-        position: { x: 250, y: 300 },
-        data: { label: 'Conv2d (64, 3x3)' },
-        style: { background: '#8b5cf6', color: 'white', border: 'none' }
-    },
-    {
-        id: 'pool2',
-        position: { x: 250, y: 400 },
-        data: { label: 'MaxPool2d (2x2)' },
-        style: { background: '#ec4899', color: 'white', border: 'none' }
-    },
-    {
-        id: 'flatten',
-        position: { x: 250, y: 500 },
-        data: { label: 'Flatten' },
-        style: { background: '#f59e0b', color: 'white', border: 'none' }
-    },
-    {
-        id: 'fc1',
-        position: { x: 250, y: 600 },
-        data: { label: 'Linear (128)' },
-        style: { background: '#10b981', color: 'white', border: 'none' }
-    },
-    {
-        id: 'output',
-        position: { x: 250, y: 700 },
-        data: { label: 'Output (10)' },
-        style: { background: '#3b82f6', color: 'white', border: 'none' }
-    },
+interface LayerDef {
+    id: string;
+    label: string;
+    type: 'input' | 'conv' | 'pool' | 'linear' | 'activation' | 'flatten' | 'output' | 'norm' | 'dropout' | 'attention';
+}
+
+interface ModelVisualizerProps {
+    layers?: LayerDef[];
+}
+
+const LAYER_COLORS: Record<string, string> = {
+    input: '#3b82f6',
+    conv: '#8b5cf6',
+    pool: '#ec4899',
+    linear: '#10b981',
+    activation: '#f59e0b',
+    flatten: '#f59e0b',
+    output: '#3b82f6',
+    norm: '#06b6d4',
+    dropout: '#6b7280',
+    attention: '#dc2626',
+};
+
+const defaultLayers: LayerDef[] = [
+    { id: 'input', label: 'Input Layer (28x28)', type: 'input' },
+    { id: 'conv1', label: 'Conv2d (32, 3x3)', type: 'conv' },
+    { id: 'pool1', label: 'MaxPool2d (2x2)', type: 'pool' },
+    { id: 'conv2', label: 'Conv2d (64, 3x3)', type: 'conv' },
+    { id: 'pool2', label: 'MaxPool2d (2x2)', type: 'pool' },
+    { id: 'flatten', label: 'Flatten', type: 'flatten' },
+    { id: 'fc1', label: 'Linear (128)', type: 'linear' },
+    { id: 'output', label: 'Output (10)', type: 'output' },
 ];
 
-const initialEdges: Edge[] = [
-    { id: 'e1', source: 'input', target: 'conv1', animated: true },
-    { id: 'e2', source: 'conv1', target: 'pool1', animated: true },
-    { id: 'e3', source: 'pool1', target: 'conv2', animated: true },
-    { id: 'e4', source: 'conv2', target: 'pool2', animated: true },
-    { id: 'e5', source: 'pool2', target: 'flatten', animated: true },
-    { id: 'e6', source: 'flatten', target: 'fc1', animated: true },
-    { id: 'e7', source: 'fc1', target: 'output', animated: true },
-];
+function buildModelGraph(layers: LayerDef[]) {
+    const nodes: Node[] = layers.map((layer, i) => ({
+        id: layer.id,
+        position: { x: 250, y: i * 100 },
+        data: { label: layer.label },
+        style: {
+            background: LAYER_COLORS[layer.type] || LAYER_COLORS.linear,
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '8px 14px',
+            fontSize: '12px',
+        },
+    }));
 
-export default function ModelVisualizer() {
-    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+    const edges: Edge[] = layers.slice(1).map((layer, i) => ({
+        id: `e-${layers[i].id}-${layer.id}`,
+        source: layers[i].id,
+        target: layer.id,
+        animated: true,
+    }));
+
+    return { nodes, edges };
+}
+
+export default function ModelVisualizer({ layers }: ModelVisualizerProps) {
+    const graph = useMemo(() => buildModelGraph(layers || defaultLayers), [layers]);
+    const [nodes, setNodes, onNodesChange] = useNodesState(graph.nodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(graph.edges);
 
     const onConnect = useCallback(
         (params: Connection) => setEdges((eds: Edge[]) => addEdge(params, eds)),

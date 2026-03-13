@@ -9,29 +9,31 @@ import {
     Gauge,
     GitPullRequest,
     Globe,
+    Plug,
     X,
     Maximize2,
     Minimize2,
-    ChevronDown
+    ChevronDown,
+    PanelBottomDashed,
+    PanelRightDashed,
 } from "lucide-react"
 import { useWorkbench, PanelView } from "@/lib/stores/workbench-store"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
 
 interface PanelProps {
     children: React.ReactNode
 }
 
 export function Panel({ children }: PanelProps) {
-    const { activePanelView, setPanelView, togglePanel } = useWorkbench()
-    const [isMaximized, setIsMaximized] = useState(false)
+    const { activePanelView, setPanelView, togglePanel, panelPosition, setPanelPosition, isPanelMaximized, togglePanelMaximized } = useWorkbench()
 
     const tabs: { view: PanelView; label: string; icon: any; badge?: number; color?: string }[] = [
         { view: 'terminal', label: 'Terminal', icon: Terminal },
         { view: 'output', label: 'Output', icon: FileOutput },
         { view: 'problems', label: 'Problems', icon: AlertTriangle, badge: 3, color: 'text-yellow-500' },
         { view: 'debug', label: 'Debug Console', icon: Bug, color: 'text-orange-500' },
+        { view: 'ports', label: 'Ports', icon: Plug, color: 'text-cyan-500' },
         { view: 'testing', label: 'Testing', icon: FlaskConical, color: 'text-green-500' },
         { view: 'performance', label: 'Performance', icon: Gauge, color: 'text-blue-500' },
         { view: 'code-review', label: 'Review', icon: GitPullRequest, color: 'text-purple-500' },
@@ -39,9 +41,9 @@ export function Panel({ children }: PanelProps) {
     ]
 
     return (
-        <div className={cn("flex flex-col h-full bg-background/95 backdrop-blur-sm border-t border-border/40", isMaximized && "fixed inset-0 z-50")}>
+        <div className={cn("flex flex-col h-full bg-background/95 backdrop-blur-sm border-t border-border/40", isPanelMaximized && "fixed inset-0 z-50")}>
             {/* Tab Bar */}
-            <div className="flex items-center h-9 bg-muted/20 border-b border-border/30 select-none">
+            <div className="flex items-center h-8 bg-muted/20 border-b border-border/30 select-none">
                 {/* Tabs */}
                 <div className="flex items-center flex-1 overflow-x-auto scrollbar-hide">
                     {tabs.map((tab) => (
@@ -49,7 +51,7 @@ export function Panel({ children }: PanelProps) {
                             key={tab.view}
                             onClick={() => setPanelView(tab.view)}
                             className={cn(
-                                "flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium uppercase tracking-wider transition-all whitespace-nowrap border-b-2",
+                                "flex items-center gap-1 px-2 h-8 text-[11px] font-medium uppercase tracking-wider transition-all whitespace-nowrap border-b-2",
                                 activePanelView === tab.view
                                     ? "text-foreground border-primary bg-background/60"
                                     : "text-muted-foreground border-transparent hover:text-foreground/80 hover:bg-muted/30"
@@ -77,9 +79,18 @@ export function Panel({ children }: PanelProps) {
                         variant="ghost"
                         size="icon"
                         className="w-6 h-6 text-muted-foreground hover:text-foreground"
-                        onClick={() => setIsMaximized(!isMaximized)}
+                        onClick={() => setPanelPosition(panelPosition === 'bottom' ? 'right' : 'bottom')}
+                        title={panelPosition === 'bottom' ? 'Move Panel Right' : 'Move Panel Bottom'}
                     >
-                        {isMaximized ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+                        {panelPosition === 'bottom' ? <PanelRightDashed className="w-3 h-3" /> : <PanelBottomDashed className="w-3 h-3" />}
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="w-6 h-6 text-muted-foreground hover:text-foreground"
+                        onClick={togglePanelMaximized}
+                    >
+                        {isPanelMaximized ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
                     </Button>
                     <Button
                         variant="ghost"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import {
   Search,
   Replace,
@@ -16,6 +16,11 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronUp,
+  Loader2,
+  History,
+  Settings,
+  FileText,
+  Hash,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -23,48 +28,31 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useFileSystem } from "@/lib/stores/file-system"
+
+interface SearchMatch {
+  line: number
+  column: number
+  text: string
+  matchStart: number
+  matchEnd: number
+}
 
 interface SearchResult {
   file: string
-  matches: {
-    line: number
-    column: number
-    text: string
-    matchStart: number
-    matchEnd: number
-  }[]
+  matches: SearchMatch[]
 }
 
-// Demo search results
-const demoResults: SearchResult[] = [
-  {
-    file: "components/workspace/editor-panel.tsx",
-    matches: [
-      { line: 24, column: 10, text: 'const [code, setCode] = useState("// Loading...")', matchStart: 25, matchEnd: 33 },
-      { line: 68, column: 8, text: '  const handleCodeChange = (newCode: string | undefined) => {', matchStart: 34, matchEnd: 42 },
-    ],
-  },
-  {
-    file: "lib/stores/workbench-store.ts",
-    matches: [
-      { line: 3, column: 14, text: "export type SidebarView = 'explorer' | 'search' | ...", matchStart: 14, matchEnd: 25 },
-    ],
-  },
-  {
-    file: "components/workspace/code-chamber.tsx",
-    matches: [
-      { line: 82, column: 8, text: "  const renderSidebar = () => {", matchStart: 14, matchEnd: 27 },
-      { line: 137, column: 8, text: "  const renderPanel = () => {", matchStart: 14, matchEnd: 25 },
-      { line: 165, column: 12, text: "            <EditorPanel", matchStart: 13, matchEnd: 24 },
-    ],
-  },
-  {
-    file: "app/api/settings/route.ts",
-    matches: [
-      { line: 12, column: 4, text: "  const { searchParams } = new URL(request.url)", matchStart: 10, matchEnd: 22 },
-    ],
-  },
-]
+interface SearchHistoryItem {
+  query: string
+  replaceQuery?: string
+  caseSensitive: boolean
+  wholeWord: boolean
+  useRegex: boolean
+  includePattern: string
+  excludePattern: string
+  timestamp: Date
+}
 
 export function SearchReplaceView() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -73,15 +61,220 @@ export function SearchReplaceView() {
   const [caseSensitive, setCaseSensitive] = useState(false)
   const [wholeWord, setWholeWord] = useState(false)
   const [useRegex, setUseRegex] = useState(false)
+  const [preserveCase, setPreserveCase] = useState(false)
   const [includePattern, setIncludePattern] = useState("")
   const [excludePattern, setExcludePattern] = useState("")
   const [showFilters, setShowFilters] = useState(false)
-  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set(demoResults.map((r) => r.file)))
+  const [results, setResults] = useState<SearchResult[]>([])
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [isSearching, setIsSearching] = useState(false)
+  const [resultLimit, setResultLimit] = useState(10000)
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([])
+  const [showHistory, setShowHistory] = useState(false)
+  const [multiLineSearch, setMultiLineSearch] = useState(false)
 
+  const { fileMap, writeFile } = useFileSystem()
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
-  const totalMatches = demoResults.reduce((acc, r) => acc + r.matches.length, 0)
+  const openMatchInEditor = useCallback((filePath: string, match: SearchMatch) => {
+    window.dispatchEvent(new CustomEvent('azora:openFile', {
+      detail: {
+        path: filePath,
+        line: match.line,
+        column: match.column || match.matchStart + 1,
+      },
+    }))
+  }, [])
+
+  // Build a text-matching function based on current flags
+  const buildMatcher = useCallback((query: string) => {
+    if (!query) return null
+    try {
+      let flags = caseSensitive ? 'g' : 'gi'
+      if (multiLineSearch) flags += 'm'
+
+      if (useRegex) {
+        return new RegExp(query, flags)
+      }
+      // Escape regex special characters for literal search
+      let escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      if (wholeWord) escaped = `\\b${escaped}\\b`
+      return new RegExp(escaped, flags)
+    } catch {
+      return null
+    }
+  }, [caseSensitive, wholeWord, useRegex, multiLineSearch])
+
+  // Perform search across all files in fileMap
+  const performSearch = useCallback((query: string) => {
+    const matcher = buildMatcher(query)
+    if (!matcher) { setResults([]); return }
+
+    setIsSearching(true)
+    const found: SearchResult[] = []
+    let totalMatches = 0
+
+    // Glob-style pattern matching helper
+    const matchGlob = (path: string, pattern: string) => {
+      if (!pattern.trim()) return true
+      return pattern.split(',').some(p => {
+        const trimmed = p.trim()
+        if (!trimmed) return true
+        if (trimmed.startsWith('*')) return path.endsWith(trimmed.slice(1))
+        return path.includes(trimmed)
+      })
+    }
+
+    for (const [, node] of Object.entries(fileMap)) {
+      if (node.type !== 'file' || !node.content) continue
+      const filePath = node.path || node.name
+
+      // Apply include/exclude filters
+      if (includePattern.trim() && !matchGlob(filePath, includePattern)) continue
+      if (excludePattern.trim() && matchGlob(filePath, excludePattern)) continue
+
+      const content = node.content
+      const matches: SearchMatch[] = []
+
+      if (multiLineSearch) {
+        // Multi-line search: search the entire file content
+        matcher.lastIndex = 0
+        let m: RegExpExecArray | null
+        while ((m = matcher.exec(content)) !== null && totalMatches < resultLimit) {
+          matches.push({
+            line: content.substring(0, m.index).split('\n').length,
+            column: m.index - content.lastIndexOf('\n', m.index) + 1,
+            text: content.substring(Math.max(0, m.index - 50), Math.min(content.length, m.index + m[0].length + 50)),
+            matchStart: m.index - Math.max(0, m.index - 50),
+            matchEnd: m.index - Math.max(0, m.index - 50) + m[0].length,
+          })
+          totalMatches++
+          // Prevent infinite loop for zero-length matches
+          if (m[0].length === 0) matcher.lastIndex++
+        }
+      } else {
+        // Line-by-line search
+        const lines = content.split('\n')
+        lines.forEach((lineText, idx) => {
+          if (totalMatches >= resultLimit) return
+          matcher.lastIndex = 0
+          let m: RegExpExecArray | null
+          while ((m = matcher.exec(lineText)) !== null && totalMatches < resultLimit) {
+            matches.push({
+              line: idx + 1,
+              column: m.index + 1,
+              text: lineText,
+              matchStart: m.index,
+              matchEnd: m.index + m[0].length,
+            })
+            totalMatches++
+            // Prevent infinite loop for zero-length matches
+            if (m[0].length === 0) matcher.lastIndex++
+          }
+        })
+      }
+
+      if (matches.length > 0) {
+        found.push({ file: filePath, matches })
+      }
+    }
+
+    setResults(found)
+    setExpandedFiles(new Set(found.map(r => r.file)))
+    setIsSearching(false)
+
+    // Add to search history
+    if (query.trim()) {
+      const historyItem: SearchHistoryItem = {
+        query,
+        replaceQuery: showReplace ? replaceQuery : undefined,
+        caseSensitive,
+        wholeWord,
+        useRegex,
+        includePattern,
+        excludePattern,
+        timestamp: new Date()
+      }
+      setSearchHistory(prev => [historyItem, ...prev.slice(0, 9)]) // Keep last 10 items
+    }
+  }, [buildMatcher, fileMap, includePattern, excludePattern, resultLimit, multiLineSearch, showReplace, replaceQuery, caseSensitive, wholeWord, useRegex])
+
+  // Debounced search on query/flag changes
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (!searchQuery) { setResults([]); return }
+    debounceRef.current = setTimeout(() => performSearch(searchQuery), 250)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [searchQuery, caseSensitive, wholeWord, useRegex, includePattern, excludePattern, performSearch])
+
+  const totalMatches = results.reduce((acc, r) => acc + r.matches.length, 0)
+
+  // Replace a single match
+  const handleReplaceSingle = useCallback((file: string, match: SearchMatch) => {
+    const node = Object.values(fileMap).find(n => (n.path || n.name) === file)
+    if (!node || !node.content) return
+
+    let replacement = replaceQuery
+    if (preserveCase && match.text.substring(match.matchStart, match.matchEnd)) {
+      const original = match.text.substring(match.matchStart, match.matchEnd)
+      if (original === original.toUpperCase()) {
+        replacement = replacement.toUpperCase()
+      } else if (original === original.toLowerCase()) {
+        replacement = replacement.toLowerCase()
+      } else if (original[0] === original[0].toUpperCase()) {
+        replacement = replacement[0].toUpperCase() + replacement.slice(1).toLowerCase()
+      }
+    }
+
+    const lines = node.content.split('\n')
+    const lineIdx = match.line - 1
+    if (lineIdx < 0 || lineIdx >= lines.length) return
+    const line = lines[lineIdx]
+    lines[lineIdx] = line.substring(0, match.matchStart) + replacement + line.substring(match.matchEnd)
+    writeFile(node.id, lines.join('\n'))
+    // Re-run search to refresh results
+    setTimeout(() => performSearch(searchQuery), 100)
+  }, [fileMap, replaceQuery, preserveCase, writeFile, performSearch, searchQuery])
+
+  // Replace all matches in a file or all files
+  const handleReplaceAll = useCallback(() => {
+    const matcher = buildMatcher(searchQuery)
+    if (!matcher) return
+
+    for (const result of results) {
+      const node = Object.values(fileMap).find(n => (n.path || n.name) === result.file)
+      if (!node || !node.content) continue
+
+      let newContent = node.content
+      if (preserveCase) {
+        // For preserve case, we need to handle each match individually
+        const matches = [...node.content.matchAll(matcher)]
+        let offset = 0
+        for (const match of matches) {
+          let replacement = replaceQuery
+          const original = match[0]
+          if (original === original.toUpperCase()) {
+            replacement = replacement.toUpperCase()
+          } else if (original === original.toLowerCase()) {
+            replacement = replacement.toLowerCase()
+          } else if (original[0] === original[0].toUpperCase()) {
+            replacement = replacement[0].toUpperCase() + replacement.slice(1).toLowerCase()
+          }
+
+          const start = match.index + offset
+          const end = start + original.length
+          newContent = newContent.substring(0, start) + replacement + newContent.substring(end)
+          offset += replacement.length - original.length
+        }
+      } else {
+        newContent = node.content.replace(matcher, replaceQuery)
+      }
+
+      writeFile(node.id, newContent)
+    }
+    setTimeout(() => performSearch(searchQuery), 100)
+  }, [buildMatcher, searchQuery, results, fileMap, replaceQuery, preserveCase, writeFile, performSearch])
 
   const toggleFile = (file: string) => {
     setExpandedFiles((prev) => {
@@ -93,7 +286,7 @@ export function SearchReplaceView() {
   }
 
   const collapseAll = () => setExpandedFiles(new Set())
-  const expandAll = () => setExpandedFiles(new Set(demoResults.map((r) => r.file)))
+  const expandAll = () => setExpandedFiles(new Set(results.map((r) => r.file)))
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -169,6 +362,33 @@ export function SearchReplaceView() {
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="text-[11px]">Use Regular Expression</TooltipContent>
                 </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className={cn(
+                        "w-[22px] h-[20px] rounded-sm flex items-center justify-center transition-colors",
+                        multiLineSearch ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                      )}
+                      onClick={() => setMultiLineSearch(!multiLineSearch)}
+                    >
+                      <Hash className="w-3.5 h-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-[11px]">Multi-line Search</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className="w-[22px] h-[20px] rounded-sm flex items-center justify-center transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                      onClick={() => setShowHistory(!showHistory)}
+                    >
+                      <History className="w-3.5 h-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-[11px]">Search History</TooltipContent>
+                </Tooltip>
               </div>
             </div>
           </div>
@@ -180,11 +400,28 @@ export function SearchReplaceView() {
                 value={replaceQuery}
                 onChange={(e) => setReplaceQuery(e.target.value)}
                 placeholder="Replace"
-                className="h-[26px] text-[12px] pl-2 bg-input/50 border-border/40 rounded-sm focus-visible:ring-1 focus-visible:ring-primary/40"
+                className="h-[26px] text-[12px] pl-2 pr-16 bg-input/50 border-border/40 rounded-sm focus-visible:ring-1 focus-visible:ring-primary/40"
               />
+              {/* Replace toggles */}
+              <div className="flex items-center gap-0.5">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className={cn(
+                        "w-[22px] h-[20px] rounded-sm flex items-center justify-center transition-colors",
+                        preserveCase ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                      )}
+                      onClick={() => setPreserveCase(!preserveCase)}
+                    >
+                      <CaseSensitive className="w-3.5 h-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-[11px]">Preserve Case</TooltipContent>
+                </Tooltip>
+              </div>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="w-[26px] h-[26px] shrink-0">
+                  <Button variant="ghost" size="icon" className="w-[26px] h-[26px] shrink-0" disabled={results.length === 0}>
                     <Replace className="w-3.5 h-3.5" />
                   </Button>
                 </TooltipTrigger>
@@ -192,7 +429,7 @@ export function SearchReplaceView() {
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="w-[26px] h-[26px] shrink-0">
+                  <Button variant="ghost" size="icon" className="w-[26px] h-[26px] shrink-0" onClick={handleReplaceAll} disabled={results.length === 0}>
                     <Replace className="w-3.5 h-3.5" />
                   </Button>
                 </TooltipTrigger>
@@ -227,6 +464,47 @@ export function SearchReplaceView() {
                 placeholder="files to exclude (e.g. node_modules, dist)"
                 className="h-[24px] text-[11px] pl-2 bg-input/50 border-border/40 rounded-sm"
               />
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">Result limit:</span>
+                <Input
+                  type="number"
+                  value={resultLimit}
+                  onChange={(e) => setResultLimit(Math.max(1, parseInt(e.target.value) || 10000))}
+                  className="h-[24px] w-20 text-[11px] pl-2 bg-input/50 border-border/40 rounded-sm"
+                  min="1"
+                  max="50000"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Search History */}
+          {showHistory && searchHistory.length > 0 && (
+            <div className="ml-6 mt-1 p-2 bg-accent/20 rounded border">
+              <div className="text-[11px] font-medium text-foreground mb-1">Recent Searches</div>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {searchHistory.map((item, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setSearchQuery(item.query)
+                      setReplaceQuery(item.replaceQuery || '')
+                      setCaseSensitive(item.caseSensitive)
+                      setWholeWord(item.wholeWord)
+                      setUseRegex(item.useRegex)
+                      setIncludePattern(item.includePattern)
+                      setExcludePattern(item.excludePattern)
+                      setShowHistory(false)
+                    }}
+                    className="w-full text-left p-1 rounded hover:bg-accent/40 text-[10px] text-muted-foreground hover:text-foreground"
+                  >
+                    <div className="font-mono truncate">{item.query}</div>
+                    {item.replaceQuery && (
+                      <div className="text-[9px] text-muted-foreground">→ {item.replaceQuery}</div>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -234,7 +512,9 @@ export function SearchReplaceView() {
         {/* Results Summary */}
         <div className="flex items-center justify-between px-3 py-1 border-y border-border/20 text-[11px] text-muted-foreground">
           <span>
-            {searchQuery ? `${totalMatches} results in ${demoResults.length} files` : "Type to search"}
+            {isSearching ? (
+              <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Searching...</span>
+            ) : searchQuery ? `${totalMatches} results in ${results.length} files` : "Type to search"}
           </span>
           <div className="flex items-center gap-0.5">
             <Button variant="ghost" size="icon" className="w-5 h-5" onClick={expandAll} title="Expand All">
@@ -243,10 +523,10 @@ export function SearchReplaceView() {
             <Button variant="ghost" size="icon" className="w-5 h-5" onClick={collapseAll} title="Collapse All">
               <ChevronUp className="w-3 h-3" />
             </Button>
-            <Button variant="ghost" size="icon" className="w-5 h-5" title="Refresh">
+            <Button variant="ghost" size="icon" className="w-5 h-5" title="Refresh" onClick={() => performSearch(searchQuery)}>
               <RefreshCw className="w-3 h-3" />
             </Button>
-            <Button variant="ghost" size="icon" className="w-5 h-5" title="Clear">
+            <Button variant="ghost" size="icon" className="w-5 h-5" title="Clear" onClick={() => { setSearchQuery(''); setResults([]) }}>
               <X className="w-3 h-3" />
             </Button>
           </div>
@@ -254,14 +534,14 @@ export function SearchReplaceView() {
 
         {/* Results List */}
         <ScrollArea className="flex-1">
-          {demoResults.length === 0 ? (
+          {results.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground text-sm">
               <Search className="w-6 h-6 mx-auto opacity-30 mb-2" />
-              <p>No results found</p>
+              <p>{searchQuery ? 'No results found' : 'Type to search across workspace files'}</p>
             </div>
           ) : (
             <div className="py-0.5">
-              {demoResults.map((result) => (
+              {results.map((result) => (
                 <div key={result.file}>
                   {/* File Header */}
                   <button
@@ -289,6 +569,7 @@ export function SearchReplaceView() {
                       <div
                         key={i}
                         className="flex items-center gap-2 px-4 pl-9 py-0.5 hover:bg-accent/20 cursor-pointer text-[12px] transition-colors group"
+                        onClick={() => openMatchInEditor(result.file, match)}
                       >
                         <span className="text-muted-foreground/40 tabular-nums w-6 text-right shrink-0 text-[10px]">
                           {match.line}
@@ -302,13 +583,39 @@ export function SearchReplaceView() {
                         </span>
                         {showReplace && (
                           <div className="flex items-center gap-0.5 ml-auto shrink-0 opacity-0 group-hover:opacity-100">
-                            <Button variant="ghost" size="icon" className="w-4 h-4">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="w-4 h-4"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openMatchInEditor(result.file, match)
+                              }}
+                              title="Open in Editor"
+                            >
+                              <FileText className="w-2.5 h-2.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="w-4 h-4" onClick={() => handleReplaceSingle(result.file, match)} title="Replace this match">
                               <Replace className="w-2.5 h-2.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="w-4 h-4">
+                            <Button variant="ghost" size="icon" className="w-4 h-4" title="Dismiss">
                               <X className="w-2.5 h-2.5" />
                             </Button>
                           </div>
+                        )}
+                        {!showReplace && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="w-4 h-4 ml-auto shrink-0 opacity-0 group-hover:opacity-100"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openMatchInEditor(result.file, match)
+                            }}
+                            title="Open in Editor"
+                          >
+                            <FileText className="w-2.5 h-2.5" />
+                          </Button>
                         )}
                       </div>
                     ))}

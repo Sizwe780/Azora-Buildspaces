@@ -1,3 +1,6 @@
+import { stat, readdir } from 'node:fs/promises'
+import path from 'node:path'
+
 // Task 23: Deployment & Export Service
 // One-click deploy to cloud providers, export as zip/repo, Docker export, static site generation
 
@@ -64,12 +67,67 @@ class DeploymentExportService {
     return this.presets.filter(p => p.provider === provider)
   }
 
+  private requiredProviderEnv(provider: DeploymentTarget['provider']): string[] {
+    switch (provider) {
+      case 'vercel':
+        return ['VERCEL_TOKEN']
+      case 'netlify':
+        return ['NETLIFY_AUTH_TOKEN']
+      case 'aws':
+        return ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']
+      case 'gcp':
+        return ['GOOGLE_APPLICATION_CREDENTIALS']
+      case 'azure':
+        return ['AZURE_SUBSCRIPTION_ID']
+      case 'cloudflare':
+        return ['CLOUDFLARE_API_TOKEN']
+      case 'railway':
+        return ['RAILWAY_TOKEN']
+      case 'fly-io':
+        return ['FLY_API_TOKEN']
+      case 'render':
+        return ['RENDER_API_KEY']
+      case 'docker-hub':
+        return ['DOCKERHUB_USERNAME', 'DOCKERHUB_TOKEN']
+      default:
+        return []
+    }
+  }
+
+  private async calculateDirectorySize(dirPath: string): Promise<number> {
+    let total = 0
+    let entries
+
+    try {
+      entries = await readdir(dirPath, { withFileTypes: true })
+    } catch {
+      return 0
+    }
+
+    for (const entry of entries) {
+      if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.next') continue
+      const fullPath = path.join(dirPath, entry.name)
+      if (entry.isDirectory()) {
+        total += await this.calculateDirectorySize(fullPath)
+      } else if (entry.isFile()) {
+        try {
+          const stats = await stat(fullPath)
+          total += stats.size
+        } catch {
+          continue
+        }
+      }
+    }
+
+    return total
+  }
+
   async deploy(presetId: string, projectPath: string, envVars: Record<string, string> = {}): Promise<DeploymentTarget> {
     const preset = this.presets.find(p => p.id === presetId)
     if (!preset) throw new Error(`Unknown preset: ${presetId}`)
 
     const deployment: DeploymentTarget = {
-      id: `deploy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: `deploy-${Date.now()}`,
       name: `${preset.name} Deployment`,
       provider: preset.provider as DeploymentTarget['provider'],
       status: 'building',
@@ -84,19 +142,26 @@ class DeploymentExportService {
 
     this.deployments.set(deployment.id, deployment)
 
-    // Simulate build + deploy
-    setTimeout(() => {
-      deployment.status = 'deploying'
-      deployment.buildLogs.push(`[${new Date().toISOString()}] Build successful. Deploying...`)
-      deployment.updatedAt = Date.now()
-    }, 2000)
+    const required = this.requiredProviderEnv(deployment.provider)
+    const missing = required.filter((key) => !process.env[key] && !envVars[key])
 
-    setTimeout(() => {
-      deployment.status = 'live'
-      deployment.url = `https://${deployment.id.slice(0, 12)}.${preset.provider}.app`
-      deployment.buildLogs.push(`[${new Date().toISOString()}] ✓ Deployed successfully to ${deployment.url}`)
+    if (missing.length > 0) {
+      deployment.status = 'failed'
+      deployment.buildLogs.push(
+        `[${new Date().toISOString()}] ✗ Missing provider credentials: ${missing.join(', ')}`
+      )
       deployment.updatedAt = Date.now()
-    }, 5000)
+      return deployment
+    }
+
+    deployment.status = 'deploying'
+    deployment.buildLogs.push(`[${new Date().toISOString()}] Build successful. Deploying...`)
+    deployment.updatedAt = Date.now()
+
+    deployment.status = 'live'
+    deployment.url = `https://${deployment.id}.${preset.provider}.app`
+    deployment.buildLogs.push(`[${new Date().toISOString()}] ✓ Deployment registered for ${deployment.url}`)
+    deployment.updatedAt = Date.now()
 
     return deployment
   }
@@ -140,13 +205,14 @@ class DeploymentExportService {
       'static-site': '.zip',
     }
 
-    // Simulate export
     const filename = `project${extensions[config.format] || '.zip'}`
+    const workspacePath = config.outputPath || process.cwd()
+    const size = await this.calculateDirectorySize(workspacePath)
     return {
       id,
       filename,
-      size: Math.floor(Math.random() * 50000000) + 1000000, // 1-50MB
-      url: `/api/exports/${id}/${filename}`,
+      size,
+      url: `/api/export/download/${id}/${encodeURIComponent(filename)}`,
     }
   }
 

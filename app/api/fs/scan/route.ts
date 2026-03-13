@@ -4,21 +4,25 @@ import { authOptions } from '@/lib/auth/config'
 import { promises as fs } from 'fs'
 import path from 'path'
 
+const WORKSPACE_ID_PATTERN = /^[a-zA-Z0-9._-]{1,128}$/
+
 /**
  * Get workspace root for a user
  * In production, each user has their own isolated workspace
  */
 function getWorkspaceRoot(workspaceId: string): string {
-  return path.join(process.cwd(), 'workspaces', workspaceId)
+  const workspacesBase = path.resolve(process.cwd(), 'workspaces')
+  return path.resolve(workspacesBase, workspaceId)
 }
 
 /**
  * Validate that a path is within the workspace
  */
 function isWithinWorkspace(targetPath: string, workspaceRoot: string): boolean {
+  const resolvedRoot = path.resolve(workspaceRoot)
   const normalized = path.normalize(targetPath)
-  const resolved = path.resolve(workspaceRoot, normalized)
-  return resolved.startsWith(workspaceRoot)
+  const resolved = path.resolve(resolvedRoot, normalized)
+  return resolved === resolvedRoot || resolved.startsWith(resolvedRoot + path.sep)
 }
 
 export async function GET(request: NextRequest) {
@@ -30,8 +34,16 @@ export async function GET(request: NextRequest) {
 
   // SECURITY: Scope to user's workspace
   const { searchParams } = new URL(request.url)
-  const workspaceId = searchParams.get('workspaceId') || session.user.id
+  const workspaceId = String(searchParams.get('workspaceId') || session.user.id)
+  if (!WORKSPACE_ID_PATTERN.test(workspaceId)) {
+    return NextResponse.json({ error: 'Invalid workspaceId' }, { status: 400 })
+  }
+
+  const workspacesBase = path.resolve(process.cwd(), 'workspaces')
   const workspaceRoot = getWorkspaceRoot(workspaceId)
+  if (!workspaceRoot.startsWith(workspacesBase + path.sep) && workspaceRoot !== workspacesBase) {
+    return NextResponse.json({ error: 'Invalid workspace path' }, { status: 400 })
+  }
 
   try {
     const scanPaths = ['app', 'components', 'lib', 'pages']

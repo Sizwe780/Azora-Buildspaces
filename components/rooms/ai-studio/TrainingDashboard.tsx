@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area } from 'recharts';
 import { TrendingUp } from "lucide-react";
@@ -8,6 +8,47 @@ import { TrendingUp } from "lucide-react";
 export default function TrainingDashboard({ isTraining }: { isTraining?: boolean }) {
     const [lossData, setLossData] = useState<any[]>([]);
     const [accuracyData, setAccuracyData] = useState<any[]>([]);
+    const [epoch, setEpoch] = useState(0);
+    const [currentLoss, setCurrentLoss] = useState(2.5);
+    const [currentAccuracy, setCurrentAccuracy] = useState(0.1);
+    const [gpuUtil, setGpuUtil] = useState(0);
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Simulate live training data when isTraining
+    useEffect(() => {
+        if (!isTraining) {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            return;
+        }
+        // Reset on new training
+        setLossData([]);
+        setAccuracyData([]);
+        setEpoch(0);
+        setCurrentLoss(2.5);
+        setCurrentAccuracy(0.1);
+        setGpuUtil(85 + Math.random() * 10);
+
+        intervalRef.current = setInterval(() => {
+            setEpoch(prev => {
+                const next = prev + 1;
+                if (next > 100) {
+                    if (intervalRef.current) clearInterval(intervalRef.current);
+                    return prev;
+                }
+                const trainLoss = Math.max(0.02, 2.5 * Math.exp(-0.04 * next) + (Math.random() - 0.5) * 0.05);
+                const valLoss = Math.max(0.04, 2.5 * Math.exp(-0.035 * next) + (Math.random() - 0.5) * 0.08);
+                const accuracy = Math.min(0.99, 0.1 + 0.89 * (1 - Math.exp(-0.05 * next)) + (Math.random() - 0.5) * 0.02);
+                setCurrentLoss(trainLoss);
+                setCurrentAccuracy(accuracy);
+                setGpuUtil(85 + Math.random() * 12);
+                setLossData(prev => [...prev, { epoch: next, trainLoss: +trainLoss.toFixed(4), valLoss: +valLoss.toFixed(4) }]);
+                setAccuracyData(prev => [...prev, { epoch: next, accuracy: +(accuracy * 100).toFixed(1) }]);
+                return next;
+            });
+        }, 800);
+
+        return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    }, [isTraining]);
     if (!isTraining) {
         return (
             <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
@@ -32,8 +73,8 @@ export default function TrainingDashboard({ isTraining }: { isTraining?: boolean
                         <CardTitle className="text-sm font-medium text-muted-foreground">Current Epoch</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">20/100</div>
-                        <p className="text-xs text-muted-foreground">ETA: 45m 12s</p>
+                        <div className="text-2xl font-bold">{epoch}/100</div>
+                        <p className="text-xs text-muted-foreground">ETA: {Math.max(0, Math.round((100 - epoch) * 0.8 / 60))}m {Math.round((100 - epoch) * 0.8 % 60)}s</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -41,8 +82,8 @@ export default function TrainingDashboard({ isTraining }: { isTraining?: boolean
                         <CardTitle className="text-sm font-medium text-muted-foreground">Training Loss</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-green-500">0.1423</div>
-                        <p className="text-xs text-muted-foreground">↓ 0.0012 from last epoch</p>
+                        <div className="text-2xl font-bold text-green-500">{currentLoss.toFixed(4)}</div>
+                        <p className="text-xs text-muted-foreground">↓ converging</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -50,7 +91,7 @@ export default function TrainingDashboard({ isTraining }: { isTraining?: boolean
                         <CardTitle className="text-sm font-medium text-muted-foreground">GPU Utilization</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-purple-500">94%</div>
+                        <div className="text-2xl font-bold text-purple-500">{gpuUtil.toFixed(0)}%</div>
                         <p className="text-xs text-muted-foreground">NVIDIA A100-80GB</p>
                     </CardContent>
                 </Card>

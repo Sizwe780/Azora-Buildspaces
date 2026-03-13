@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { notebookId = 'default', cellId, source, type, metadata } = await req.json()
+    const { notebookId = 'default', cellId, source, type, language, outputs, metadata, position } = await req.json()
 
     if (!cellId) {
       return NextResponse.json({ error: 'cellId is required' }, { status: 400 })
@@ -94,7 +94,10 @@ export async function PUT(req: NextRequest) {
 
     if (source !== undefined) cell.source = source
     if (type !== undefined) cell.type = type
+    if (language !== undefined) cell.language = language
+    if (outputs !== undefined) cell.outputs = outputs
     if (metadata) Object.assign(cell.metadata, metadata)
+    if (position !== undefined) cell.position = position
 
     return NextResponse.json({ success: true, cell })
   } catch (error: any) {

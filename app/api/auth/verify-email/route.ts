@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/database/client';
-import crypto from 'crypto';
 
 /**
  * POST /api/auth/verify-email
@@ -20,6 +18,13 @@ import crypto from 'crypto';
  */
 export async function POST(req: Request) {
   try {
+    if (process.env.AUTH_EMAIL_VERIFICATION_ENABLED !== 'true') {
+      return NextResponse.json(
+        { error: 'Email verification is not configured in this environment' },
+        { status: 503 }
+      );
+    }
+
     const { token } = await req.json();
 
     if (!token) {
@@ -29,35 +34,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // Hash the token to verify against stored hash
-    const verificationTokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    void token;
 
-    // NOTE: Requires database schema update for email verification
-    // Uncomment when User model includes: emailVerificationToken, emailVerificationExpires, emailVerified
-    // const user = await prisma.user.findFirst({
-    //   where: {
-    //     emailVerificationToken: verificationTokenHash,
-    //     emailVerificationExpires: {
-    //       gt: new Date() // Token must not be expired
-    //     },
-    //     emailVerified: false
-    //   }
-    // });
-
-    // if (!user) {
-    //   return NextResponse.json(
-    //     { error: 'Invalid or expired verification token' },
-    //     { status: 400 }
-    //   );
-    // }
-
-    // For now, return success (schema updates needed)
-    console.log('[AUTH] Email verification attempted (schema not yet updated)');
-
-    return NextResponse.json({
-      success: true,
-      message: 'Email verification feature coming soon. Schema updates in progress.'
-    });
+    return NextResponse.json(
+      { error: 'Email verification backend is unavailable: verification-token schema fields are not configured' },
+      { status: 503 }
+    );
 
     // NOTE: Implementation ready - awaiting schema migration
     // // Mark email as verified
@@ -99,6 +81,13 @@ export async function POST(req: Request) {
  */
 export async function PUT(req: Request) {
   try {
+    if (process.env.AUTH_EMAIL_VERIFICATION_ENABLED !== 'true') {
+      return NextResponse.json(
+        { error: 'Email verification is not configured in this environment' },
+        { status: 503 }
+      );
+    }
+
     const { email } = await req.json();
 
     if (!email) {
@@ -108,38 +97,12 @@ export async function PUT(req: Request) {
       );
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    void email;
 
-    // NOTE: Requires database schema update
-    // Uncomment when User model includes email verification fields
-    // const user = await prisma.user.findUnique({
-    //   where: { email: normalizedEmail }
-    // });
-
-    // if (!user) {
-    //   // Don't reveal if email exists
-    //   return NextResponse.json({
-    //     success: true,
-    //     message: 'If an account exists with that email, a verification link has been sent.'
-    //   });
-    // }
-
-    // if (user.emailVerified) {
-    //   return NextResponse.json({
-    //     error: 'Email is already verified',
-    //     success: false
-    //   }, { status: 400 });
-    // }
-
-    // NOTE: Implementation ready - awaiting schema migration
-    // Will generate new verification token and send email
-
-    console.log(`[AUTH] Verification email resend requested for: ${normalizedEmail}`);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Verification email has been resent. Please check your inbox.'
-    });
+    return NextResponse.json(
+      { error: 'Email verification backend is unavailable: verification-token schema fields are not configured' },
+      { status: 503 }
+    );
 
   } catch (error) {
     console.error('[AUTH] Resend verification error:', error);

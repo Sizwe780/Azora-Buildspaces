@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import dynamic from "next/dynamic"
 import {
   Settings, Search, ChevronRight, ChevronDown, RotateCcw, Keyboard,
   Check, X, FileJson, Pencil, Filter, Code2, Palette, Terminal,
-  Brain, Users, Shield, FolderOpen, Info
+  Brain, Users, Shield, FolderOpen, Info, UserCircle, Download, Trash2, Upload
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
+
+const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false })
 
 interface SettingDefinition {
   id: string
@@ -63,6 +66,54 @@ export function SettingsView() {
   const [editingKb, setEditingKb] = useState<string | null>(null)
   const [newKey, setNewKey] = useState('')
   const [showModifiedOnly, setShowModifiedOnly] = useState(false)
+  const [profiles, setProfiles] = useState<{ name: string; settings: Record<string, any> }[]>([])
+  const [newProfileName, setNewProfileName] = useState('')
+
+  // Load profiles from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('azora-settings-profiles')
+      if (saved) setProfiles(JSON.parse(saved))
+    } catch {}
+  }, [])
+
+  const saveProfiles = (p: typeof profiles) => {
+    setProfiles(p)
+    try { localStorage.setItem('azora-settings-profiles', JSON.stringify(p)) } catch {}
+  }
+
+  const createProfile = () => {
+    if (!newProfileName.trim()) return
+    const newProfile = { name: newProfileName.trim(), settings: { ...settingsValues } }
+    saveProfiles([...profiles, newProfile])
+    setNewProfileName('')
+  }
+
+  const loadProfile = (index: number) => {
+    const p = profiles[index]
+    if (!p) return
+    setSettingsValues(p.settings)
+    // Apply to backend
+    Object.entries(p.settings).forEach(([key, value]) => {
+      updateSetting(key, value)
+    })
+  }
+
+  const deleteProfile = (index: number) => {
+    saveProfiles(profiles.filter((_, i) => i !== index))
+  }
+
+  const exportProfile = (index: number) => {
+    const p = profiles[index]
+    if (!p) return
+    const blob = new Blob([JSON.stringify(p, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${p.name}-profile.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   useEffect(() => {
     fetchCategories()
@@ -333,6 +384,9 @@ export function SettingsView() {
           <TabsTrigger value="keybindings" className="text-[11px] h-7 px-2.5 data-[state=active]:bg-muted/50">
             <Keyboard className="w-3 h-3 mr-1" /> Keybindings
           </TabsTrigger>
+          <TabsTrigger value="profiles" className="text-[11px] h-7 px-2.5 data-[state=active]:bg-muted/50">
+            <UserCircle className="w-3 h-3 mr-1" /> Profiles
+          </TabsTrigger>
         </TabsList>
 
         {/* GUI Settings Tab */}
@@ -378,21 +432,40 @@ export function SettingsView() {
 
         {/* JSON Settings Tab */}
         <TabsContent value="json" className="flex-1 m-0 overflow-hidden">
-          <ScrollArea className="h-full">
-            <div className="p-3">
+          <div className="flex flex-col h-full">
+            <div className="p-3 pb-1">
               <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5">
                 <Info className="w-3 h-3" />
-                <span>Edit settings directly in JSON format</span>
+                <span>Edit settings directly in JSON format (with IntelliSense)</span>
               </div>
-              <textarea
+            </div>
+            <div className="flex-1 min-h-0">
+              <MonacoEditor
+                height="100%"
+                language="json"
+                theme="vs-dark"
                 value={jsonContent}
-                onChange={e => setJsonContent(e.target.value)}
-                className="w-full h-[400px] p-3 rounded-lg bg-muted/20 border border-border/30 text-xs font-mono resize-none focus:outline-none focus:ring-1 focus:ring-primary/30"
-                spellCheck={false}
+                onChange={(val) => setJsonContent(val || '')}
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 12,
+                  lineNumbers: 'on',
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                  tabSize: 2,
+                  wordWrap: 'on',
+                  formatOnPaste: true,
+                  formatOnType: true,
+                  folding: true,
+                  bracketPairColorization: { enabled: true },
+                  suggest: { preview: true },
+                }}
               />
+            </div>
+            <div className="p-3 pt-1">
               <Button
                 size="sm"
-                className="mt-2 h-7 text-xs"
+                className="h-7 text-xs"
                 onClick={async () => {
                   try {
                     await fetch('/api/settings', {
@@ -407,7 +480,7 @@ export function SettingsView() {
                 <Check className="w-3 h-3 mr-1" /> Apply Changes
               </Button>
             </div>
-          </ScrollArea>
+          </div>
         </TabsContent>
 
         {/* Keybindings Tab */}
@@ -485,6 +558,93 @@ export function SettingsView() {
                   </Badge>
                 </div>
               ))}
+            </div>
+          </ScrollArea>
+        </TabsContent>
+
+        {/* Profiles Tab */}
+        <TabsContent value="profiles" className="flex-1 m-0 overflow-hidden">
+          <ScrollArea className="h-full">
+            <div className="p-4 space-y-4">
+              <div>
+                <h3 className="text-sm font-medium mb-2">Settings Profiles</h3>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Save, load, and export named settings profiles. Profiles snapshot all current settings.
+                </p>
+              </div>
+
+              {/* Create Profile */}
+              <div className="flex gap-2">
+                <Input
+                  placeholder="New profile name..."
+                  value={newProfileName}
+                  onChange={(e) => setNewProfileName(e.target.value)}
+                  className="h-8 text-sm flex-1"
+                  onKeyDown={(e) => { if (e.key === 'Enter') createProfile() }}
+                />
+                <Button size="sm" onClick={createProfile} disabled={!newProfileName.trim()} className="px-3 h-8">
+                  <UserCircle className="w-3.5 h-3.5 mr-1" /> Save Current
+                </Button>
+              </div>
+
+              {/* Import Profile */}
+              <div>
+                <label className="text-xs text-muted-foreground cursor-pointer hover:text-foreground flex items-center gap-1">
+                  <Upload className="w-3.5 h-3.5" />
+                  Import Profile
+                  <input
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      const reader = new FileReader()
+                      reader.onload = (ev) => {
+                        try {
+                          const imported = JSON.parse(ev.target?.result as string)
+                          if (imported.name && imported.settings) {
+                            saveProfiles([...profiles, imported])
+                          }
+                        } catch {}
+                      }
+                      reader.readAsText(file)
+                    }}
+                  />
+                </label>
+              </div>
+
+              {/* Profile List */}
+              {profiles.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  <UserCircle className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                  <p>No profiles saved yet</p>
+                  <p className="text-xs">Create a profile to save your current settings</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {profiles.map((p, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-3 rounded-lg border border-border/30 hover:border-border/60 bg-muted/10">
+                      <UserCircle className="w-5 h-5 text-primary shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{p.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{Object.keys(p.settings).length} settings</p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => loadProfile(idx)} title="Load Profile">
+                          <Check className="w-3 h-3 text-green-400" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => exportProfile(idx)} title="Export Profile">
+                          <Download className="w-3 h-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => deleteProfile(idx)} title="Delete Profile">
+                          <Trash2 className="w-3 h-3 text-red-400" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </ScrollArea>
         </TabsContent>

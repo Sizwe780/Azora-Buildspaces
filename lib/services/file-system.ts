@@ -61,6 +61,7 @@ export type GitStatus = z.infer<typeof GitStatusSchema>
 export type GitCommit = z.infer<typeof GitCommitSchema>
 
 export interface FileWatcher {
+  id: string
   path: string
   recursive: boolean
   callback: (event: FileSystemEvent) => void
@@ -87,6 +88,7 @@ export interface GitRemote {
 export class FileSystemService extends EventEmitter {
   private watchers: Map<string, FileWatcher[]> = new Map()
   private gitRepositories: Map<string, any> = new Map()
+  private watcherCounter = 0
 
   constructor() {
     super()
@@ -223,9 +225,10 @@ export class FileSystemService extends EventEmitter {
    * Watch file system changes
    */
   watchPath(containerId: string, path: string, recursive = true, callback: (event: FileSystemEvent) => void): string {
-    const watcherId = `watcher_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const watcherId = `watcher_${++this.watcherCounter}`
 
     const watcher: FileWatcher = {
+      id: watcherId,
       path,
       recursive,
       callback
@@ -253,7 +256,7 @@ export class FileSystemService extends EventEmitter {
   unwatchPath(containerId: string, watcherId: string): void {
     const watchers = this.watchers.get(containerId)
     if (watchers) {
-      const index = watchers.findIndex(w => w.path === watcherId)
+      const index = watchers.findIndex(w => w.id === watcherId)
       if (index !== -1) {
         watchers.splice(index, 1)
       }
@@ -334,6 +337,8 @@ export class FileSystemService extends EventEmitter {
    * Commit changes
    */
   async gitCommit(containerId: string, path: string, message: string, author?: { name: string; email: string }): Promise<string> {
+    void containerId
+    void author
     try {
       const response = await fetch('/api/fs', {
         method: 'POST',
@@ -341,7 +346,11 @@ export class FileSystemService extends EventEmitter {
         body: JSON.stringify({ operation: 'gitCommit', path, message })
       });
       if (!response.ok) throw new Error(await response.text());
-      return 'commit-hash-placeholder'; // Real hash would require parsing output
+      const data = await response.json();
+      if (!data?.hash) {
+        throw new Error('Missing commit hash from git commit response')
+      }
+      return data.hash
     } catch (error) {
       throw new Error(`Failed to commit: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

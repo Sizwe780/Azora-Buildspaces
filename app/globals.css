@@ -47,6 +47,100 @@
   --tanzanite: oklch(0.6 0.2 275);
   --ruby: oklch(0.6 0.25 15);
   --titanium: oklch(0.6 0.02 240);
+
+  /* IDE Chrome Tokens (Code Chamber workbench) */
+  --ide-editor-bg: #1e1e1e;
+  --ide-sidebar-bg: #252526;
+  --ide-tab-inactive-bg: #2d2d30;
+  --ide-tab-active-indicator: #007acc;
+  --ide-border: #3e3e42;
+  --ide-text: #cccccc;
+  --ide-text-muted: #cccccc80;
+  --ide-hover-bg: #37373d;
+  --ide-activity-bar-bg: #2d2d30;
+
+  /* IDE Menu Tokens */
+  --ide-menu-bg: #252526;
+  --ide-menu-active-bg: #505050;
+  --ide-menu-border: #454545;
+  --ide-menu-bar-bg: #3c3c3c;
+
+  /* IDE Settings / GitHub-style Tokens */
+  --ide-settings-bg: #0d1117;
+  --ide-settings-surface: #010409;
+  --ide-settings-border: #1b1f27;
+  --ide-settings-muted: #8b949e;
+  --ide-settings-text: #c9d1d9;
+  --ide-settings-input-bg: #1b1f27;
+  --ide-settings-accent: #1f6feb;
+  --ide-settings-accent-hover: #388bfd;
+  --ide-settings-hover-bg: #30363d;
+  --ide-settings-subtle: #484f58;
+  --ide-settings-panel-bg: #161b22;
+
+  /* IDE Terminal Tokens */
+  --ide-terminal-bg: #09090b;
+  --ide-terminal-fg: #fafafa;
+  --ide-terminal-cursor: #22d3ee;
+  --ide-terminal-selection: #27272a;
+  /* Terminal ANSI palette */
+  --ide-ansi-black: #09090b;
+  --ide-ansi-red: #ef4444;
+  --ide-ansi-green: #22c55e;
+  --ide-ansi-yellow: #eab308;
+  --ide-ansi-blue: #3b82f6;
+  --ide-ansi-magenta: #d946ef;
+  --ide-ansi-cyan: #06b6d4;
+  --ide-ansi-white: #fafafa;
+  --ide-ansi-bright-black: #27272a;
+  --ide-ansi-bright-red: #f87171;
+  --ide-ansi-bright-green: #4ade80;
+  --ide-ansi-bright-yellow: #facc15;
+  --ide-ansi-bright-blue: #60a5fa;
+  --ide-ansi-bright-magenta: #e879f9;
+  --ide-ansi-bright-cyan: #22d3ee;
+  --ide-ansi-bright-white: #ffffff;
+
+  /* Merge conflict tokens */
+  --ide-merge-current-bg: rgba(74, 222, 128, 0.1);
+  --ide-merge-current-ruler: #2ea04370;
+  --ide-merge-current-gutter: #4ade80;
+  --ide-merge-incoming-bg: rgba(96, 165, 250, 0.1);
+  --ide-merge-incoming-ruler: #1f6feb70;
+  --ide-merge-incoming-gutter: #60a5fa;
+
+  /* Collaboration presence colors (6 users) */
+  --ide-collab-0: #f97316;
+  --ide-collab-1: #22c55e;
+  --ide-collab-2: #3b82f6;
+  --ide-collab-3: #a855f7;
+  --ide-collab-4: #ec4899;
+  --ide-collab-5: #14b8a6;
+
+  /* IDE Breadcrumb Tokens */
+  --ide-breadcrumb-bg: #2d2d2d;
+  --ide-breadcrumb-hover: #37373d;
+  --ide-breadcrumb-text: #cccccc;
+  --ide-breadcrumb-border: #3e3e42;
+  --ide-breadcrumb-light-bg: #f3f3f3;
+  --ide-breadcrumb-light-hover: #e5e5e5;
+  --ide-breadcrumb-light-text: #6c6c6c;
+  --ide-breadcrumb-light-border: #cccccc;
+
+  /* IDE Input Tokens */
+  --ide-input-bg: #3c3c3c;
+  --ide-input-border: #4c4c4c;
+  --ide-widget-bg: #252526;
+
+  /* IDE Status Bar Tokens */
+  --ide-statusbar-bg: #007acc;
+  --ide-statusbar-fg: #ffffff;
+  --ide-statusbar-hover: #1c8ad4;
+  --ide-statusbar-border: #007acc;
+  --ide-statusbar-item-hover: rgba(255, 255, 255, 0.12);
+  --ide-statusbar-prominent-bg: #388bfd;
+  --ide-statusbar-debug-bg: #cc6633;
+  --ide-statusbar-no-folder-bg: #68217a;
 }
 
 .dark {
@@ -129,6 +223,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -136,11 +231,13 @@
 
 /* BuildSpaces Custom Animations */
 @keyframes aether-pulse {
+
   0%,
   100% {
     opacity: 0.6;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.9;
     transform: scale(1.05);
@@ -148,26 +245,32 @@
 }
 
 @keyframes aether-float {
+
   0%,
   100% {
     transform: translateY(0) translateX(0);
   }
+
   25% {
     transform: translateY(-10px) translateX(5px);
   }
+
   50% {
     transform: translateY(-5px) translateX(-5px);
   }
+
   75% {
     transform: translateY(-15px) translateX(3px);
   }
 }
 
 @keyframes aether-glow {
+
   0%,
   100% {
     box-shadow: 0 0 20px rgba(16, 185, 129, 0.3), 0 0 40px rgba(16, 185, 129, 0.1);
   }
+
   50% {
     box-shadow: 0 0 30px rgba(16, 185, 129, 0.5), 0 0 60px rgba(16, 185, 129, 0.2);
   }
@@ -177,19 +280,23 @@
   0% {
     background-position: 0% 50%;
   }
+
   50% {
     background-position: 100% 50%;
   }
+
   100% {
     background-position: 0% 50%;
   }
 }
 
 @keyframes typing-cursor {
+
   0%,
   50% {
     opacity: 1;
   }
+
   51%,
   100% {
     opacity: 0;
@@ -247,11 +354,17 @@
 
 /* Shimmer / skeleton loader */
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
+
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.04) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 2s ease-in-out infinite;
 }
@@ -260,13 +373,14 @@
 .gradient-border {
   position: relative;
 }
+
 .gradient-border::before {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, rgba(16,185,129,0.3), rgba(6,182,212,0.15), rgba(168,85,247,0.15));
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(6, 182, 212, 0.15), rgba(168, 85, 247, 0.15));
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude;
   -webkit-mask-composite: xor;
@@ -275,42 +389,229 @@
 
 /* Glassmorphism card */
 .glass-card {
-  background: rgba(255,255,255,0.02);
+  background: rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
+
 .glass-card:hover {
-  background: rgba(255,255,255,0.04);
-  border-color: rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 /* Scroll-reveal fade-in */
 @keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
+
 .animate-fade-in-up {
   animation: fade-in-up 0.6s ease-out forwards;
 }
 
 /* Subtle radial glow behind hero */
 .hero-glow {
-  background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(16,185,129,0.12) 0%, transparent 70%);
+  background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(16, 185, 129, 0.12) 0%, transparent 70%);
 }
 
 /* Smooth morphing word transition */
 @keyframes morph-word {
-  0% { opacity: 0; filter: blur(8px); transform: translateY(12px); }
-  20% { opacity: 1; filter: blur(0px); transform: translateY(0); }
-  80% { opacity: 1; filter: blur(0px); transform: translateY(0); }
-  100% { opacity: 0; filter: blur(8px); transform: translateY(-12px); }
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(12px);
+  }
+
+  20% {
+    opacity: 1;
+    filter: blur(0px);
+    transform: translateY(0);
+  }
+
+  80% {
+    opacity: 1;
+    filter: blur(0px);
+    transform: translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(-12px);
+  }
 }
 
 /* Glow ring for active elements */
 @keyframes glow-ring {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
-  50% { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
 }
+
 .animate-glow-ring {
   animation: glow-ring 2s ease-in-out infinite;
+}
+
+/* Monaco breakpoint gutter decorations */
+.breakpoint-glyph {
+  background: radial-gradient(circle at center, #e51400 60%, transparent 61%);
+  border-radius: 50%;
+  margin-left: 4px;
+  cursor: pointer;
+}
+
+.breakpoint-conditional-glyph {
+  background: radial-gradient(circle at center, #e5a500 40%, #e51400 41%, #e51400 60%, transparent 61%);
+  border-radius: 50%;
+  margin-left: 4px;
+  cursor: pointer;
+}
+
+.breakpoint-line-highlight {
+  background-color: rgba(229, 20, 0, 0.1) !important;
+}
+
+/* Enhanced bracket matching */
+.monaco-editor .bracket-match {
+  border: 1px solid hsl(var(--primary) / 0.6) !important;
+  background-color: hsl(var(--primary) / 0.1) !important;
+}
+
+/* Git blame inline annotations */
+.blame-annotation {
+  color: rgba(128, 128, 128, 0.5) !important;
+  font-style: italic !important;
+  font-size: 11px !important;
+  padding-left: 2em !important;
+}
+
+/* Inline debug values */
+.inline-debug-value {
+  color: rgba(78, 201, 176, 0.8) !important;
+  font-style: italic !important;
+  font-size: 11px !important;
+  background: rgba(78, 201, 176, 0.05) !important;
+  border-radius: 3px !important;
+  padding: 0 4px !important;
+}
+
+/* Merge conflict resolution markers */
+.merge-conflict-current {
+  background-color: var(--ide-merge-current-bg) !important;
+}
+
+.merge-conflict-current-gutter {
+  border-left: 3px solid var(--ide-merge-current-gutter) !important;
+}
+
+.merge-conflict-incoming {
+  background-color: var(--ide-merge-incoming-bg) !important;
+}
+
+.merge-conflict-incoming-gutter {
+  border-left: 3px solid var(--ide-merge-incoming-gutter) !important;
+}
+
+.merge-conflict-actions {
+  color: rgba(96, 165, 250, 0.9) !important;
+  font-size: 11px !important;
+  cursor: pointer !important;
+  text-decoration: underline !important;
+}
+
+.merge-conflict-marker {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  font-style: italic !important;
+}
+
+/* Presence cursors for collaboration */
+.presence-cursor-0,
+.presence-cursor-1,
+.presence-cursor-2,
+.presence-cursor-3,
+.presence-cursor-4,
+.presence-cursor-5 {
+  border-left: 2px solid currentColor !important;
+}
+
+.presence-cursor-0 {
+  color: var(--ide-collab-0) !important;
+}
+
+.presence-cursor-1 {
+  color: var(--ide-collab-1) !important;
+}
+
+.presence-cursor-2 {
+  color: var(--ide-collab-2) !important;
+}
+
+.presence-cursor-3 {
+  color: var(--ide-collab-3) !important;
+}
+
+.presence-cursor-4 {
+  color: var(--ide-collab-4) !important;
+}
+
+.presence-cursor-5 {
+  color: var(--ide-collab-5) !important;
+}
+
+.presence-label-0,
+.presence-label-1,
+.presence-label-2,
+.presence-label-3,
+.presence-label-4,
+.presence-label-5 {
+  font-size: 10px !important;
+  padding: 0 4px !important;
+  border-radius: 2px !important;
+  color: white !important;
+  position: relative !important;
+  top: -1.2em !important;
+}
+
+.presence-label-0 {
+  background: var(--ide-collab-0) !important;
+}
+
+.presence-label-1 {
+  background: var(--ide-collab-1) !important;
+}
+
+.presence-label-2 {
+  background: var(--ide-collab-2) !important;
+}
+
+.presence-label-3 {
+  background: var(--ide-collab-3) !important;
+}
+
+.presence-label-4 {
+  background: var(--ide-collab-4) !important;
+}
+
+.presence-label-5 {
+  background: var(--ide-collab-5) !important;
+}
+
+/* Bracket matching highlight */
+.bracket-match-highlight {
+  background-color: rgba(0, 122, 204, 0.3) !important;
+  border: 1px solid rgba(0, 122, 204, 0.5) !important;
+  border-radius: 2px !important;
 }

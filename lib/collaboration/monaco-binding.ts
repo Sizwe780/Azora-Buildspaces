@@ -1,3 +1,5 @@
+"use client"
+
 /**
  * Monaco Binding - Real-time Editor Synchronization
  * 
@@ -11,7 +13,8 @@
  */
 
 import * as Y from 'yjs'
-import { MonacoBinding } from 'y-monaco'
+// Dynamic import for browser-only module
+const getMonacoBinding = () => import('y-monaco').then(m => m.MonacoBinding)
 import type { editor } from 'monaco-editor'
 // import { Awareness } from 'y-protocols/awareness'
 
@@ -24,9 +27,10 @@ export interface BindingOptions {
 /**
  * Create Monaco binding for collaboration
  */
-export function createMonacoBinding(options: BindingOptions): MonacoBinding {
+export async function createMonacoBinding(options: BindingOptions): Promise<any> {
   const { yText, editor, awareness } = options
 
+  const MonacoBinding = await getMonacoBinding()
   // Create binding with awareness for cursor/selection sync
   const binding = new MonacoBinding(
     yText,
@@ -41,17 +45,17 @@ export function createMonacoBinding(options: BindingOptions): MonacoBinding {
 /**
  * Setup collaborative editing for a file
  */
-export function setupCollaborativeEditing(
+export async function setupCollaborativeEditing(
   doc: Y.Doc,
   filePath: string,
   editor: editor.IStandaloneCodeEditor,
   awareness?: any
-): MonacoBinding {
+): Promise<any> {
   // Get or create YText for this file
   const yText = doc.getText(filePath)
 
   // Create binding
-  const binding = createMonacoBinding({
+  const binding = await createMonacoBinding({
     yText,
     editor,
     awareness,
@@ -66,7 +70,7 @@ export function setupCollaborativeEditing(
 /**
  * Disconnect collaborative editing
  */
-export function disconnectCollaborativeEditing(binding: MonacoBinding) {
+export function disconnectCollaborativeEditing(binding: any) {
   binding.destroy()
   console.log('[Collaboration] Disconnected')
 }

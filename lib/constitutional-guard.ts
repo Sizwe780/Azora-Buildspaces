@@ -12,6 +12,39 @@
 
 import type { AgentRequest } from './agent-bridge'
 
+const CONSTITUTIONAL_LOGS_KEY = 'constitutional-logs'
+
+function getBrowserStorage(): Storage | null {
+  try {
+    if (typeof window === 'undefined') return null
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
+function readConstitutionalLogs(): any[] {
+  const storage = getBrowserStorage()
+  if (!storage) return []
+  try {
+    const raw = storage.getItem(CONSTITUTIONAL_LOGS_KEY)
+    const parsed = JSON.parse(raw || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function writeConstitutionalLogs(logs: any[]): void {
+  const storage = getBrowserStorage()
+  if (!storage) return
+  try {
+    storage.setItem(CONSTITUTIONAL_LOGS_KEY, JSON.stringify(logs))
+  } catch {
+    // Ignore storage write failures in restricted browser contexts
+  }
+}
+
 /**
  * Constitutional Violation Record
  */
@@ -237,11 +270,11 @@ export function logConstitutionalCheck(
 
     // Store in localStorage for debugging (remove in production)
     try {
-      const logs = JSON.parse(localStorage.getItem('constitutional-logs') || '[]')
+      const logs = readConstitutionalLogs()
       logs.push(logEntry)
       // Keep only last 100 logs
       if (logs.length > 100) logs.shift()
-      localStorage.setItem('constitutional-logs', JSON.stringify(logs))
+      writeConstitutionalLogs(logs)
     } catch (error) {
       console.error('Failed to store constitutional log:', error)
     }
@@ -267,7 +300,7 @@ export function getConstitutionalHealth(): {
   }
 
   try {
-    const logs = JSON.parse(localStorage.getItem('constitutional-logs') || '[]')
+    const logs = readConstitutionalLogs()
     const totalRequests = logs.length
     const passedRequests = logs.filter((log: any) => log.passed).length
     const avgScore =

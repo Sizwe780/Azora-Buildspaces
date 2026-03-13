@@ -22,16 +22,31 @@ export function SearchView() {
     const [results, setResults] = useState<SearchResult[]>([])
     const [isSearching, setIsSearching] = useState(false)
     const [showReplace, setShowReplace] = useState(false)
+    const [searchHistory, setSearchHistory] = useState<string[]>(() => {
+        if (typeof window === 'undefined') return []
+        try { return JSON.parse(localStorage.getItem('azora.searchHistory') || '[]') } catch { return [] }
+    })
+    const [showHistory, setShowHistory] = useState(false)
+    const [useRegex, setUseRegex] = useState(false)
+    const [caseSensitive, setCaseSensitive] = useState(false)
+    const [wholeWord, setWholeWord] = useState(false)
     const { fileMap, readFile, openFile, writeFile } = useFileSystem()
+
+    const addToHistory = (query: string) => {
+        const updated = [query, ...searchHistory.filter(h => h !== query)].slice(0, 20)
+        setSearchHistory(updated)
+        try { localStorage.setItem('azora.searchHistory', JSON.stringify(updated)) } catch {}
+    }
 
     const handleSearch = useCallback(() => {
         if (!searchQuery.trim()) {
             setResults([])
             return
         }
+        addToHistory(searchQuery)
+        setShowHistory(false)
         setIsSearching(true)
         const matches: SearchResult[] = []
-        const query = searchQuery.toLowerCase()
 
         Object.values(fileMap).forEach((file) => {
             if (file.type !== "file") return
@@ -39,26 +54,37 @@ export function SearchView() {
             if (!content) return
             const lines = content.split("\n")
             lines.forEach((line, lineIdx) => {
-                const lowerLine = line.toLowerCase()
-                let start = lowerLine.indexOf(query)
-                while (start !== -1) {
+                let regex: RegExp
+                try {
+                    if (useRegex) {
+                        regex = new RegExp(searchQuery, caseSensitive ? 'g' : 'gi')
+                    } else {
+                        const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                        const pattern = wholeWord ? `\\b${escaped}\\b` : escaped
+                        regex = new RegExp(pattern, caseSensitive ? 'g' : 'gi')
+                    }
+                } catch {
+                    return
+                }
+                let match
+                while ((match = regex.exec(line)) !== null) {
                     matches.push({
                         fileId: file.id,
                         fileName: file.name,
                         filePath: file.path,
                         line: lineIdx + 1,
                         content: line.trim(),
-                        matchStart: start,
-                        matchEnd: start + query.length,
+                        matchStart: match.index,
+                        matchEnd: match.index + match[0].length,
                     })
-                    start = lowerLine.indexOf(query, start + 1)
+                    if (!regex.global) break
                 }
             })
         })
 
-        setResults(matches.slice(0, 100)) // Cap at 100 results
+        setResults(matches.slice(0, 200))
         setIsSearching(false)
-    }, [searchQuery, fileMap, readFile])
+    }, [searchQuery, fileMap, readFile, useRegex, caseSensitive, wholeWord])
 
     const handleReplaceAll = useCallback(() => {
         if (!searchQuery.trim() || !replaceQuery.trim()) return
@@ -99,7 +125,36 @@ export function SearchView() {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                        onFocus={() => searchHistory.length > 0 && setShowHistory(true)}
                     />
+                    {/* Search history dropdown */}
+                    {showHistory && searchHistory.length > 0 && (
+                        <div className="absolute top-full left-0 w-full z-10 bg-popover border border-border rounded-md shadow-lg mt-1 max-h-40 overflow-auto">
+                            {searchHistory.map((h, i) => (
+                                <button key={i} className="w-full text-left px-3 py-1 text-xs hover:bg-muted/50 truncate" onClick={() => { setSearchQuery(h); setShowHistory(false) }}>
+                                    {h}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                {/* Search options */}
+                <div className="flex items-center gap-1">
+                    <button
+                        className={`px-1.5 py-0.5 rounded text-[10px] border ${caseSensitive ? 'border-primary/50 bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
+                        onClick={() => setCaseSensitive(!caseSensitive)}
+                        title="Match Case"
+                    >Aa</button>
+                    <button
+                        className={`px-1.5 py-0.5 rounded text-[10px] border ${wholeWord ? 'border-primary/50 bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
+                        onClick={() => setWholeWord(!wholeWord)}
+                        title="Match Whole Word"
+                    >ab</button>
+                    <button
+                        className={`px-1.5 py-0.5 rounded text-[10px] border font-mono ${useRegex ? 'border-primary/50 bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
+                        onClick={() => setUseRegex(!useRegex)}
+                        title="Use Regular Expression"
+                    >.*</button>
                 </div>
                 {showReplace && (
                     <div className="flex gap-1">

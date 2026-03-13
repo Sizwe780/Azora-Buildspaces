@@ -23,6 +23,10 @@ const LANGUAGE_MAP: Record<string, string> = {
     php: 'php',
 };
 
+const SUPPORTED_LANGUAGES = new Set(Object.keys(LANGUAGE_MAP))
+const MAX_CODE_LENGTH = 200_000
+const MAX_STDIN_LENGTH = 20_000
+
 /**
  * Execute code in a secure, containerized sandbox using Piston API
  * https://github.com/engineer-man/piston
@@ -43,11 +47,28 @@ export async function POST(request: NextRequest) {
 
         const { code, language, stdin = '' } = await request.json();
 
-        if (!code) {
+        if (!code || typeof code !== 'string') {
             return NextResponse.json({ error: 'No code provided' }, { status: 400 });
         }
 
-        const languageId = LANGUAGE_MAP[language?.toLowerCase()] || language;
+        if (code.length > MAX_CODE_LENGTH) {
+            return NextResponse.json({ error: 'Code payload too large' }, { status: 413 });
+        }
+
+        const normalizedLanguage = typeof language === 'string' ? language.toLowerCase() : ''
+        if (!SUPPORTED_LANGUAGES.has(normalizedLanguage)) {
+            return NextResponse.json({ error: 'Unsupported language' }, { status: 400 });
+        }
+
+        if (typeof stdin !== 'string') {
+            return NextResponse.json({ error: 'stdin must be a string' }, { status: 400 });
+        }
+
+        if (stdin.length > MAX_STDIN_LENGTH) {
+            return NextResponse.json({ error: 'stdin payload too large' }, { status: 413 });
+        }
+
+        const languageId = LANGUAGE_MAP[normalizedLanguage];
         
         // Use Piston API for secure code execution
         // Fallback to public instance if PISTON_API_URL is not configured
@@ -72,8 +93,8 @@ export async function POST(request: NextRequest) {
                     args: [],
                     compile_timeout: 10000, // 10 seconds
                     run_timeout: 3000, // 3 seconds
-                    compile_memory_limit: -1,
-                    run_memory_limit: -1,
+                    compile_memory_limit: 512000, // 512MB
+                    run_memory_limit: 512000, // 512MB
                 }),
             });
 

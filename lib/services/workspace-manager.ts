@@ -11,9 +11,30 @@ export class WorkspaceManager {
   }
 
   public async executeCommand(command: { type: string; parameters: any }): Promise<any> {
-    // Real implementation would connect to the actual deployment infrastructure
-    // For now, we return a success response to allow the build to pass
-    // This should be replaced with actual deployment logic (e.g., Vercel API, Docker, etc.)
-    return { status: 'success', message: `Executed ${command.type} command` };
+    const parameters = command?.parameters || {};
+
+    if (!command?.type) {
+      throw new Error('Workspace command type is required');
+    }
+
+    if (process.env.WORKSPACE_COMMANDS_ENABLED !== 'true') {
+      throw new Error('Workspace command backend is not configured. Set WORKSPACE_COMMANDS_ENABLED=true to enable execution.');
+    }
+
+    switch (command.type) {
+      case 'healthCheck':
+        return {
+          status: 'success',
+          backend: 'enabled',
+          timestamp: new Date().toISOString(),
+        };
+      case 'deploy':
+      case 'start':
+      case 'stop':
+      case 'restart':
+        throw new Error(`Workspace command '${command.type}' requires provider adapter integration`);
+      default:
+        throw new Error(`Unsupported workspace command type: ${command.type}`);
+    }
   }
 }

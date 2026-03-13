@@ -21,8 +21,15 @@ import {
   Search,
   ChevronDown,
   Pin,
+  Video,
+  VideoOff,
+  Mic,
+  MicOff,
+  Users,
+  Circle,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useCollaboration } from "@/lib/collaboration/collaboration-service"
 
 // ═══════════════════════════════════════════════════════════
 // TYPES
@@ -389,6 +396,39 @@ export function CollaborationChatPanel({
   const inputRef = useRef<HTMLInputElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
+  // ── Collaboration service integration ────────────────────
+  const {
+    collaborators,
+    isConnected: collabConnected,
+    connect: collabConnect,
+    disconnect: collabDisconnect,
+    updateCursor,
+    sendEdit,
+    voiceEnabled,
+    videoEnabled,
+    toggleVoice,
+    toggleVideo,
+  } = useCollaboration()
+
+  // Auto-connect to collaboration room
+  useEffect(() => {
+    collabConnect(roomId, currentUserId, currentUserName, '#60a5fa')
+    return () => { collabDisconnect() }
+  }, [roomId, currentUserId, currentUserName, collabConnect, collabDisconnect])
+
+  // Merge collaborators into chat online users
+  useEffect(() => {
+    const users: ChatUser[] = collaborators.map((c) => ({
+      id: c.id,
+      name: c.name,
+      color: c.color,
+      isOnline: c.status === "online" || c.status === "idle",
+      isTyping: c.isTyping,
+    }))
+    setOnlineUsers(users)
+    setTypingUsers(users.filter((u) => u.isTyping && u.id !== currentUserId))
+  }, [collaborators, currentUserId])
+
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -585,14 +625,50 @@ export function CollaborationChatPanel({
         <div className="flex items-center gap-2">
           <MessageSquare className="w-4 h-4 text-primary" />
           <span className="text-xs font-medium">Chat</span>
+          {collabConnected && (
+            <Circle className="w-2 h-2 fill-green-500 text-green-500" />
+          )}
           {onlineUsers.length > 0 && (
             <span className="text-[10px] text-muted-foreground">
               {onlineUsers.length} online
             </span>
           )}
+          {/* Presence Avatars */}
+          <div className="flex -space-x-1.5 ml-1">
+            {onlineUsers.slice(0, 5).map((u) => (
+              <div
+                key={u.id}
+                className="w-5 h-5 rounded-full border-2 border-background flex items-center justify-center text-[8px] font-bold text-white"
+                style={{ backgroundColor: u.color }}
+                title={`${u.name}${u.isTyping ? " (typing)" : ""}`}
+              >
+                {u.name.charAt(0).toUpperCase()}
+              </div>
+            ))}
+            {onlineUsers.length > 5 && (
+              <div className="w-5 h-5 rounded-full border-2 border-background bg-muted flex items-center justify-center text-[8px] text-muted-foreground">
+                +{onlineUsers.length - 5}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Voice/Video Controls */}
+          <button
+            onClick={toggleVoice}
+            className={`p-1 rounded transition-colors ${voiceEnabled ? "bg-green-500/20 text-green-500" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
+            title={voiceEnabled ? "Mute" : "Unmute"}
+          >
+            {voiceEnabled ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            onClick={toggleVideo}
+            className={`p-1 rounded transition-colors ${videoEnabled ? "bg-green-500/20 text-green-500" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
+            title={videoEnabled ? "Camera off" : "Camera on"}
+          >
+            {videoEnabled ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
+          </button>
           {/* Context Mode Toggle */}
           <div className="flex items-center gap-0.5 px-1 py-0.5 bg-muted/30 rounded-md">
             {contextModes.map((mode) => (

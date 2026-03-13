@@ -27,6 +27,10 @@ export interface WorkspaceState {
   activeFilePath: string | null
   activeFileContent: string
   
+  // Editor navigation history
+  editorHistory: string[]
+  historyIndex: number
+  
   // Open files (tabs)
   openFiles: string[]
   
@@ -40,6 +44,9 @@ export interface WorkspaceState {
     agentRailVisible: boolean
     sidebarWidth: number
     panelHeight: number
+    sidebarPosition: 'left' | 'right'
+    panelPosition: 'bottom' | 'right'
+    editorLayout: 'single' | 'horizontal-split' | 'vertical-split' | 'grid-2x2'
   }
   
   // Loading states
@@ -62,12 +69,21 @@ export interface WorkspaceActions {
   // Editor state
   updateActiveFileContent: (content: string) => void
   
+  // Editor navigation
+  navigateBack: () => void
+  navigateForward: () => void
+  canNavigateBack: () => boolean
+  canNavigateForward: () => boolean
+  
   // Layout operations
   toggleSidebar: () => void
   togglePanel: () => void
   toggleAgentRail: () => void
   setSidebarWidth: (width: number) => void
   setPanelHeight: (height: number) => void
+  setSidebarPosition: (position: 'left' | 'right') => void
+  setPanelPosition: (position: 'bottom' | 'right') => void
+  setEditorLayout: (layout: 'single' | 'horizontal-split' | 'vertical-split' | 'grid-2x2') => void
   
   // File tree
   refreshFileTree: () => Promise<void>
@@ -99,16 +115,22 @@ export function WorkspaceProvider({ children, initialProject }: WorkspaceProvide
       agentRailVisible: true,
       sidebarWidth: 250,
       panelHeight: 200,
+      sidebarPosition: 'left' as const,
+      panelPosition: 'bottom' as const,
+      editorLayout: 'single' as const,
     }
     
     try {
       const saved = localStorage.getItem('azora-workspace-layout')
-      return saved ? JSON.parse(saved) : {
+      return saved ? { ...JSON.parse(saved) } : {
         sidebarVisible: true,
         panelVisible: true,
         agentRailVisible: true,
         sidebarWidth: 250,
         panelHeight: 200,
+        sidebarPosition: 'left' as const,
+        panelPosition: 'bottom' as const,
+        editorLayout: 'single' as const,
       }
     } catch {
       return {
@@ -117,6 +139,9 @@ export function WorkspaceProvider({ children, initialProject }: WorkspaceProvide
         agentRailVisible: true,
         sidebarWidth: 250,
         panelHeight: 200,
+        sidebarPosition: 'left' as const,
+        panelPosition: 'bottom' as const,
+        editorLayout: 'single' as const,
       }
     }
   }
@@ -126,6 +151,8 @@ export function WorkspaceProvider({ children, initialProject }: WorkspaceProvide
     projectRoot: null,
     activeFilePath: null,
     activeFileContent: '',
+    editorHistory: [],
+    historyIndex: -1,
     openFiles: [],
     fileTree: [],
     layoutPreferences: loadLayoutPreferences(),
@@ -136,7 +163,11 @@ export function WorkspaceProvider({ children, initialProject }: WorkspaceProvide
   // Save layout preferences to localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('azora-workspace-layout', JSON.stringify(state.layoutPreferences))
+      try {
+        localStorage.setItem('azora-workspace-layout', JSON.stringify(state.layoutPreferences))
+      } catch {
+        // Ignore storage failures (private mode / restricted contexts)
+      }
     }
   }, [state.layoutPreferences])
 
@@ -198,13 +229,24 @@ export function WorkspaceProvider({ children, initialProject }: WorkspaceProvide
     setState(s => ({ ...s, isLoadingFile: true }))
     try {
       const content = await fileSystem.readFile(path)
-      setState(s => ({
-        ...s,
-        activeFilePath: path,
-        activeFileContent: content,
-        openFiles: s.openFiles.includes(path) ? s.openFiles : [...s.openFiles, path],
-        isLoadingFile: false,
-      }))
+      
+      setState(s => {
+        // Update history
+        const newHistory = s.editorHistory.slice(0, s.historyIndex + 1)
+        if (s.activeFilePath && s.activeFilePath !== path) {
+          newHistory.push(s.activeFilePath)
+        }
+        
+        return {
+          ...s,
+          activeFilePath: path,
+          activeFileContent: content,
+          openFiles: s.openFiles.includes(path) ? s.openFiles : [...s.openFiles, path],
+          editorHistory: newHistory,
+          historyIndex: newHistory.length - 1,
+          isLoadingFile: false,
+        }
+      })
     } catch (error) {
       console.error('Failed to open file:', error)
       setState(s => ({ ...s, isLoadingFile: false }))
@@ -270,6 +312,18 @@ export function WorkspaceProvider({ children, initialProject }: WorkspaceProvide
     setState(s => ({ ...s, activeFileContent: content }))
   }, [])
 
+  // File watching for auto-refresh
+  useEffect(() => {
+    if (!state.projectRoot) return
+
+    const unwatch = fileSystem.watchFiles(state.projectRoot, (event) => {
+      // Refresh file tree on any file system change
+      refreshFileTree()
+    })
+
+    return unwatch
+  }, [state.projectRoot])
+
   const refreshFileTree = useCallback(async () => {
     if (!state.projectRoot) return
     try {
@@ -324,6 +378,67 @@ export function WorkspaceProvider({ children, initialProject }: WorkspaceProvide
     }))
   }, [])
 
+  const setSidebarPosition = useCallback((position: 'left' | 'right') => {
+    setState(s => ({
+      ...s,
+      layoutPreferences: { ...s.layoutPreferences, sidebarPosition: position },
+    }))
+  }, [])
+
+  const setPanelPosition = useCallback((position: 'bottom' | 'right') => {
+    setState(s => ({
+      ...s,
+      layoutPreferences: { ...s.layoutPreferences, panelPosition: position },
+    }))
+  }, [])
+
+  const setEditorLayout = useCallback((layout: 'single' | 'horizontal-split' | 'vertical-split' | 'grid-2x2') => {
+    setState(s => ({
+      ...s,
+      layoutPreferences: { ...s.layoutPreferences, editorLayout: layout },
+    }))
+  }, [])
+
+  const navigateBack = useCallback(() => {
+    setState(s => {
+      if (s.historyIndex > 0) {
+        const newIndex = s.historyIndex - 1
+        const targetFile = s.editorHistory[newIndex]
+        return {
+          ...s,
+          historyIndex: newIndex,
+          activeFilePath: targetFile,
+          activeFileContent: s.activeFileContent,
+        }
+      }
+      return s
+    })
+  }, [])
+
+  const navigateForward = useCallback(() => {
+    setState(s => {
+      if (s.historyIndex < s.editorHistory.length - 1) {
+        const newIndex = s.historyIndex + 1
+        const targetFile = s.editorHistory[newIndex]
+        return {
+          ...s,
+          historyIndex: newIndex,
+          activeFilePath: targetFile,
+          activeFileContent: s.activeFileContent,
+        }
+      }
+      return s
+    })
+  }, [])
+
+  const canNavigateBack = useCallback(() => {
+    return state.historyIndex > 0
+  }, [state.historyIndex])
+
+  const canNavigateForward = useCallback(() => {
+    return state.historyIndex < state.editorHistory.length - 1
+  }, [state.historyIndex])
+
   const value: WorkspaceContextType = {
     ...state,
     initProject,
@@ -339,6 +454,13 @@ export function WorkspaceProvider({ children, initialProject }: WorkspaceProvide
     toggleAgentRail,
     setSidebarWidth,
     setPanelHeight,
+    setSidebarPosition,
+    setPanelPosition,
+    setEditorLayout,
+    navigateBack,
+    navigateForward,
+    canNavigateBack,
+    canNavigateForward,
     refreshFileTree,
   }
 

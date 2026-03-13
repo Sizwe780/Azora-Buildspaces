@@ -9,6 +9,7 @@
  */
 
 import { z } from 'zod'
+import { randomUUID } from 'crypto'
 
 // Constitutional Articles Enum
 export enum ConstitutionalArticle {
@@ -122,7 +123,7 @@ export class ConstitutionalAI {
       const validatedAction = UserActionSchema.parse(action)
       
       // Generate audit ID
-      const auditId = `audit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      const auditId = `audit_${randomUUID()}`
       
       // Check against all constitutional articles
       const violations: ConstitutionalViolation[] = []

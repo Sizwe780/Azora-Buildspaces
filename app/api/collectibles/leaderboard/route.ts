@@ -43,8 +43,20 @@ export async function GET(request: NextRequest) {
   const start = (page - 1) * limit
   const paginated = ranked.slice(start, start + limit)
 
+  // Map to frontend-expected format (name, power, badge)
+  const entries = paginated.map((e) => ({
+    rank: e.rank,
+    name: e.displayName,
+    power: e.totalPower,
+    badge: e.badge || "⭐",
+    userId: e.userId,
+    cardsOwned: e.cardsOwned,
+    topAchievement: e.topAchievement,
+  }))
+
   return NextResponse.json({
-    leaderboard: paginated,
+    entries,
+    leaderboard: paginated, // Also keep full format for compatibility
     total: ranked.length,
     page,
     limit,

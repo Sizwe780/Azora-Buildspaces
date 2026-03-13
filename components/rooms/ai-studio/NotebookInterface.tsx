@@ -1,151 +1,405 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Play, Plus, Trash2, Save } from "lucide-react";
-import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react"
+import dynamic from "next/dynamic"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Code2, FileText, Play, Plus, RefreshCw, Save, Trash2 } from "lucide-react"
 
-const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false })
 
-interface Cell {
-    id: string;
-    type: 'code' | 'markdown';
-    content: string;
-    output?: string;
-    isExecuting?: boolean;
+type CellType = "code" | "markdown"
+
+interface CellOutput {
+    type: "text" | "error" | "stream" | "html" | "image"
+    content: string
 }
 
-const INITIAL_CELLS: Cell[] = [
-    {
-        id: '1',
-        type: 'markdown',
-        content: '# New Notebook\nSelect a kernel to start coding.\n\n*Note: Python execution is currently disabled pending backend kernel integration.*'
+interface Cell {
+    id: string
+    type: CellType
+    source: string
+    language: string
+    outputs: CellOutput[]
+    metadata: {
+        executionCount?: number
+        executionTime?: number
     }
-];
+    isExecuting?: boolean
+}
+
+const NOTEBOOK_ID = "ai-studio-notebook"
+const KERNEL_ID = "ai-studio-kernel"
+
+function createWelcomeCells(): Array<Pick<Cell, "type" | "source" | "language">> {
+    return [
+        {
+            type: "markdown",
+            source: "# AI Studio Notebook\nUse the local TypeScript kernel to explore ideas, prototype logic, and inspect variables.",
+            language: "markdown",
+        },
+        {
+            type: "code",
+            source: "const greeting = \"Hello from AI Studio\"\ngreeting",
+            language: "typescript",
+        },
+    ]
+}
 
 export default function NotebookInterface() {
-    const [cells, setCells] = useState<Cell[]>(INITIAL_CELLS);
-    const notebookEnabled = process.env.NEXT_PUBLIC_NOTEBOOK_ENABLED === 'true'
+    const [cells, setCells] = useState<Cell[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+    const [isSaving, setIsSaving] = useState(false)
+    const [kernelStatus, setKernelStatus] = useState("idle")
+    const [executionCount, setExecutionCount] = useState(0)
+    const [variableCount, setVariableCount] = useState(0)
+    const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
+    const saveTimersRef = useRef<Record<string, number | undefined>>({})
 
-    const addCell = () => {
-        setCells([...cells, {
-            id: Date.now().toString(),
-            type: 'code',
-            content: '',
-        }]);
-    };
+    const refreshKernel = async () => {
+        try {
+            const response = await fetch(`/api/notebook/kernel?kernelId=${encodeURIComponent(KERNEL_ID)}`, { cache: "no-store" })
+            if (!response.ok) {
+                return
+            }
 
-    const deleteCell = (id: string) => {
-        setCells(cells.filter(c => c.id !== id));
-    };
+            const data = await response.json()
+            setKernelStatus(data.kernel?.status || "idle")
+            setExecutionCount(data.kernel?.executionCount || 0)
+            setVariableCount(data.variableCount || 0)
+        } catch {
+            // Kernel polling is best-effort.
+        }
+    }
 
-    const executeCell = (id: string) => {
-        // Execution requires a backend kernel; call the execution API which proxies to a kernel when configured
-        const notebookEnabled = process.env.NEXT_PUBLIC_NOTEBOOK_ENABLED === 'true'
+    const persistCell = async (cellId: string, updates: Partial<Cell>) => {
+        await fetch("/api/notebook/cells", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                notebookId: NOTEBOOK_ID,
+                cellId,
+                source: updates.source,
+                type: updates.type,
+                language: updates.language,
+                outputs: updates.outputs,
+                metadata: updates.metadata,
+            }),
+        })
 
-        if (!notebookEnabled) {
-            setCells(cells.map(c => (c.id === id ? { ...c, isExecuting: false, output: `Execution disabled: backend kernel not configured. Enable via NEXT_PUBLIC_NOTEBOOK_ENABLED=true to allow live execution.` } : c)))
+        setLastSavedAt(new Date().toLocaleTimeString())
+    }
+
+    const scheduleSave = (cellId: string, updates: Partial<Cell>) => {
+        const existingTimer = saveTimersRef.current[cellId]
+        if (existingTimer) {
+            window.clearTimeout(existingTimer)
+        }
+
+        saveTimersRef.current[cellId] = window.setTimeout(() => {
+            void persistCell(cellId, updates)
+        }, 400)
+    }
+
+    useEffect(() => {
+        const loadNotebook = async () => {
+            setIsLoading(true)
+
+            try {
+                const response = await fetch(`/api/notebook/cells?notebookId=${encodeURIComponent(NOTEBOOK_ID)}`, { cache: "no-store" })
+                const data = await response.json()
+                const nextCells = Array.isArray(data.cells)
+                    ? data.cells.map((cell: any) => ({
+                        id: cell.id,
+                        type: cell.type === "markdown" ? "markdown" : "code",
+                        source: cell.source || "",
+                        language: cell.language || (cell.type === "markdown" ? "markdown" : "typescript"),
+                        outputs: Array.isArray(cell.outputs) ? cell.outputs : [],
+                        metadata: cell.metadata || {},
+                    }))
+                    : []
+
+                if (nextCells.length > 0) {
+                    setCells(nextCells)
+                } else {
+                    const seededCells: Cell[] = []
+
+                    for (const seed of createWelcomeCells()) {
+                        const createResponse = await fetch("/api/notebook/cells", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                notebookId: NOTEBOOK_ID,
+                                type: seed.type,
+                                source: seed.source,
+                                language: seed.language,
+                            }),
+                        })
+                        const createData = await createResponse.json()
+                        if (createData.cell) {
+                            seededCells.push({
+                                id: createData.cell.id,
+                                type: createData.cell.type === "markdown" ? "markdown" : "code",
+                                source: createData.cell.source || "",
+                                language: createData.cell.language || seed.language,
+                                outputs: Array.isArray(createData.cell.outputs) ? createData.cell.outputs : [],
+                                metadata: createData.cell.metadata || {},
+                            })
+                        }
+                    }
+
+                    setCells(seededCells)
+                }
+            } catch {
+                setCells([])
+            } finally {
+                setIsLoading(false)
+            }
+        }
+
+        void loadNotebook()
+        void refreshKernel()
+
+        const intervalId = window.setInterval(() => {
+            void refreshKernel()
+        }, 3000)
+
+        return () => {
+            window.clearInterval(intervalId)
+            Object.values(saveTimersRef.current).forEach((timerId) => {
+                if (timerId) {
+                    window.clearTimeout(timerId)
+                }
+            })
+        }
+    }, [])
+
+    const addCell = async (type: CellType) => {
+        const response = await fetch("/api/notebook/cells", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                notebookId: NOTEBOOK_ID,
+                type,
+                source: "",
+                language: type === "markdown" ? "markdown" : "typescript",
+            }),
+        })
+
+        const data = await response.json()
+        if (!data.cell) {
             return
         }
 
-        const cell = cells.find(c => c.id === id)
-        if (!cell) return
+        setCells((prev) => [
+            ...prev,
+            {
+                id: data.cell.id,
+                type: data.cell.type === "markdown" ? "markdown" : "code",
+                source: data.cell.source || "",
+                language: data.cell.language || (type === "markdown" ? "markdown" : "typescript"),
+                outputs: Array.isArray(data.cell.outputs) ? data.cell.outputs : [],
+                metadata: data.cell.metadata || {},
+            },
+        ])
+    }
 
-        setCells(cells.map(c => (c.id === id ? { ...c, isExecuting: true } : c)))
-
-        fetch('/api/notebook/execute', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: cell.content })
+    const deleteCell = async (cellId: string) => {
+        setCells((prev) => prev.filter((cell) => cell.id !== cellId))
+        await fetch("/api/notebook/cells", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ notebookId: NOTEBOOK_ID, cellId }),
         })
-        .then(async (r) => {
-            const data = await r.json()
-            if (!r.ok) {
-                throw new Error(data.error || 'Execution failed')
+    }
+
+    const updateCellContent = (cellId: string, source: string) => {
+        setCells((prev) => prev.map((cell) => (cell.id === cellId ? { ...cell, source } : cell)))
+        scheduleSave(cellId, { source })
+    }
+
+    const saveNotebook = async () => {
+        setIsSaving(true)
+
+        try {
+            await Promise.all(cells.map((cell) => persistCell(cell.id, cell)))
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
+    const restartKernel = async () => {
+        await fetch("/api/notebook/kernel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "restart", kernelId: KERNEL_ID }),
+        })
+
+        setCells((prev) => prev.map((cell) => ({ ...cell, isExecuting: false })))
+        await refreshKernel()
+    }
+
+    const executeCell = async (cellId: string) => {
+        const cell = cells.find((entry) => entry.id === cellId)
+        if (!cell || cell.type !== "code") {
+            return
+        }
+
+        setCells((prev) => prev.map((entry) => (entry.id === cellId ? { ...entry, isExecuting: true } : entry)))
+
+        try {
+            const response = await fetch("/api/notebook/kernel", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "execute", kernelId: KERNEL_ID, code: cell.source }),
+            })
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.error || "Execution failed")
             }
-            setCells(prev => prev.map(c => c.id === id ? { ...c, isExecuting: false, output: data.result || JSON.stringify(data.raw || {}) } : c))
-        })
-        .catch((err) => {
-            setCells(prev => prev.map(c => c.id === id ? { ...c, isExecuting: false, output: `[Execution error] ${err instanceof Error ? err.message : String(err)}` } : c))
-        })
-    };
 
-    const updateCellContent = (id: string, content: string) => {
-        setCells(cells.map(c => c.id === id ? { ...c, content } : c));
-    };
+            const outputs = data.output?.content
+                ? [{ type: data.output.type, content: data.output.content }]
+                : []
+            const metadata = {
+                executionCount: data.output?.executionCount,
+                executionTime: data.output?.executionTime,
+            }
+
+            setCells((prev) => prev.map((entry) => (
+                entry.id === cellId
+                    ? { ...entry, isExecuting: false, outputs, metadata }
+                    : entry
+            )))
+
+            await persistCell(cellId, { outputs, metadata })
+            await refreshKernel()
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            const outputs = [{ type: "error" as const, content: message }]
+
+            setCells((prev) => prev.map((entry) => (
+                entry.id === cellId
+                    ? { ...entry, isExecuting: false, outputs }
+                    : entry
+            )))
+
+            await persistCell(cellId, { outputs })
+        }
+    }
 
     return (
-        <div className="h-full flex flex-col bg-background">
-            <div className="p-2 border-b flex items-center justify-between bg-card">
-                <div className="flex items-center gap-2">
-                    <span className="font-semibold px-2">Untitled Notebook.ipynb</span>
-                    <span className="text-xs text-muted-foreground">Python 3.9 (PyTorch 2.0)</span>
-                    {!notebookEnabled && (
-                        <span className="ml-2 text-xs text-amber-400">Execution Disabled (server kernel not configured)</span>
-                    )}
+        <div className="h-full flex flex-col bg-zinc-950 text-zinc-100">
+            <div className="h-11 border-b border-zinc-800 px-4 flex items-center justify-between bg-zinc-900/40 gap-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm">AI Studio Notebook.ipynb</span>
+                    <Badge variant="outline" className="text-[10px] border-zinc-700 text-zinc-400">
+                        TypeScript Kernel
+                    </Badge>
+                    <Badge variant="outline" className={`text-[10px] ${kernelStatus === "busy" ? "border-blue-500/30 text-blue-400" : kernelStatus === "error" ? "border-red-500/30 text-red-400" : "border-emerald-500/30 text-emerald-400"}`}>
+                        {kernelStatus}
+                    </Badge>
+                    <span className="text-[10px] text-zinc-500">exec #{executionCount}</span>
+                    <span className="text-[10px] text-zinc-500">{variableCount} vars</span>
+                    {lastSavedAt && <span className="text-[10px] text-zinc-600">saved {lastSavedAt}</span>}
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" onClick={addCell} className="gap-2">
-                        <Plus className="w-4 h-4" />
+                    <Button size="sm" variant="outline" onClick={() => addCell("code")} className="gap-1.5 text-xs border-zinc-700 bg-transparent">
+                        <Code2 className="w-3.5 h-3.5" />
                         Code
                     </Button>
-                    <Button size="sm" variant="ghost">
-                        <Save className="w-4 h-4" />
+                    <Button size="sm" variant="outline" onClick={() => addCell("markdown")} className="gap-1.5 text-xs border-zinc-700 bg-transparent">
+                        <FileText className="w-3.5 h-3.5" />
+                        Markdown
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={restartKernel} className="gap-1.5 text-xs text-zinc-400">
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Restart
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={saveNotebook} disabled={isSaving} className="gap-1.5 text-xs text-zinc-400">
+                        {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                        Save
                     </Button>
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {cells.map((cell, index) => (
-                    <div key={cell.id} className="border rounded-lg overflow-hidden bg-card shadow-sm">
-                        <div className="flex items-center gap-2 p-2 bg-muted/30 border-b">
-                            <span className="text-xs font-mono text-muted-foreground">In [{index + 1}]:</span>
+                {isLoading ? (
+                    <div className="h-48 flex items-center justify-center text-zinc-600 text-sm">
+                        <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Loading notebook…
+                    </div>
+                ) : cells.map((cell, index) => (
+                    <div key={cell.id} className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-900/40 shadow-sm">
+                        <div className="flex items-center gap-2 p-2.5 bg-zinc-900/60 border-b border-zinc-800">
+                            <span className="text-[11px] font-mono text-zinc-500">
+                                {cell.type === "code" ? `In [${cell.metadata.executionCount || index + 1}]` : `Md [${index + 1}]`}
+                            </span>
+                            <Badge variant="outline" className="text-[10px] border-zinc-700 text-zinc-500">
+                                {cell.type === "code" ? "code" : "markdown"}
+                            </Badge>
                             <div className="flex-1" />
-                            <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6"
-                                onClick={() => executeCell(cell.id)}
-                                disabled={cell.isExecuting}
-                            >
-                                <Play className={`w-3 h-3 ${cell.isExecuting ? 'text-green-500 animate-pulse' : ''}`} />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteCell(cell.id)}>
-                                <Trash2 className="w-3 h-3" />
+                            {cell.type === "code" && (
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 text-zinc-400 hover:text-emerald-400"
+                                    onClick={() => executeCell(cell.id)}
+                                    disabled={cell.isExecuting}
+                                >
+                                    {cell.isExecuting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                                </Button>
+                            )}
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-zinc-500 hover:text-red-400" onClick={() => void deleteCell(cell.id)}>
+                                <Trash2 className="w-3.5 h-3.5" />
                             </Button>
                         </div>
 
-                        <div className="h-48 border-b">
+                        <div className={`${cell.type === "markdown" ? "h-40" : "h-56"} border-b border-zinc-800`}>
                             <MonacoEditor
                                 height="100%"
-                                language="python"
+                                language={cell.type === "markdown" ? "markdown" : cell.language}
                                 theme="vs-dark"
-                                value={cell.content}
-                                onChange={(val) => updateCellContent(cell.id, val || "")}
+                                value={cell.source}
+                                onChange={(value) => updateCellContent(cell.id, value || "")}
                                 options={{
                                     minimap: { enabled: false },
-                                    lineNumbers: "off",
                                     scrollBeyondLastLine: false,
-                                    folding: false,
+                                    folding: true,
+                                    lineNumbers: cell.type === "markdown" ? "off" : "on",
+                                    wordWrap: "on",
                                 }}
                             />
                         </div>
 
-                        {cell.output && (
-                            <div className="p-3 bg-black/90 font-mono text-xs text-white whitespace-pre-wrap">
-                                {cell.output}
+                        {cell.outputs.length > 0 && (
+                            <div className="bg-black/80 font-mono text-xs">
+                                {cell.outputs.map((output, outputIndex) => (
+                                    <div
+                                        key={`${cell.id}-${outputIndex}`}
+                                        className={`p-3 whitespace-pre-wrap ${output.type === "error" ? "text-red-300 border-t border-red-500/20" : "text-zinc-100"}`}
+                                    >
+                                        {output.content || "(no output)"}
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>
                 ))}
 
-                <div className="flex justify-center py-4">
-                    <Button variant="ghost" onClick={addCell} className="gap-2 text-muted-foreground hover:text-foreground">
-                        <Plus className="w-4 h-4" />
-                        Add Code Cell
-                    </Button>
-                </div>
+                {!isLoading && (
+                    <div className="flex justify-center py-4 gap-2">
+                        <Button variant="ghost" onClick={() => addCell("code")} className="gap-2 text-zinc-500 hover:text-zinc-200 text-xs">
+                            <Plus className="w-4 h-4" />
+                            Add Code Cell
+                        </Button>
+                        <Button variant="ghost" onClick={() => addCell("markdown")} className="gap-2 text-zinc-500 hover:text-zinc-200 text-xs">
+                            <Plus className="w-4 h-4" />
+                            Add Markdown Cell
+                        </Button>
+                    </div>
+                )}
             </div>
         </div>
-    );
+    )
 }

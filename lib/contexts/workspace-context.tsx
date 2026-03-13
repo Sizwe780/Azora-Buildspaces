@@ -51,20 +51,32 @@ export function WorkspaceProvider({ children, initialRoom }: { children: React.R
   const [activeRoom, setActiveRoomState] = useState<RoomType>(initialRoom || "code-chamber")
   const [tasks, setTasks] = useState<Task[]>([])
 
+  const isBrowser = typeof window !== 'undefined'
+
   useEffect(() => {
     if (initialRoom) {
       setActiveRoomState(initialRoom)
     } else {
-      const savedRoom = localStorage.getItem('lastActiveRoom') as RoomType | null
-      if (savedRoom) {
-        setActiveRoomState(savedRoom)
+      if (!isBrowser) return
+      try {
+        const savedRoom = localStorage.getItem('lastActiveRoom') as RoomType | null
+        if (savedRoom) {
+          setActiveRoomState(savedRoom)
+        }
+      } catch {
+        // Ignore storage access errors in restricted browser contexts
       }
     }
-  }, [initialRoom])
+  }, [initialRoom, isBrowser])
 
   const setActiveRoom = (room: RoomType) => {
     setActiveRoomState(room)
-    localStorage.setItem('lastActiveRoom', room)
+    if (!isBrowser) return
+    try {
+      localStorage.setItem('lastActiveRoom', room)
+    } catch {
+      // Ignore storage access errors
+    }
 
     // Track visited rooms for cross-room achievements
     try {

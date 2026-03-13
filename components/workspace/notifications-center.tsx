@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import {
   Bell,
   X,
@@ -14,6 +14,7 @@ import {
   CheckCheck,
   Settings,
   ExternalLink,
+  BellOff,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -24,69 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-
-type NotificationType = "info" | "warning" | "error" | "success"
-
-interface Notification {
-  id: string
-  type: NotificationType
-  title: string
-  message: string
-  timestamp: Date
-  read: boolean
-  source?: string
-  actions?: { label: string; action: () => void }[]
-  progress?: number // 0-100
-  persistent?: boolean
-}
-
-// In-memory store for demonstration
-const initialNotifications: Notification[] = [
-  {
-    id: "1",
-    type: "info",
-    title: "Extension Recommendations",
-    message: "This workspace has extension recommendations. Would you like to install them?",
-    timestamp: new Date(Date.now() - 120000),
-    read: false,
-    source: "Extensions",
-    actions: [
-      { label: "Install All", action: () => {} },
-      { label: "Show Recommendations", action: () => {} },
-    ],
-  },
-  {
-    id: "2",
-    type: "success",
-    title: "AI Assistant Ready",
-    message: "AI-powered code completion and analysis is now active for this workspace.",
-    timestamp: new Date(Date.now() - 300000),
-    read: false,
-    source: "Azora AI",
-  },
-  {
-    id: "3",
-    type: "warning",
-    title: "TypeScript Version",
-    message: "Workspace is using TypeScript 5.6. Consider updating to 5.7 for improved performance.",
-    timestamp: new Date(Date.now() - 600000),
-    read: true,
-    source: "TypeScript",
-    actions: [
-      { label: "Update", action: () => {} },
-      { label: "Learn More", action: () => {} },
-    ],
-  },
-  {
-    id: "4",
-    type: "info",
-    title: "Git: Auto-fetch enabled",
-    message: "Git repository will be fetched periodically for updates.",
-    timestamp: new Date(Date.now() - 900000),
-    read: true,
-    source: "Git",
-  },
-]
+import { useNotifications, type NotificationType } from "@/lib/stores/notification-store"
 
 const typeConfig: Record<NotificationType, { icon: any; color: string; bgColor: string }> = {
   info: { icon: Info, color: "text-blue-400", bgColor: "bg-blue-500/10" },
@@ -104,31 +43,20 @@ function formatTime(date: Date): string {
 }
 
 export function NotificationsCenter() {
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications)
+  const { notifications, doNotDisturb, markRead, markAllRead, dismiss, clear, toggleDoNotDisturb, info } = useNotifications()
   const [isOpen, setIsOpen] = useState(false)
   const [filter, setFilter] = useState<"all" | "unread">("all")
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
+  // Seed initial notifications if none exist (first load)
+  useEffect(() => {
+    if (notifications.length === 0) {
+      info("Welcome to Buildspaces", "Your cloud IDE workspace is ready. Start coding!", "System")
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const unreadCount = notifications.filter((n) => !n.read).length
   const filtered = filter === "unread" ? notifications.filter((n) => !n.read) : notifications
-
-  const markRead = useCallback((id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    )
-  }, [])
-
-  const markAllRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-  }, [])
-
-  const dismiss = useCallback((id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id))
-  }, [])
-
-  const clearAll = useCallback(() => {
-    setNotifications((prev) => prev.filter((n) => n.persistent))
-  }, [])
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -176,7 +104,7 @@ export function NotificationsCenter() {
               variant="ghost"
               size="icon"
               className="w-6 h-6 text-muted-foreground hover:text-foreground"
-              onClick={clearAll}
+              onClick={clear}
               title="Clear all"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -271,7 +199,7 @@ export function NotificationsCenter() {
                             </span>
                           )}
                           <span className="text-[10px] text-muted-foreground/50">
-                            {formatTime(notification.timestamp)}
+                            {notification.timestamp ? formatTime(new Date(notification.timestamp)) : 'just now'}
                           </span>
                           {!notification.read && (
                             <div className="w-1.5 h-1.5 rounded-full bg-primary" />
@@ -321,8 +249,15 @@ export function NotificationsCenter() {
 
         {/* Footer */}
         <div className="flex items-center justify-between px-3 py-1.5 border-t border-border/40 bg-accent/5">
-          <button className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">
-            Do Not Disturb
+          <button
+            className={cn(
+              "text-[11px] transition-colors flex items-center gap-1",
+              doNotDisturb ? "text-primary" : "text-muted-foreground hover:text-foreground"
+            )}
+            onClick={toggleDoNotDisturb}
+          >
+            <BellOff className="w-3 h-3" />
+            {doNotDisturb ? "Do Not Disturb: On" : "Do Not Disturb"}
           </button>
           <button className="text-[11px] text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
             <Settings className="w-3 h-3" />

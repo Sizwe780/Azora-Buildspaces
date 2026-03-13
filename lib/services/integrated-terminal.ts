@@ -7,6 +7,7 @@
 
 import { z } from 'zod'
 import { EventEmitter } from 'events'
+import { randomUUID } from 'crypto'
 import { constitutionalAI, UserActionType, UserAction } from './constitutional-ai'
 
 // Terminal Configuration Schema
@@ -49,7 +50,8 @@ const TerminalSessionSchema = z.object({
 })
 
 // Types
-export type TerminalConfig = z.infer<typeof TerminalConfigSchema>
+export type TerminalConfigInput = z.input<typeof TerminalConfigSchema>
+export type TerminalConfig = z.output<typeof TerminalConfigSchema>
 export type TerminalSession = z.infer<typeof TerminalSessionSchema>
 
 export interface TerminalCommand {
@@ -80,6 +82,10 @@ export class IntegratedTerminal extends EventEmitter {
   private searchIndex: Map<string, TerminalCommand[]> = new Map()
   private collaborationManager: TerminalCollaborationManager
 
+  private createId(prefix: string): string {
+    return `${prefix}_${randomUUID()}`
+  }
+
   constructor() {
     super()
     this.collaborationManager = new TerminalCollaborationManager()
@@ -89,7 +95,7 @@ export class IntegratedTerminal extends EventEmitter {
   /**
    * Create a new terminal session
    */
-  async createSession(config: TerminalConfig): Promise<string> {
+  async createSession(config: TerminalConfigInput): Promise<string> {
     try {
       // Validate configuration
       const validatedConfig = TerminalConfigSchema.parse(config)
@@ -221,12 +227,12 @@ export class IntegratedTerminal extends EventEmitter {
     }
 
     const startTime = Date.now()
-    const commandId = `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const commandId = this.createId('cmd')
 
     try {
       // Build a user action for constitutional verification
       const userAction: UserAction = {
-        id: `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: this.createId('action'),
         userId,
         type: UserActionType.COMMAND_EXECUTION,
         payload: { command, sessionId, cwd: session.config.workingDirectory },
@@ -547,7 +553,7 @@ export class IntegratedTerminal extends EventEmitter {
 class TerminalProcess extends EventEmitter {
   public pid?: number
   private config: TerminalConfig
-  private process?: any // Mock process for now
+  private bridgeUrl = process.env.TERMINAL_BRIDGE_URL || 'http://localhost:3010'
 
   constructor(config: TerminalConfig) {
     super()
@@ -556,7 +562,7 @@ class TerminalProcess extends EventEmitter {
 
   async start(): Promise<void> {
     try {
-      const response = await fetch('http://localhost:3010', {
+      const response = await fetch(this.bridgeUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -578,13 +584,13 @@ class TerminalProcess extends EventEmitter {
       this.emit('output', `Terminal started (PID: ${this.pid})\n`);
       this.emit('output', `${this.config.workingDirectory}$ `);
     } catch (error) {
-      this.emit('output', `\nError starting terminal: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
+      throw new Error(`Error starting terminal: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
   async write(data: string): Promise<void> {
     try {
-      const response = await fetch('http://localhost:3010', {
+      const response = await fetch(this.bridgeUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -605,17 +611,49 @@ class TerminalProcess extends EventEmitter {
         this.emit('output', result.output);
       }
     } catch (error) {
-      this.emit('output', `\nError writing to terminal: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
+      throw new Error(`Error writing to terminal: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
   async resize(cols: number, rows: number): Promise<void> {
-    // In a real PTY, we'd send a resize signal
-    this.emit('output', `\nTerminal resized to ${cols}x${rows}\n`);
-    this.emit('output', `${this.config.workingDirectory}$ `);
+    const response = await fetch(this.bridgeUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        did: "did:key:z6MkpTHR8V369",
+        signature: "UNSIGNED",
+        payload: {
+          type: "TERMINAL_RESIZE",
+          id: this.config.id,
+          cols,
+          rows,
+        }
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(await response.text())
+    }
   }
 
   async kill(): Promise<void> {
+    const response = await fetch(this.bridgeUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        did: "did:key:z6MkpTHR8V369",
+        signature: "UNSIGNED",
+        payload: {
+          type: "TERMINAL_STOP",
+          id: this.config.id,
+        }
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(await response.text())
+    }
+
     this.emit('exit', 0);
   }
 }

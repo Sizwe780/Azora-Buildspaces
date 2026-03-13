@@ -27,87 +27,140 @@ export async function POST(req: Request) {
 
     const runId = `run-${Date.now()}`
     const startedAt = new Date().toISOString()
-    const nodeResults: Record<string, { status: string; output?: string }> = {}
+    
+    // Server-Sent Events (SSE) stream for Real-Time Execution
+    const customReadable = new ReadableStream({
+      async start(controller) {
+        const sendEvent = (data: any) => {
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`));
+        };
 
-    let currentInput = ""
+        sendEvent({ type: 'start', runId, startedAt, message: `Starting workflow: ${workflowName}` });
 
-    // Simple sequential execution for demo purposes
-    for (const node of nodes) {
-      nodeResults[node.id] = { status: "running" }
+        const nodeResults: Record<string, { status: string; output?: string }> = {}
+        let currentInput = ""
 
-      try {
-        if (node.type === "input") {
-          currentInput = node.config.prompt || "Hello"
-          nodeResults[node.id] = { status: "success", output: currentInput }
-        } else if (node.type === "llm") {
-          const modelName = node.config.model || "gpt-4o-mini"
-          const systemPrompt = node.config.system || "You are a helpful assistant."
-          
-          const { text } = await generateText({
-            model: openai(modelName),
-            system: systemPrompt,
-            prompt: currentInput,
-          })
-          
-          currentInput = text
-          nodeResults[node.id] = { status: "success", output: text }
-        } else if (node.type === "tool") {
-          const toolName = node.config.toolName || ""
+        for (const node of nodes) {
+          nodeResults[node.id] = { status: "running" }
+          sendEvent({ type: 'node_start', nodeId: node.id, status: 'running' });
+
           try {
-            const result = await executeTool(toolName, currentInput, node.config)
-            if (typeof result === 'string') {
-              currentInput = result
-              nodeResults[node.id] = { status: 'success', output: currentInput }
+            if (node.type === "input") {
+              currentInput = node.config.prompt || "Hello"
+              nodeResults[node.id] = { status: "success", output: currentInput }
+            } else if (node.type === "llm") {
+              const modelName = node.config.model || "gpt-4o-mini"
+              const systemPrompt = node.config.system || "You are a helpful assistant."
+              const maxAttempts = 3;
+              let lastError: Error | null = null;
+
+              for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                try {
+                  sendEvent({ type: 'node_update', nodeId: node.id, message: `Querying ${modelName}... (attempt ${attempt}/${maxAttempts})` });
+
+                  const { text } = await generateText({
+                    model: openai(modelName),
+                    system: systemPrompt,
+                    prompt: currentInput,
+                  });
+
+                  // Validate JSON output if the node expects it
+                  if (node.config.expectJson) {
+                    try {
+                      JSON.parse(text);
+                    } catch {
+                      throw new Error(`LLM returned invalid JSON: ${text.slice(0, 120)}...`);
+                    }
+                  }
+
+                  currentInput = text;
+                  nodeResults[node.id] = { status: "success", output: text };
+                  lastError = null;
+                  break;
+                } catch (err) {
+                  lastError = err as Error;
+                  if (attempt < maxAttempts) {
+                    const backoff = Math.pow(2, attempt) * 500;
+                    sendEvent({ type: 'node_update', nodeId: node.id, message: `Retry ${attempt}/${maxAttempts} after ${backoff}ms...` });
+                    await new Promise(r => setTimeout(r, backoff));
+                  }
+                }
+              }
+
+              if (lastError) {
+                throw lastError;
+              }
+            } else if (node.type === "tool") {
+              const toolName = node.config.toolName || ""
+              sendEvent({ type: 'node_update', nodeId: node.id, message: `Executing tool ${toolName}...` });
+              
+              try {
+                const result = await executeTool(toolName, currentInput, node.config)
+                if (typeof result === 'string') {
+                  currentInput = result
+                  nodeResults[node.id] = { status: 'success', output: currentInput }
+                } else {
+                  currentInput = result.output || ''
+                  nodeResults[node.id] = { status: result.status, output: currentInput }
+                }
+              } catch (err) {
+                currentInput = `[Tool error: ${(err as Error).message}] ${currentInput}`
+                nodeResults[node.id] = { status: 'error', output: currentInput }
+              }
+            } else if (node.type === "transform") {
+              sendEvent({ type: 'node_update', nodeId: node.id, message: `Running transform...` });
+              try {
+                const result = await executeTool('transform', currentInput, node.config)
+                if (typeof result === 'string') {
+                  currentInput = result
+                  nodeResults[node.id] = { status: 'success', output: currentInput }
+                } else {
+                  currentInput = result.output || ''
+                  nodeResults[node.id] = { status: result.status, output: currentInput }
+                }
+              } catch (err) {
+                currentInput = `[Transform error: ${(err as Error).message}] ${currentInput}`
+                nodeResults[node.id] = { status: 'error', output: currentInput }
+              }
+            } else if (node.type === "output") {
+              nodeResults[node.id] = { status: "success", output: currentInput }
             } else {
-              currentInput = result.output || ''
-              nodeResults[node.id] = { status: result.status, output: currentInput }
+              nodeResults[node.id] = { status: "success" }
             }
-          } catch (err) {
-            currentInput = `[Tool error: ${(err as Error).message}] ${currentInput}`
-            nodeResults[node.id] = { status: 'error', output: currentInput }
+          } catch (error) {
+            console.error(`Error in node ${node.id}:`, error)
+            nodeResults[node.id] = { status: "error" }
+            sendEvent({ type: 'node_end', nodeId: node.id, status: 'error', result: nodeResults[node.id] });
+            break
           }
-        } else if (node.type === "transform") {
-          // transform nodes are now implemented via the tool registry (see
-          // lib/agents/tools).  this keeps the execution model uniform and
-          // allows the LLM to discover "transform" as just another skill.
-          try {
-            const result = await executeTool('transform', currentInput, node.config)
-            if (typeof result === 'string') {
-              currentInput = result
-              nodeResults[node.id] = { status: 'success', output: currentInput }
-            } else {
-              currentInput = result.output || ''
-              nodeResults[node.id] = { status: result.status, output: currentInput }
-            }
-          } catch (err) {
-            currentInput = `[Transform error: ${(err as Error).message}] ${currentInput}`
-            nodeResults[node.id] = { status: 'error', output: currentInput }
-          }
-        } else if (node.type === "output") {
-          nodeResults[node.id] = { status: "success", output: currentInput }
-        } else {
-          nodeResults[node.id] = { status: "success" }
+          
+          sendEvent({ type: 'node_end', nodeId: node.id, status: nodeResults[node.id].status, result: nodeResults[node.id] });
         }
-      } catch (error) {
-        console.error(`Error in node ${node.id}:`, error)
-        nodeResults[node.id] = { status: "error" }
-        break // Stop execution on error
+
+        const duration = (Date.now() - new Date(startedAt).getTime()) / 1000
+        const stepsCompleted = Object.values(nodeResults).filter((r) => r.status === "success").length
+        const run = {
+          id: runId,
+          status: stepsCompleted === nodes.length ? "completed" : "failed",
+          startedAt,
+          duration,
+          steps: nodes.length,
+          stepsCompleted,
+        }
+
+        sendEvent({ type: 'complete', run, nodeResults });
+        controller.close();
       }
-    }
+    });
 
-    const duration = (Date.now() - new Date(startedAt).getTime()) / 1000
-    const stepsCompleted = Object.values(nodeResults).filter((r) => r.status === "success").length
+    return new Response(customReadable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
 
-    const run = {
-      id: runId,
-      status: stepsCompleted === nodes.length ? "completed" : "failed",
-      startedAt,
-      duration,
-      steps: nodes.length,
-      stepsCompleted,
-    }
-
-    return NextResponse.json({ run, nodeResults })
   } catch (error) {
     console.error("Workflow run error:", error)
     return NextResponse.json({ error: "Failed to run workflow" }, { status: 500 })

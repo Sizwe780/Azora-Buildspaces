@@ -1,11 +1,17 @@
 "use client"
 
-import { useEffect, useMemo, useCallback } from "react"
+import { useEffect, useMemo, useCallback, useState } from "react"
+import * as Y from "yjs"
+import { WebrtcProvider } from "y-webrtc"
+import { useWorkspaceSession } from "@/lib/hooks/use-workspace-session"
 import { usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { useFileSystem } from "@/lib/stores/file-system"
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { WorkbenchLayout } from "./layout/workbench-layout"
 import { useWorkbench } from "@/lib/stores/workbench-store"
 import { ExplorerView } from "./views/explorer-view"
+import { IntegratedExplorer } from "./views/integrated-explorer"
 import { SearchReplaceView } from "./search-replace-view"
 import { GitSourceControlView } from "./git-source-control"
 import { ExtensionsMarketplaceView } from "./views/extensions-marketplace-view"
@@ -18,10 +24,11 @@ import { DebugPanel } from "./panels/debug-panel-full"
 import { TestingPanel } from "./panels/testing-panel-full"
 import { PerformanceProfilerFull } from "./panels/performance-profiler-full"
 import { CodeReviewPanelFull } from "./panels/code-review-panel-full"
-import { XTerminal } from "./x-terminal"
+import { TerminalWorkbenchPanel } from "./panels/terminal-workbench-panel"
 import { EditorPanel } from "./editor-panel"
 import { ProjectWelcome } from "./project-welcome"
 import { CollaborationChatPanel } from "./collaboration-chat-panel"
+import { CopilotChatPanel } from "./copilot-chat-panel"
 import { SnippetsView } from "./views/snippets-view"
 import { ThemeAccessibilityPanel } from "./views/theme-accessibility-view"
 import { CloudEmulationView } from "./views/cloud-emulation-view"
@@ -38,6 +45,10 @@ import { SettingsView } from "./views/settings-view"
 import { LivePreviewPanel } from "./panels/live-preview-panel"
 import { DiffEditorView } from "./diff-editor"
 import { DebugVariablesPanel } from "./debug-variables-panel"
+import { PortsView } from "./panels/ports-view"
+import { SecondarySidebarHeader } from "./layout/secondary-sidebar-header"
+import { OutlineView } from "./views/outline-view"
+import { TaskRunner } from "./views/task-runner"
 
 interface CodeChamberProps {
     id?: string
@@ -45,56 +56,224 @@ interface CodeChamberProps {
 
 export function CodeChamber({ id }: CodeChamberProps) {
     const pathname = usePathname()
+    const sessionResult = useSession()
+    const session = sessionResult?.data ?? null
+    const userName = session?.user?.name || session?.user?.email || 'Anonymous'
+    const userId = session?.user?.email || `user-${Date.now()}`
     const projectId = useMemo(() => {
         if (id && id.trim().length > 0) return id
         const parts = pathname?.split("/").filter(Boolean) ?? []
         return parts[parts.length - 1] || "default"
     }, [id, pathname])
 
+    // Real-time synchronization
+    const [yDoc, setYDoc] = useState<Y.Doc | null>(null)
+    const [provider, setProvider] = useState<WebrtcProvider | null>(null)
+
+    useEffect(() => {
+        if (!projectId) return;
+        const rootDoc = new Y.Doc();
+        const roomName = `buildspaces-project-${projectId}`;
+        const webrtcProvider = new WebrtcProvider(roomName, rootDoc, {
+            signaling: [
+                'wss://signaling.yjs.dev',
+                'wss://y-webrtc-signaling-eu.herokuapp.com',
+                'wss://y-webrtc-signaling-us.herokuapp.com'
+            ]
+        });
+        setYDoc(rootDoc);
+        setProvider(webrtcProvider);
+
+        return () => {
+            webrtcProvider.disconnect();
+            rootDoc.destroy();
+        }
+    }, [projectId]);
+
     const {
         rootId,
         activeFileId,
         openFiles,
-        setActiveFile,
-        closeFile,
+        setActiveFile: setFileSystemActiveFile,
+        closeFile: closeFileSystemFile,
         createFile,
         openFile,
         fileMap,
         loadProject
     } = useFileSystem()
 
+    const {
+        activeSidebarView,
+        activePanelView,
+        setSidebarView,
+        diffEditor,
+        editorGroups,
+        activeGroupId,
+        setActiveGroup,
+        closeEditorGroup,
+        splitDirection,
+        activeSecondarySidebarView,
+        toggleSecondarySidebar,
+        setActiveFile: setWorkbenchActiveFile,
+        closeFile: closeWorkbenchFile,
+        restoreEditorState,
+    } = useWorkbench()
+
     useEffect(() => {
         if (projectId) {
             loadProject(projectId)
-        }
-    }, [projectId, loadProject])
 
-    const handleFileSelect = (fileId: string) => {
-        setActiveFile(fileId)
+            // Restore session state (open files, active file) from localStorage
+            if (typeof window !== 'undefined') {
+                try {
+                    const savedSession = localStorage.getItem(`buildspaces.session.${projectId}`)
+                    if (savedSession) {
+                        const session = JSON.parse(savedSession)
+                        if (Array.isArray(session.openFiles)) {
+                            session.openFiles.forEach((f: string) => {
+                                openFile(f)
+                                setWorkbenchActiveFile(f)
+                            })
+                        }
+                        if (Array.isArray(session.editorGroups)) {
+                            restoreEditorState(session.editorGroups, session.activeGroupId, session.splitDirection)
+                        }
+                        if (session.activeFile) {
+                            setFileSystemActiveFile(session.activeFile)
+                            setWorkbenchActiveFile(session.activeFile)
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[CodeChamber] Failed to restore session:', e)
+                }
+            }
+        }
+    }, [projectId, loadProject, openFile, restoreEditorState, setFileSystemActiveFile, setWorkbenchActiveFile])
+
+    // Auto-save session on navigate away / close
+    useEffect(() => {
+        if (!projectId || typeof window === 'undefined') return
+
+        const saveSession = () => {
+            try {
+                const sessionOpenFiles = [...new Set(editorGroups.flatMap((group) => group.openFiles))]
+                const activeEditorGroup = editorGroups.find((group) => group.id === activeGroupId)
+                const session = {
+                    openFiles: sessionOpenFiles,
+                    activeFile: activeEditorGroup?.activeFile || activeFileId,
+                    activeGroupId,
+                    editorGroups,
+                    splitDirection,
+                    timestamp: Date.now(),
+                }
+                localStorage.setItem(`buildspaces.session.${projectId}`, JSON.stringify(session))
+            } catch { /* ignore storage errors */ }
+        }
+
+        // Save every 10s
+        const interval = setInterval(saveSession, 10000)
+        // Save on unload
+        window.addEventListener('beforeunload', saveSession)
+
+        return () => {
+            clearInterval(interval)
+            window.removeEventListener('beforeunload', saveSession)
+            saveSession() // save on unmount
+        }
+    }, [projectId, activeFileId, activeGroupId, editorGroups, splitDirection])
+
+    const handleFileSelect = (fileId: string, groupId?: string) => {
+        if (groupId) {
+            setActiveGroup(groupId)
+        }
+        setFileSystemActiveFile(fileId)
+        setWorkbenchActiveFile(fileId, groupId)
     }
 
-    const handleCloseFile = (fileId: string) => {
-        closeFile(fileId)
+    const handleCloseFile = (fileId: string, groupId?: string) => {
+        closeFileSystemFile(fileId)
+        closeWorkbenchFile(fileId, groupId)
     }
 
     const handleNavigateToFile = useCallback((filePath: string, line?: number) => {
         openFile(filePath)
-        setActiveFile(filePath)
-    }, [openFile, setActiveFile])
+        setWorkbenchActiveFile(filePath)
 
-    const { activeSidebarView, activePanelView, setSidebarView, diffEditor, closeDiffEditor, editorGroups, activeGroupId, setActiveGroup, closeEditorGroup, splitDirection } = useWorkbench()
+        if (typeof window !== 'undefined' && typeof line === 'number' && line > 0) {
+            window.dispatchEvent(new CustomEvent('azora:openFile', {
+                detail: { path: filePath, line, column: 1 }
+            }))
+            return
+        }
+
+        setFileSystemActiveFile(filePath)
+    }, [openFile, setFileSystemActiveFile, setWorkbenchActiveFile])
+
+    const renderSecondarySidebar = () => {
+        const content = () => {
+            switch (activeSecondarySidebarView) {
+                case 'chat':
+                    return (
+                        <CollaborationChatPanel
+                            roomId={projectId}
+                            currentUserId={userId}
+                            currentUserName={userName}
+                            currentUserColor="#6366f1"
+                            activeFile={activeFileId || undefined}
+                            onNavigateToFile={(filePath) => handleNavigateToFile(filePath)}
+                        />
+                    )
+                case 'ai-assistant':
+                    return (
+                        <AIAssistantSidebar
+                            activeFile={activeFileId}
+                            onClose={toggleSecondarySidebar}
+                        />
+                    )
+                case 'copilot':
+                    return <CopilotChatPanel agent="elara" />
+                case 'outline':
+                    return (
+                        <OutlineView
+                            activeFile={activeFileId}
+                            onNavigateToLine={(file, line) => handleNavigateToFile(file, line)}
+                        />
+                    )
+                case 'timeline':
+                    return (
+                        <div className="flex flex-col items-center justify-center h-full text-zinc-500 p-4">
+                            <svg className="w-8 h-8 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <span className="text-sm font-medium">Timeline</span>
+                            <span className="text-xs text-zinc-600 mt-1">File history coming soon</span>
+                        </div>
+                    )
+                default:
+                    return <CopilotChatPanel agent="elara" />
+            }
+        }
+        return (
+            <div className="flex flex-col h-full overflow-hidden">
+                <SecondarySidebarHeader onClose={toggleSecondarySidebar} />
+                <div className="flex-1 overflow-hidden">
+                    {content()}
+                </div>
+            </div>
+        )
+    }
 
     const renderSidebar = () => {
         switch (activeSidebarView) {
-            case 'explorer': return <ExplorerView />
+            case 'explorer': return <IntegratedExplorer activeFile={activeFileId} onNavigateToLine={(file, line) => handleNavigateToFile(file, line)} />
+            case 'outline': return <OutlineView activeFile={activeFileId} onNavigateToLine={(file, line) => handleNavigateToFile(file, line)} />
             case 'search': return <SearchReplaceView />
             case 'git': return <GitSourceControlView />
+            case 'task-runner': return <TaskRunner workspaceId={projectId} />
             case 'extensions': return <ExtensionsMarketplaceView />
             case 'chat': return (
                 <CollaborationChatPanel
                     roomId={projectId}
-                    currentUserId="current-user"
-                    currentUserName="You"
+                    currentUserId={userId}
+                    currentUserName={userName}
                     currentUserColor="#6366f1"
                     activeFile={activeFileId || undefined}
                     onNavigateToFile={(filePath) => handleNavigateToFile(filePath)}
@@ -127,7 +306,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
 
     const renderPanel = () => {
         switch (activePanelView) {
-            case 'terminal': return <XTerminal />
+            case 'terminal': return <TerminalWorkbenchPanel />
             case 'output': return <OutputView />
             case 'problems': return <ProblemsView />
             case 'debug': return (
@@ -144,6 +323,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
                     </div>
                 </div>
             )
+            case 'ports': return <PortsView />
             case 'testing': return (
                 <TestingPanel
                     projectId={projectId}
@@ -163,7 +343,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
             case 'qa-testing': return <QATestingView />
             case 'telemetry': return <TelemetryView />
             case 'observability': return <ObservabilityView />
-            default: return <XTerminal />
+            default: return <TerminalWorkbenchPanel />
         }
     }
 
@@ -177,6 +357,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
         if (diffEditor.isOpen) {
             return (
                 <DiffEditorView
+                    projectId={projectId}
                     originalFile={diffEditor.originalFile || undefined}
                     modifiedFile={diffEditor.modifiedFile || undefined}
                     originalContent={diffEditor.originalContent || undefined}
@@ -185,35 +366,38 @@ export function CodeChamber({ id }: CodeChamberProps) {
             )
         }
 
-        // Split editor groups
+        // Split editor groups – rendered with proper resizable panels
         if (editorGroups.length > 1) {
             return (
-                <div className={`flex h-full ${splitDirection === 'vertical' ? 'flex-col' : 'flex-row'}`}>
+                <ResizablePanelGroup direction={splitDirection === 'vertical' ? 'vertical' : 'horizontal'} className="h-full">
                     {editorGroups.map((group, i) => (
-                        <div
-                            key={group.id}
-                            className={`${splitDirection === 'vertical' ? 'w-full' : 'h-full'} flex-1 min-w-0 min-h-0 relative ${
-                                i > 0 ? (splitDirection === 'vertical' ? 'border-t border-border/30' : 'border-l border-border/30') : ''
-                            } ${group.id === activeGroupId ? 'ring-1 ring-primary/20 ring-inset' : ''}`}
-                            onClick={() => setActiveGroup(group.id)}
-                        >
-                            {/* Group close button */}
-                            <button
-                                onClick={(e) => { e.stopPropagation(); closeEditorGroup(group.id) }}
-                                className="absolute top-1 right-1 z-10 w-5 h-5 flex items-center justify-center rounded text-muted-foreground/40 hover:text-foreground hover:bg-accent/40 transition-colors"
-                                title="Close editor group"
-                            >
-                                ×
-                            </button>
-                            <EditorPanel
-                                activeFile={group.activeFile || activeFileId || ""}
-                                openFiles={group.openFiles.length > 0 ? group.openFiles : openFiles}
-                                onFileSelect={handleFileSelect}
-                                onCloseFile={handleCloseFile}
-                            />
+                        <div key={group.id} className="contents">
+                            {i > 0 && <ResizableHandle className="data-[resize-handle-active]:bg-primary/40" />}
+                            <ResizablePanel defaultSize={Math.floor(100 / editorGroups.length)} minSize={15}>
+                                <div
+                                    className={`h-full w-full relative ${group.id === activeGroupId ? 'ring-1 ring-primary/20 ring-inset' : ''}`}
+                                    onClick={() => setActiveGroup(group.id)}
+                                >
+                                    {/* Group close button */}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); closeEditorGroup(group.id) }}
+                                        className="absolute top-1 right-1 z-10 w-5 h-5 flex items-center justify-center rounded text-muted-foreground/40 hover:text-foreground hover:bg-accent/40 transition-colors"
+                                        title="Close editor group"
+                                    >
+                                        ×
+                                    </button>
+                                    <EditorPanel
+                                        groupId={group.id}
+                                        activeFile={group.activeFile || ""}
+                                        openFiles={group.openFiles}
+                                        onFileSelect={handleFileSelect}
+                                        onCloseFile={handleCloseFile}                                        yDoc={yDoc}
+                                        provider={provider}                                    />
+                                </div>
+                            </ResizablePanel>
                         </div>
                     ))}
-                </div>
+                </ResizablePanelGroup>
             )
         }
 
@@ -224,6 +408,8 @@ export function CodeChamber({ id }: CodeChamberProps) {
                 openFiles={openFiles}
                 onFileSelect={handleFileSelect}
                 onCloseFile={handleCloseFile}
+                yDoc={yDoc}
+                provider={provider}
             />
         )
     }
@@ -231,6 +417,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
     return (
         <WorkbenchLayout
             sidebarContent={renderSidebar()}
+            secondarySidebarContent={renderSecondarySidebar()}
             projectName={projectId}
             editorContent={renderEditorContent()}
             panelContent={renderPanel()}

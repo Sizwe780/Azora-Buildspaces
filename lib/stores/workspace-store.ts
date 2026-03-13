@@ -11,8 +11,14 @@
  */
 
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import type { AgentName } from '../agent-bridge'
+
+const noopStorage = {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {},
+}
 
 /**
  * Room Types - The 8 Rooms from BLUEPRINT.md
@@ -280,6 +286,9 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     }),
     {
       name: 'azora-workspace-store',
+      storage: createJSONStorage(() =>
+        typeof window !== 'undefined' ? localStorage : noopStorage
+      ),
       // Only persist certain fields
       partialize: (state) => ({
         currentRoom: state.currentRoom,

@@ -1,9 +1,11 @@
 'use client'
 
-import { SpecChamber } from '@/components/rooms/spec-chamber'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Sparkles, Lock, Zap } from 'lucide-react'
 import Link from 'next/link'
+
+const SpecChamber = dynamic(() => import('@/components/rooms/spec-chamber').then(m => m.SpecChamber), { ssr: false })
 
 export default function DemoSpecChamberPage() {
     return (

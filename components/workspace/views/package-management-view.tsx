@@ -55,17 +55,7 @@ export function PackageManagementView() {
       const data = await res.json()
       setDependencies(data.dependencies || [])
     } catch {
-      // Mock data
-      setDependencies([
-        { name: 'react', version: '19.1.0', latest: '19.1.0', type: 'dependency', hasUpdate: false },
-        { name: 'next', version: '16.0.7', latest: '16.0.7', type: 'dependency', hasUpdate: false },
-        { name: 'zustand', version: '5.0.9', latest: '5.0.9', type: 'dependency', hasUpdate: false },
-        { name: 'framer-motion', version: '12.9.4', latest: '12.10.0', type: 'dependency', hasUpdate: true },
-        { name: 'lucide-react', version: '0.487.0', latest: '0.488.0', type: 'dependency', hasUpdate: true },
-        { name: 'typescript', version: '5.8.3', latest: '5.8.3', type: 'devDependency', hasUpdate: false },
-        { name: 'tailwindcss', version: '4.1.3', latest: '4.1.4', type: 'devDependency', hasUpdate: true },
-        { name: 'prisma', version: '7.2.0', latest: '7.2.0', type: 'devDependency', hasUpdate: false },
-      ])
+      setDependencies([])
     }
   }
 
@@ -89,9 +79,7 @@ export function PackageManagementView() {
       const data = await res.json()
       setSearchResults(data.results || [])
     } catch {
-      setSearchResults([
-        { name: searchQuery, description: 'A package', version: '1.0.0', downloads: 10000, score: 0.9 },
-      ])
+      setSearchResults([])
     }
     setIsSearching(false)
   }
@@ -127,12 +115,24 @@ export function PackageManagementView() {
     try {
       const res = await fetch('/api/packages?action=audit')
       const data = await res.json()
-      setVulnerabilities(data.audit)
+      const audit = data.audit || { total: 0, critical: 0, high: 0, moderate: 0, low: 0, vulnerabilities: [] }
+      setVulnerabilities({
+        total: audit.total || 0,
+        critical: audit.critical || 0,
+        high: audit.high || 0,
+        medium: audit.medium || audit.moderate || 0,
+        low: audit.low || 0,
+        details: Array.isArray(audit.vulnerabilities)
+          ? audit.vulnerabilities.map((v: any) => ({
+              name: v.id || v.title || 'unknown',
+              severity: v.severity || 'low',
+              description: v.description || v.title || 'No description',
+              fix: v.patchedVersions || undefined,
+            }))
+          : [],
+      })
     } catch {
-      setVulnerabilities({ total: 2, critical: 0, high: 1, medium: 1, low: 0, details: [
-        { name: 'lodash', severity: 'high', description: 'Prototype Pollution', fix: 'Upgrade to >=4.17.21' },
-        { name: 'minimist', severity: 'medium', description: 'Prototype Pollution', fix: 'Upgrade to >=1.2.6' },
-      ]})
+      setVulnerabilities({ total: 0, critical: 0, high: 0, medium: 0, low: 0, details: [] })
     }
     setIsAuditing(false)
   }

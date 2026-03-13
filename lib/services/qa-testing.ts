@@ -1,3 +1,7 @@
+import { spawn } from 'node:child_process'
+import { readdir, readFile } from 'node:fs/promises'
+import path from 'node:path'
+
 // ═══════════════════════════════════════════════════════════════════════
 // TASK 20: QA & TESTING FRAMEWORK — Full Testing Suite
 // ═══════════════════════════════════════════════════════════════════════
@@ -72,6 +76,11 @@ export interface TestConfig {
   env: Record<string, string>
 }
 
+interface CommandSpec {
+  command: string
+  args: string[]
+}
+
 // Built-in test configs
 const DEFAULT_CONFIGS: Record<TestFramework, Partial<TestConfig>> = {
   jest: { testDir: '__tests__', pattern: '**/*.test.{ts,tsx,js,jsx}', configFile: 'jest.config.js' },
@@ -88,6 +97,38 @@ class QATestingService {
   private runs = new Map<string, TestRun>()
   private configs = new Map<string, TestConfig>()
   private watchers = new Map<string, NodeJS.Timeout>()
+
+  getCapabilities(): {
+    watchMode: {
+      supported: boolean
+      reason?: string
+      pollingIntervalMs?: number
+    }
+  } {
+    const supported = process.env.QA_WATCH_MODE_ENABLED === 'true'
+    const pollingIntervalMs = Math.max(2000, Number(process.env.QA_WATCH_POLL_MS || '5000'))
+
+    return {
+      watchMode: {
+        supported,
+        reason: supported
+          ? undefined
+          : 'Watch mode backend is disabled. Set QA_WATCH_MODE_ENABLED=true to enable polling watch mode.',
+        pollingIntervalMs,
+      },
+    }
+  }
+
+  private readonly testSuffixByFramework: Record<TestFramework, string[]> = {
+    jest: ['.test.ts', '.test.tsx', '.test.js', '.test.jsx', '.spec.ts', '.spec.tsx', '.spec.js', '.spec.jsx'],
+    vitest: ['.test.ts', '.test.tsx', '.spec.ts', '.spec.tsx'],
+    mocha: ['.spec.ts', '.spec.js', '.test.ts', '.test.js'],
+    pytest: ['_test.py', 'test_.py'],
+    'go-test': ['_test.go'],
+    'cargo-test': ['.rs'],
+    junit: ['Test.java', 'Tests.java', 'Test.kt', 'Tests.kt'],
+    rspec: ['_spec.rb'],
+  }
 
   getDefaultConfig(framework: TestFramework): Partial<TestConfig> {
     return DEFAULT_CONFIGS[framework] || {}
@@ -121,28 +162,41 @@ class QATestingService {
     }
 
     this.runs.set(runId, run)
+    this.configs.set(runId, config)
 
-    // Simulate test discovery and execution
-    const suites = this.discoverTests(config)
+    const suites = await this.discoverTests(config)
     run.suites = suites
 
+    const started = Date.now()
+    const commandResult = await this.executeTestCommand(config)
+    const duration = Date.now() - started
+    const status: TestStatus = commandResult.exitCode === 0 ? 'passed' : 'failed'
+
     for (const suite of suites) {
+      suite.duration = duration
+      suite.status = status
+
       for (const test of suite.tests) {
-        await this.executeTest(test)
+        test.status = status
+        test.duration = duration
+        if (status === 'failed') {
+          test.error = commandResult.errorSummary || 'Test command failed'
+          test.stackTrace = commandResult.stderr || commandResult.stdout
+        }
+
         run.total++
         if (test.status === 'passed') run.passed++
         else if (test.status === 'failed') run.failed++
         else if (test.status === 'skipped') run.skipped++
       }
-      suite.status = suite.tests.every(t => t.status === 'passed') ? 'passed' : 'failed'
-      suite.duration = suite.tests.reduce((sum, t) => sum + (t.duration || 0), 0)
     }
 
     if (config.coverage) {
-      run.coverage = this.generateCoverageReport(config)
+      const coverage = await this.loadCoverageReport()
+      if (coverage) run.coverage = coverage
     }
 
-    run.status = run.failed > 0 ? 'failed' : 'passed'
+    run.status = status
     run.completedAt = Date.now()
     return run
   }
@@ -153,7 +207,12 @@ class QATestingService {
     for (const suite of run.suites) {
       const test = suite.tests.find(t => t.id === testId)
       if (test) {
-        await this.executeTest(test)
+        const config = this.configs.get(runId)
+        const commandResult = await this.executeTestCommand(config, test.file)
+        test.status = commandResult.exitCode === 0 ? 'passed' : 'failed'
+        test.duration = commandResult.duration
+        test.error = test.status === 'failed' ? (commandResult.errorSummary || 'Test command failed') : undefined
+        test.stackTrace = test.status === 'failed' ? (commandResult.stderr || commandResult.stdout) : undefined
         return test
       }
     }
@@ -179,10 +238,35 @@ class QATestingService {
   }
 
   startWatch(config: TestConfig): string {
+    const capabilities = this.getCapabilities()
+    if (!capabilities.watchMode.supported) {
+      const error = new Error(`WATCH_MODE_UNSUPPORTED: ${capabilities.watchMode.reason || 'Watch mode is unavailable'}`)
+      ;(error as Error & { code?: string }).code = 'WATCH_MODE_UNSUPPORTED'
+      throw error
+    }
+
     const watchId = `watch-${Date.now()}`
+    const watchConfig: TestConfig = {
+      ...config,
+      watch: false,
+    }
+
+    let runInProgress = false
+    const execute = async () => {
+      if (runInProgress) return
+      runInProgress = true
+      try {
+        await this.runTests(watchConfig)
+      } finally {
+        runInProgress = false
+      }
+    }
+
+    void execute()
     const interval = setInterval(() => {
-      // Simulate file change detection + re-run
-    }, 2000)
+      void execute()
+    }, capabilities.watchMode.pollingIntervalMs)
+
     this.watchers.set(watchId, interval)
     return watchId
   }
@@ -195,75 +279,233 @@ class QATestingService {
     }
   }
 
-  private discoverTests(config: TestConfig): TestSuite[] {
-    // Simulated test discovery
-    const suiteNames = ['Core', 'Integration', 'Edge Cases']
-    return suiteNames.map((name, i) => ({
-      id: `suite-${i}`,
-      name: `${name} Suite`,
-      file: `${config.testDir}/${name.toLowerCase().replace(' ', '-')}.test.ts`,
-      status: 'idle' as TestStatus,
-      tests: Array.from({ length: 3 + Math.floor(Math.random() * 5) }, (_, j) => ({
-        id: `test-${i}-${j}`,
-        name: `should ${['render correctly', 'handle errors', 'validate input', 'process data', 'emit events', 'clean up resources', 'retry on failure'][j % 7]}`,
-        suite: name,
-        file: `${config.testDir}/${name.toLowerCase().replace(' ', '-')}.test.ts`,
-        line: 10 + j * 15,
+  private async discoverTests(config: TestConfig): Promise<TestSuite[]> {
+    const root = path.resolve(process.cwd(), config.testDir || 'tests')
+    const files = await this.collectTestFiles(root, config.framework)
+
+    return files.map((file, i) => {
+      const relative = path.relative(process.cwd(), file).replace(/\\/g, '/')
+      const baseName = path.basename(file)
+      return {
+        id: `suite-${i}`,
+        name: baseName,
+        file: relative,
         status: 'idle' as TestStatus,
-        tags: [],
-      })),
-    }))
+        tests: [
+          {
+            id: `test-${i}-0`,
+            name: baseName,
+            suite: baseName,
+            file: relative,
+            line: 1,
+            status: 'idle' as TestStatus,
+            tags: [],
+          },
+        ],
+      }
+    })
   }
 
-  private async executeTest(test: TestCase): Promise<void> {
-    test.status = 'running'
-    const duration = 10 + Math.floor(Math.random() * 200)
-    await new Promise(r => setTimeout(r, 5))
-    test.duration = duration
+  private async collectTestFiles(root: string, framework: TestFramework): Promise<string[]> {
+    const files: string[] = []
+    const suffixes = this.testSuffixByFramework[framework] || []
 
-    const rand = Math.random()
-    if (rand > 0.15) {
-      test.status = 'passed'
-    } else if (rand > 0.05) {
-      test.status = 'failed'
-      test.error = 'Expected true to be false'
-      test.stackTrace = `  at Object.<anonymous> (${test.file}:${test.line}:10)\n  at runTest (node_modules/jest-runtime/build/index.js:1254:49)`
-    } else {
-      test.status = 'skipped'
+    const walk = async (dir: string) => {
+      let entries
+      try {
+        entries = await readdir(dir, { withFileTypes: true })
+      } catch {
+        return
+      }
+
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name)
+        if (entry.isDirectory()) {
+          if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.next') continue
+          await walk(fullPath)
+          continue
+        }
+
+        if (suffixes.some((suffix) => entry.name.endsWith(suffix))) {
+          files.push(fullPath)
+        }
+      }
+    }
+
+    await walk(root)
+    return files.sort()
+  }
+
+  private async executeTestCommand(config?: TestConfig, singleFile?: string): Promise<{
+    exitCode: number
+    stdout: string
+    stderr: string
+    duration: number
+    errorSummary?: string
+  }> {
+    const effectiveConfig: TestConfig = config || {
+      framework: 'jest',
+      testDir: 'tests',
+      pattern: '**/*.test.{ts,tsx,js,jsx}',
+      coverage: false,
+      watch: false,
+      parallel: true,
+      timeout: 120000,
+      env: {},
+    }
+
+    const frameworkCommand = this.getFrameworkCommandSpec(effectiveConfig.framework, singleFile)
+    const command = effectiveConfig.env.TEST_COMMAND
+      ? this.parseOverrideCommand(effectiveConfig.env.TEST_COMMAND, singleFile)
+      : frameworkCommand
+    const started = Date.now()
+
+    return new Promise((resolve) => {
+      const child = spawn(command.command, command.args, {
+        shell: false,
+        cwd: process.cwd(),
+        env: { ...process.env, ...effectiveConfig.env },
+      })
+
+      const timeoutMs = Math.max(1000, effectiveConfig.timeout || 120000)
+      const timeoutHandle = setTimeout(() => {
+        child.kill()
+      }, timeoutMs)
+
+      let stdout = ''
+      let stderr = ''
+
+      child.stdout.on('data', (chunk) => {
+        stdout += chunk.toString()
+      })
+
+      child.stderr.on('data', (chunk) => {
+        stderr += chunk.toString()
+      })
+
+      child.on('close', (code) => {
+        clearTimeout(timeoutHandle)
+        resolve({
+          exitCode: code ?? 1,
+          stdout,
+          stderr,
+          duration: Date.now() - started,
+          errorSummary: code === 0 ? undefined : this.extractFirstErrorLine(stderr || stdout),
+        })
+      })
+
+      child.on('error', (error) => {
+        clearTimeout(timeoutHandle)
+        resolve({
+          exitCode: 1,
+          stdout,
+          stderr: `${stderr}\n${error.message}`.trim(),
+          duration: Date.now() - started,
+          errorSummary: error.message,
+        })
+      })
+    })
+  }
+
+  private getFrameworkCommandSpec(framework: TestFramework, singleFile?: string): CommandSpec {
+    const fileArgs = singleFile ? [singleFile] : []
+    switch (framework) {
+      case 'jest':
+        return { command: 'npx', args: ['jest', '--runInBand', ...fileArgs] }
+      case 'vitest':
+        return { command: 'npx', args: ['vitest', 'run', ...fileArgs] }
+      case 'mocha':
+        return { command: 'npx', args: ['mocha', ...fileArgs] }
+      case 'pytest':
+        return { command: 'pytest', args: [...fileArgs] }
+      case 'go-test':
+        return singleFile ? { command: 'go', args: ['test', singleFile] } : { command: 'go', args: ['test', './...'] }
+      case 'cargo-test':
+        return { command: 'cargo', args: ['test'] }
+      case 'junit':
+        return { command: './gradlew', args: ['test'] }
+      case 'rspec':
+        return { command: 'bundle', args: ['exec', 'rspec', ...fileArgs] }
+      default:
+        return { command: 'npx', args: ['jest', '--runInBand'] }
     }
   }
 
-  private generateCoverageReport(_config: TestConfig): CoverageReport {
-    const files: FileCoverage[] = Array.from({ length: 8 }, (_, i) => {
-      const total = 50 + Math.floor(Math.random() * 200)
-      const covered = Math.floor(total * (0.6 + Math.random() * 0.35))
-      const branchTotal = Math.floor(total * 0.3)
-      const branchCovered = Math.floor(branchTotal * (0.5 + Math.random() * 0.4))
-      const funcTotal = 5 + Math.floor(Math.random() * 15)
-      const funcCovered = Math.floor(funcTotal * (0.7 + Math.random() * 0.3))
-      return {
-        file: `src/module-${i}.ts`,
-        lines: { total, covered, percentage: Math.round((covered / total) * 100) },
-        branches: { total: branchTotal, covered: branchCovered, percentage: branchTotal ? Math.round((branchCovered / branchTotal) * 100) : 100 },
-        functions: { total: funcTotal, covered: funcCovered, percentage: Math.round((funcCovered / funcTotal) * 100) },
-        uncoveredLines: Array.from({ length: total - covered }, (_, j) => j * 3 + 5),
+  private parseOverrideCommand(raw: string, singleFile?: string): CommandSpec {
+    const trimmed = raw.trim()
+    if (!trimmed) {
+      throw new Error('TEST_COMMAND override is empty')
+    }
+
+    if (/[|&;<>`\n\r]/.test(trimmed)) {
+      throw new Error('TEST_COMMAND contains blocked shell metacharacters')
+    }
+
+    const tokens = trimmed.match(/"[^"]*"|'[^']*'|\S+/g)?.map((token) => {
+      if (
+        (token.startsWith('"') && token.endsWith('"')) ||
+        (token.startsWith("'") && token.endsWith("'"))
+      ) {
+        return token.slice(1, -1)
       }
-    })
+      return token
+    }) || []
 
-    const totalLines = files.reduce((s, f) => s + f.lines.total, 0)
-    const coveredLines = files.reduce((s, f) => s + f.lines.covered, 0)
-    const totalBranches = files.reduce((s, f) => s + f.branches.total, 0)
-    const coveredBranches = files.reduce((s, f) => s + f.branches.covered, 0)
-    const totalFuncs = files.reduce((s, f) => s + f.functions.total, 0)
-    const coveredFuncs = files.reduce((s, f) => s + f.functions.covered, 0)
+    if (tokens.length === 0) {
+      throw new Error('TEST_COMMAND override could not be parsed')
+    }
 
-    return {
-      totalLines,
-      coveredLines,
-      percentage: Math.round((coveredLines / totalLines) * 100),
-      files,
-      branches: { total: totalBranches, covered: coveredBranches, percentage: totalBranches ? Math.round((coveredBranches / totalBranches) * 100) : 100 },
-      functions: { total: totalFuncs, covered: coveredFuncs, percentage: Math.round((coveredFuncs / totalFuncs) * 100) },
+    if (singleFile) {
+      tokens.push(singleFile)
+    }
+
+    const [command, ...args] = tokens
+    return { command, args }
+  }
+
+  private extractFirstErrorLine(output: string): string | undefined {
+    const line = output
+      .split('\n')
+      .map((candidate) => candidate.trim())
+      .find((candidate) => candidate.length > 0)
+    return line || undefined
+  }
+
+  private async loadCoverageReport(): Promise<CoverageReport | undefined> {
+    try {
+      const filePath = path.resolve(process.cwd(), 'coverage', 'coverage-summary.json')
+      const raw = await readFile(filePath, 'utf-8')
+      const parsed = JSON.parse(raw) as {
+        total?: {
+          lines?: { total: number; covered: number; pct: number }
+          branches?: { total: number; covered: number; pct: number }
+          functions?: { total: number; covered: number; pct: number }
+        }
+      }
+
+      const lines = parsed.total?.lines
+      const branches = parsed.total?.branches
+      const functions = parsed.total?.functions
+      if (!lines || !branches || !functions) return undefined
+
+      return {
+        totalLines: lines.total,
+        coveredLines: lines.covered,
+        percentage: Math.round(lines.pct),
+        files: [],
+        branches: {
+          total: branches.total,
+          covered: branches.covered,
+          percentage: Math.round(branches.pct),
+        },
+        functions: {
+          total: functions.total,
+          covered: functions.covered,
+          percentage: Math.round(functions.pct),
+        },
+      }
+    } catch {
+      return undefined
     }
   }
 }

@@ -75,6 +75,9 @@ interface SentimentData {
   engagementTrend: string
 }
 
+const THEATER_SESSION_ID = 'innovation-theater-live'
+const STREAM_SYNC_INTERVAL_MS = 3000
+
 /* ═══════════════════════════════════════════════ */
 /*            INNOVATION THEATER                   */
 /* ═══════════════════════════════════════════════ */
@@ -93,6 +96,8 @@ export default function InnovationTheater() {
   const [elapsedTime, setElapsedTime] = useState(0)
   const [slides, setSlides] = useState<Slide[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [presentationReady, setPresentationReady] = useState(false)
+  const [activePresentationId, setActivePresentationId] = useState<string | null>(null)
   const [pollActive, setPollActive] = useState(false)
   const [pollQuestion, setPollQuestion] = useState("")
   const [pollOptions, setPollOptions] = useState<PollOption[]>([])
@@ -106,6 +111,7 @@ export default function InnovationTheater() {
   const [aiAnswer, setAiAnswer] = useState("")
   const [isAnswering, setIsAnswering] = useState(false)
   const [qaQuestion, setQaQuestion] = useState("")
+  const [qaHistory, setQaHistory] = useState<{ id: string; question: string; answer: string; timestamp: Date; upvotes: number }[]>([])
   const [showAiPanel, setShowAiPanel] = useState(false)
   const [paceAdvice, setPaceAdvice] = useState("")
   const [slideTimings, setSlideTimings] = useState<Record<number, number>>({})
@@ -175,57 +181,281 @@ export default function InnovationTheater() {
       if (resp.ok) {
         const data = await resp.json()
         setAiAnswer(data.answer)
+
+        // Persist Q&A to backend
+        const qaId = `qa-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        const entry = { id: qaId, question, answer: data.answer, timestamp: new Date(), upvotes: 0 }
+        setQaHistory(prev => [...prev, entry])
+        setQaQuestion("")
+        try {
+          await fetch('/api/theater/qa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'save',
+              sessionId: THEATER_SESSION_ID,
+              id: qaId,
+              question,
+              answer: data.answer,
+              askedBy: 'Presenter',
+              slideContext: active ? `${active.title}: ${active.content}` : '',
+            }),
+          })
+        } catch { /* silent */ }
       }
     } catch { /* silent */ }
     setIsAnswering(false)
   }
+
+  /* ── Q&A: Load persisted history ── */
+  const loadQAHistory = async () => {
+    try {
+      const resp = await fetch(`/api/theater/qa?sessionId=${encodeURIComponent(THEATER_SESSION_ID)}`)
+      if (resp.ok) {
+        const data = await resp.json()
+        if (data.questions && Array.isArray(data.questions)) {
+          setQaHistory(data.questions.map((q: any) => ({
+            id: q.id,
+            question: q.question,
+            answer: q.answer,
+            timestamp: new Date(q.timestamp),
+            upvotes: q.upvotes || 0,
+          })))
+        }
+      }
+    } catch { /* silent */ }
+  }
+
+  /* ── Q&A: Upvote ── */
+  const upvoteQuestion = async (qaId: string) => {
+    setQaHistory(prev => prev.map(q => q.id === qaId ? { ...q, upvotes: q.upvotes + 1 } : q))
+    try {
+      await fetch('/api/theater/qa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'upvote', sessionId: THEATER_SESSION_ID, id: qaId }),
+      })
+    } catch { /* silent */ }
+  }
+
+  const persistSlides = useCallback(async (nextSlides: Slide[]) => {
+    try {
+      await fetch('/api/theater/presentations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: THEATER_SESSION_ID,
+          presentationId: activePresentationId,
+          title: nextSlides[0]?.title || 'Innovation Theater',
+          slides: nextSlides,
+        }),
+      })
+    } catch {
+      /* silent */
+    }
+  }, [activePresentationId])
+
+  const syncStreamState = useCallback(async (
+    action: 'start' | 'stop' | 'sync',
+    overrides: Partial<{
+      currentSlide: number
+      slideCount: number
+      viewerCount: number
+      totalReactions: number
+      presentationId: string | null
+    }> = {},
+  ) => {
+    try {
+      await fetch('/api/theater/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: THEATER_SESSION_ID,
+          action,
+          currentSlide: overrides.currentSlide ?? currentSlide,
+          slideCount: overrides.slideCount ?? slides.length,
+          viewerCount: overrides.viewerCount,
+          totalReactions: overrides.totalReactions,
+          presentationId: overrides.presentationId ?? activePresentationId,
+        }),
+      })
+    } catch {
+      /* silent */
+    }
+  }, [activePresentationId, currentSlide, slides.length])
+
+  const fetchStreamState = useCallback(async () => {
+    try {
+      const resp = await fetch(`/api/theater/stream?sessionId=${encodeURIComponent(THEATER_SESSION_ID)}`, { cache: 'no-store' })
+      if (!resp.ok) return
+
+      const data = await resp.json()
+      setIsLive(Boolean(data.isLive))
+      if (typeof data.currentSlide === 'number') {
+        setCurrentSlide((prev) => {
+          const maxIndex = Math.max(0, slides.length - 1)
+          const clamped = Math.max(0, Math.min(data.currentSlide, maxIndex))
+          return prev === clamped ? prev : clamped
+        })
+      }
+    } catch {
+      /* silent */
+    }
+  }, [slides.length])
 
   /* ── load slides from API ── */
   useEffect(() => {
     const loadSlides = async () => {
       setIsLoading(true)
       try {
-        const resp = await fetch("/api/theater/presentations")
+        const resp = await fetch(`/api/theater/presentations?sessionId=${encodeURIComponent(THEATER_SESSION_ID)}`)
         if (resp.ok) {
           const data = await resp.json()
           setSlides(data.slides || [])
+          setActivePresentationId(data.activePresentation || null)
         } else {
           setSlides([])
         }
       } catch {
         setSlides([])
       } finally {
+        setPresentationReady(true)
         setIsLoading(false)
       }
     }
     loadSlides()
+    loadQAHistory()
   }, [])
+
+  useEffect(() => {
+    if (!presentationReady) return
+
+    const timeoutId = setTimeout(() => {
+      void persistSlides(slides)
+    }, 350)
+
+    return () => clearTimeout(timeoutId)
+  }, [persistSlides, presentationReady, slides])
+
+  useEffect(() => {
+    if (!presentationReady) return
+
+    void syncStreamState('sync', {
+      currentSlide,
+      slideCount: slides.length,
+      presentationId: activePresentationId,
+    })
+  }, [activePresentationId, currentSlide, presentationReady, slides.length, syncStreamState])
+
+  useEffect(() => {
+    if (!presentationReady) return
+
+    void fetchStreamState()
+    const intervalId = setInterval(() => {
+      void fetchStreamState()
+    }, STREAM_SYNC_INTERVAL_MS)
+
+    return () => clearInterval(intervalId)
+  }, [fetchStreamState, presentationReady])
+
+  /* ── Viewer presence — register join/leave + periodic poll ── */
+  const viewerIdRef = useRef(`viewer_${Date.now()}_${Math.random().toString(36).slice(2)}`)
+  const viewerPollRef = useRef<NodeJS.Timeout | null>(null)
+  const reactionPollRef = useRef<NodeJS.Timeout | null>(null)
+  const chatPollRef = useRef<NodeJS.Timeout | null>(null)
+
+  const registerViewer = async (action: 'join' | 'leave') => {
+    try {
+      await fetch('/api/theater/viewers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: THEATER_SESSION_ID, viewerId: viewerIdRef.current, name: 'Presenter', action }),
+      })
+    } catch { /* silent */ }
+  }
+
+  const fetchViewerCount = async () => {
+    try {
+      const resp = await fetch(`/api/theater/viewers?sessionId=${encodeURIComponent(THEATER_SESSION_ID)}`)
+      if (resp.ok) {
+        const data = await resp.json()
+        setViewerCount(data.count ?? 0)
+        void syncStreamState('sync', { viewerCount: data.count ?? 0 })
+      }
+    } catch { /* silent */ }
+  }
+
+  const fetchReactions = async () => {
+    try {
+      const resp = await fetch(`/api/theater/reaction?sessionId=${encodeURIComponent(THEATER_SESSION_ID)}`)
+      if (resp.ok) {
+        const data = await resp.json()
+        if (data.reactions && Array.isArray(data.reactions)) {
+          const map: Record<string, number> = {}
+          data.reactions.forEach((r: any) => { map[r.emoji] = r.count })
+          setReactions(prev => ({
+            thumbsUp: Math.max(prev.thumbsUp, map['👍'] ?? 0),
+            thumbsDown: Math.max(prev.thumbsDown, map['❤️'] ?? 0),
+            raised: Math.max(prev.raised, map['🙋'] ?? map['🤯'] ?? 0),
+          }))
+          void syncStreamState('sync', {
+            totalReactions: Object.values(map).reduce((sum, count) => sum + count, 0),
+          })
+        }
+      }
+    } catch { /* silent */ }
+  }
+
+  const fetchChatMessages = async () => {
+    try {
+      const resp = await fetch(`/api/theater/chat?sessionId=${encodeURIComponent(THEATER_SESSION_ID)}`)
+      if (resp.ok) {
+        const data = await resp.json()
+        if (data.messages && Array.isArray(data.messages)) {
+          setChatMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id))
+            const newMsgs = data.messages
+              .filter((m: any) => !existingIds.has(m.id))
+              .map((m: any) => ({
+                id: m.id,
+                user: m.authorName || 'Anonymous',
+                text: m.content,
+                timestamp: new Date(m.createdAt),
+              }))
+            return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev
+          })
+        }
+      }
+    } catch { /* silent */ }
+  }
 
   /* ── live stream timer ── */
   useEffect(() => {
     if (isLive) {
       timerRef.current = setInterval(() => setElapsedTime((t) => t + 1), 1000)
+      registerViewer('join')
       fetchViewerCount()
+      fetchReactions()
+      fetchChatMessages()
+      // Poll viewer count + reactions + chat every 5s while live
+      viewerPollRef.current = setInterval(fetchViewerCount, 5000)
+      reactionPollRef.current = setInterval(fetchReactions, 5000)
+      chatPollRef.current = setInterval(fetchChatMessages, 3000)
     } else {
       if (timerRef.current) clearInterval(timerRef.current)
+      if (viewerPollRef.current) clearInterval(viewerPollRef.current)
+      if (reactionPollRef.current) clearInterval(reactionPollRef.current)
+      if (chatPollRef.current) clearInterval(chatPollRef.current)
+      registerViewer('leave')
       setElapsedTime(0)
     }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
+      if (viewerPollRef.current) clearInterval(viewerPollRef.current)
+      if (reactionPollRef.current) clearInterval(reactionPollRef.current)
+      if (chatPollRef.current) clearInterval(chatPollRef.current)
     }
   }, [isLive])
-
-  const fetchViewerCount = async () => {
-    try {
-      const resp = await fetch("/api/theater/viewers")
-      if (resp.ok) {
-        const data = await resp.json()
-        setViewerCount(data.count ?? 0)
-      }
-    } catch {
-      /* silent */
-    }
-  }
 
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600)
@@ -238,19 +468,18 @@ export default function InnovationTheater() {
 
   /* ── go live / end stream ── */
   const toggleLive = async () => {
-    try {
-      await fetch("/api/theater/stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: isLive ? "stop" : "start" }),
-      })
-    } catch {
-      /* silent */
-    }
-    if (!isLive) {
+    const nextIsLive = !isLive
+
+    await syncStreamState(nextIsLive ? 'start' : 'stop', {
+      currentSlide,
+      slideCount: slides.length,
+      presentationId: activePresentationId,
+    })
+
+    if (nextIsLive) {
       emit(ROOM_EVENTS.GO_LIVE, { slideCount: slides.length })
     }
-    setIsLive(!isLive)
+    setIsLive(nextIsLive)
   }
 
   /* ── slide navigation with timing tracking ── */
@@ -294,29 +523,47 @@ export default function InnovationTheater() {
     if (currentSlide >= slides.length - 1) setCurrentSlide(Math.max(0, slides.length - 2))
   }
 
+  const updateSlide = (idx: number, updates: Partial<Slide>) => {
+    setSlides((prev) =>
+      prev.map((slide, i) => (i === idx ? { ...slide, ...updates } : slide))
+    )
+  }
+
   /* ── chat ── */
   const sendChat = async () => {
     if (!chatInput.trim()) return
-    const msg: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      user: "You",
-      text: chatInput,
-      timestamp: new Date(),
-    }
-    setChatMessages((prev) => [...prev, msg])
+    const nextMessage = chatInput.trim()
     setChatInput("")
     try {
-      await fetch("/api/theater/chat", {
+      const resp = await fetch("/api/theater/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: chatInput }),
+        body: JSON.stringify({ sessionId: THEATER_SESSION_ID, authorId: viewerIdRef.current, authorName: 'Presenter', content: nextMessage }),
       })
+      if (resp.ok) {
+        const data = await resp.json()
+        const message = data.message
+        if (message) {
+          setChatMessages((prev) => (
+            prev.some((entry) => entry.id === message.id)
+              ? prev
+              : [...prev, {
+                  id: message.id,
+                  user: message.authorName || 'Presenter',
+                  text: message.content,
+                  timestamp: new Date(message.createdAt),
+                }]
+          ))
+        }
+      }
     } catch {
       /* silent */
     }
   }
 
   /* ── reactions ── */
+  const reactionEmojiMap: Record<string, string> = { thumbsUp: '👍', thumbsDown: '❤️', raised: '🙋' }
+
   const sendReaction = async (type: "thumbsUp" | "thumbsDown" | "raised") => {
     setReactions((prev) => {
       const updated = { ...prev, [type]: prev[type] + 1 }
@@ -327,7 +574,7 @@ export default function InnovationTheater() {
       await fetch("/api/theater/reaction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type }),
+        body: JSON.stringify({ sessionId: THEATER_SESSION_ID, emoji: reactionEmojiMap[type] || '👍' }),
       })
     } catch {
       /* silent */
@@ -342,7 +589,7 @@ export default function InnovationTheater() {
       await fetch("/api/theater/poll", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: pollQuestion, options: pollOptions.map((o) => o.label) }),
+        body: JSON.stringify({ sessionId: THEATER_SESSION_ID, question: pollQuestion, options: pollOptions.map((o) => o.label) }),
       })
     } catch {
       /* silent */
@@ -663,7 +910,11 @@ export default function InnovationTheater() {
           <ResizablePanel defaultSize={27} minSize={20} maxSize={35}>
             <div className="h-full flex flex-col border-l border-zinc-800">
               <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-                <TabsList className="grid w-full grid-cols-3 h-10 rounded-none border-b border-zinc-800 bg-zinc-900/30">
+                <TabsList className="grid w-full grid-cols-4 h-10 rounded-none border-b border-zinc-800 bg-zinc-900/30">
+                  <TabsTrigger value="edit" className="gap-1 text-xs">
+                    <Type className="w-3 h-3" />
+                    Edit
+                  </TabsTrigger>
                   <TabsTrigger value="chat" className="gap-1 text-xs">
                     <MessageSquare className="w-3 h-3" />
                     Chat
@@ -677,6 +928,92 @@ export default function InnovationTheater() {
                     Polls
                   </TabsTrigger>
                 </TabsList>
+
+                {/* Edit Slide */}
+                <TabsContent value="edit" className="flex-1 m-0 overflow-auto">
+                  {active ? (
+                    <div className="p-4 space-y-4">
+                      <div>
+                        <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5 block">
+                          Title
+                        </label>
+                        <Input
+                          value={active.title}
+                          onChange={(e) => updateSlide(currentSlide, { title: e.target.value })}
+                          className="h-8 text-xs bg-zinc-900/60 border-zinc-700/50"
+                          placeholder="Slide title"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5 block">
+                          Type
+                        </label>
+                        <select
+                          value={active.type}
+                          onChange={(e) => updateSlide(currentSlide, { type: e.target.value as Slide["type"] })}
+                          className="w-full h-8 text-xs bg-zinc-900 border border-zinc-700/50 rounded-md px-2 text-zinc-300"
+                        >
+                          <option value="title">Title Slide</option>
+                          <option value="content">Content</option>
+                          <option value="code">Code</option>
+                          <option value="demo">Demo</option>
+                          <option value="image">Image</option>
+                          <option value="split">Split</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5 block">
+                          Content
+                        </label>
+                        <textarea
+                          value={active.content}
+                          onChange={(e) => updateSlide(currentSlide, { content: e.target.value })}
+                          className="w-full h-32 text-xs bg-zinc-900/60 border border-zinc-700/50 rounded-md p-2 text-zinc-300 resize-none"
+                          placeholder="Slide content..."
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5 block">
+                          Speaker Notes
+                        </label>
+                        <textarea
+                          value={active.notes}
+                          onChange={(e) => updateSlide(currentSlide, { notes: e.target.value })}
+                          className="w-full h-20 text-xs bg-zinc-900/60 border border-zinc-700/50 rounded-md p-2 text-zinc-300 resize-none"
+                          placeholder="Notes visible only to presenter..."
+                        />
+                      </div>
+                      <div className="pt-2 flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => removeSlide(currentSlide)}
+                          className="flex-1 h-8 text-xs text-red-400 border-red-500/30 hover:bg-red-500/10"
+                        >
+                          <Trash2 className="w-3 h-3 mr-1.5" />
+                          Delete Slide
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={addSlide}
+                          className="flex-1 h-8 text-xs bg-blue-600 hover:bg-blue-700"
+                        >
+                          <Plus className="w-3 h-3 mr-1.5" />
+                          New Slide
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                      <Presentation className="w-10 h-10 text-zinc-800 mb-3" />
+                      <p className="text-xs text-zinc-600">Select a slide to edit</p>
+                      <Button size="sm" variant="outline" onClick={addSlide} className="mt-3 text-xs gap-1">
+                        <Plus className="w-3 h-3" />
+                        Add First Slide
+                      </Button>
+                    </div>
+                  )}
+                </TabsContent>
 
                 {/* Chat */}
                 <TabsContent value="chat" className="flex-1 flex flex-col m-0">
@@ -800,6 +1137,35 @@ export default function InnovationTheater() {
                           </div>
                           <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">{aiAnswer}</p>
                         </motion.div>
+                      )}
+
+                      {/* Q&A History */}
+                      {qaHistory.length > 0 && (
+                        <div className="space-y-2 mt-2">
+                          <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Previous Questions ({qaHistory.length})</p>
+                          <ScrollArea className="max-h-48">
+                            <div className="space-y-2">
+                              {qaHistory.slice().reverse().map((qa) => (
+                                <div key={qa.id} className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-2.5 space-y-1.5">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <p className="text-xs font-medium text-zinc-300">Q: {qa.question}</p>
+                                    <button
+                                      onClick={() => upvoteQuestion(qa.id)}
+                                      className="flex items-center gap-1 text-[10px] text-zinc-600 hover:text-purple-400 transition-colors shrink-0"
+                                    >
+                                      <ThumbsUp className="w-2.5 h-2.5" />
+                                      {qa.upvotes > 0 && qa.upvotes}
+                                    </button>
+                                  </div>
+                                  <p className="text-[11px] text-zinc-500 leading-relaxed line-clamp-3">{qa.answer}</p>
+                                  <span className="text-[9px] text-zinc-700">
+                                    {qa.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        </div>
                       )}
                     </div>
 

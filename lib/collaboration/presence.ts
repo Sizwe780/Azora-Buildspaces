@@ -13,7 +13,8 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import * as Y from 'yjs'
-import { WebsocketProvider } from 'y-websocket'
+// Dynamic import for browser-only module
+const getWebsocketProvider = () => import('y-websocket').then(m => m.WebsocketProvider)
 // import { Awareness } from 'y-protocols/awareness'
 
 export interface UserPresence {
@@ -35,7 +36,7 @@ export interface UserPresence {
 export interface PresenceState {
   localUser: UserPresence
   remoteUsers: Map<number, UserPresence>
-  provider: WebsocketProvider | null
+  provider: any | null
   awareness: any | null
 }
 
@@ -51,7 +52,7 @@ const COLORS = [
 ]
 
 let globalDoc: Y.Doc | null = null
-let globalProvider: WebsocketProvider | null = null
+let globalProvider: any = null
 
 /**
  * Get or create global YDoc
@@ -66,7 +67,7 @@ function getGlobalDoc(): Y.Doc {
 /**
  * Initialize WebSocket provider
  */
-function initProvider(roomId: string): WebsocketProvider {
+async function initProvider(roomId: string): Promise<any> {
   if (globalProvider && globalProvider.roomname === roomId) {
     return globalProvider
   }
@@ -82,6 +83,7 @@ function initProvider(roomId: string): WebsocketProvider {
   // For now, use localhost or a demo server
   const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:1234'
   
+  const WebsocketProvider = await getWebsocketProvider()
   globalProvider = new WebsocketProvider(wsUrl, roomId, doc, {
     connect: true,
   })
@@ -153,53 +155,58 @@ export function usePresence(roomId: string) {
   // Initialize presence
   useEffect(() => {
     if (typeof window === 'undefined') return
+    let cancelled = false
 
     const userId = generateUserId()
     const userName = generateUserName()
     const userColor = getUserColor(userId)
 
-    const provider = initProvider(roomId)
-    const awareness = provider.awareness
+    initProvider(roomId).then(provider => {
+      if (cancelled) return
+      const awareness = provider.awareness
 
-    // Set local presence
-    const localUser: UserPresence = {
-      userId,
-      userName,
-      userColor,
-      lastActivity: Date.now(),
-    }
+      // Set local presence
+      const localUser: UserPresence = {
+        userId,
+        userName,
+        userColor,
+        lastActivity: Date.now(),
+      }
 
-    awareness.setLocalState(localUser)
+      awareness.setLocalState(localUser)
 
-    // Update state
-    setState({
-      localUser,
-      remoteUsers: new Map(),
-      provider,
-      awareness,
-    })
-
-    // Listen for remote presence changes
-    const handleChange = () => {
-      const remoteUsers = new Map<number, UserPresence>()
-      
-      awareness.getStates().forEach((state, clientId) => {
-        if (clientId !== awareness.clientID) {
-          remoteUsers.set(clientId, state as UserPresence)
-        }
+      // Update state
+      setState({
+        localUser,
+        remoteUsers: new Map(),
+        provider,
+        awareness,
       })
 
-      setState(prev => ({
-        ...prev,
-        remoteUsers,
-      }))
-    }
+      // Listen for remote presence changes
+      const handleChange = () => {
+        const remoteUsers = new Map<number, UserPresence>()
+        
+        awareness.getStates().forEach((state: any, clientId: number) => {
+          if (clientId !== awareness.clientID) {
+            remoteUsers.set(clientId, state as UserPresence)
+          }
+        })
 
-    awareness.on('change', handleChange)
+        setState(prev => ({
+          ...prev,
+          remoteUsers,
+        }))
+      }
+
+      awareness.on('change', handleChange)
+    }).catch(() => {
+      // WebSocket provider not available
+    })
 
     // Cleanup
     return () => {
-      awareness.off('change', handleChange)
+      cancelled = true
       // Don't destroy provider on unmount - keep connection alive
     }
   }, [roomId])

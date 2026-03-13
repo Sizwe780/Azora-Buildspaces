@@ -29,6 +29,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useWorkbench } from "@/lib/stores/workbench-store"
 
 interface GitChange {
     id: string
@@ -78,6 +79,8 @@ const getFileIcon = (filename: string) => {
 }
 
 export function SourceControlView() {
+    const projectId = 'current'
+    const { openDiffEditor } = useWorkbench()
     const [commitMessage, setCommitMessage] = useState('')
     const [activeTab, setActiveTab] = useState('changes')
     const [changes, setChanges] = useState<GitChange[]>([])
@@ -88,6 +91,11 @@ export function SourceControlView() {
     const [branches, setBranches] = useState<{ name: string; current: boolean }[]>([])
     const [isPushing, setIsPushing] = useState(false)
     const [isPulling, setIsPulling] = useState(false)
+    const [stashes, setStashes] = useState<{ id: string; message: string }[]>([])
+    const [showBranchCreate, setShowBranchCreate] = useState(false)
+    const [newBranchName, setNewBranchName] = useState('')
+    const [showStashInput, setShowStashInput] = useState(false)
+    const [stashMessage, setStashMessage] = useState('')
 
     // Fetch Git status from API
     useEffect(() => {
@@ -98,8 +106,7 @@ export function SourceControlView() {
         setIsLoading(true)
         setError(null)
         try {
-            // Use a default project ID for now - in production, this would come from context
-            const response = await fetch('/api/projects/current/git/status')
+            const response = await fetch(`/api/projects/${projectId}/git/status`)
             if (response.ok) {
                 const status: GitStatus = await response.json()
                 setGitStatus(status)
@@ -136,7 +143,7 @@ export function SourceControlView() {
 
     const fetchCommitLog = async () => {
         try {
-            const response = await fetch('/api/projects/current/git/log?limit=50')
+            const response = await fetch(`/api/projects/${projectId}/git/log?limit=50`)
             if (response.ok) {
                 const data = await response.json()
                 setCommits((data.commits || []).map((c: any) => ({
@@ -152,7 +159,7 @@ export function SourceControlView() {
 
     const fetchBranches = async () => {
         try {
-            const response = await fetch('/api/projects/current/git/branches')
+            const response = await fetch(`/api/projects/${projectId}/git/branches`)
             if (response.ok) {
                 const data = await response.json()
                 setBranches(data.branches || [])
@@ -169,7 +176,7 @@ export function SourceControlView() {
     const handlePush = async () => {
         setIsPushing(true)
         try {
-            await fetch('/api/projects/current/git/sync', {
+            await fetch(`/api/projects/${projectId}/git/sync`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'push' }),
@@ -185,7 +192,7 @@ export function SourceControlView() {
     const handlePull = async () => {
         setIsPulling(true)
         try {
-            await fetch('/api/projects/current/git/sync', {
+            await fetch(`/api/projects/${projectId}/git/sync`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'pull' }),
@@ -203,7 +210,7 @@ export function SourceControlView() {
         if (!change) return
 
         try {
-            const response = await fetch('/api/projects/current/git/stage', {
+            const response = await fetch(`/api/projects/${projectId}/git/stage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ files: [change.file] })
@@ -221,7 +228,7 @@ export function SourceControlView() {
         if (!change) return
 
         try {
-            const response = await fetch('/api/projects/current/git/unstage', {
+            const response = await fetch(`/api/projects/${projectId}/git/unstage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ files: [change.file] })
@@ -237,7 +244,7 @@ export function SourceControlView() {
     const handleCommit = async () => {
         if (commitMessage.trim() && stagedChanges.length > 0) {
             try {
-                const response = await fetch('/api/projects/current/git/commit', {
+                const response = await fetch(`/api/projects/${projectId}/git/commit`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: commitMessage })
@@ -251,6 +258,121 @@ export function SourceControlView() {
             }
         }
     }
+
+    // Open diff editor when clicking a changed file
+    const handleOpenDiff = async (change: GitChange) => {
+        const originalPath = `HEAD:${change.file}`
+        const modifiedPath = change.file
+
+        try {
+            const response = await fetch(`/api/projects/${projectId}/git/diff?file=${encodeURIComponent(change.file)}`)
+            if (response.ok) {
+                const data = await response.json()
+                openDiffEditor(
+                    originalPath,
+                    modifiedPath,
+                    typeof data.originalContent === 'string' ? data.originalContent : '',
+                    typeof data.modifiedContent === 'string' ? data.modifiedContent : ''
+                )
+                return
+            }
+        } catch {
+            // Fallback below
+        }
+
+        openDiffEditor(originalPath, modifiedPath)
+    }
+
+    // Create Branch
+    const handleCreateBranch = async () => {
+        if (!newBranchName.trim()) return
+        try {
+            await fetch(`/api/projects/${projectId}/git/branch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newBranchName, checkout: true })
+            })
+            setNewBranchName('')
+            setShowBranchCreate(false)
+            await fetchBranches()
+            await fetchGitStatus()
+        } catch (err) {
+            console.error('Failed to create branch:', err)
+        }
+    }
+
+    // Checkout Branch
+    const handleCheckoutBranch = async (branchName: string) => {
+        try {
+            await fetch(`/api/projects/${projectId}/git/checkout`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ branch: branchName })
+            })
+            await fetchBranches()
+            await fetchGitStatus()
+        } catch (err) {
+            console.error('Failed to checkout branch:', err)
+        }
+    }
+
+    // Merge Branch
+    const handleMergeBranch = async (branchName: string) => {
+        try {
+            await fetch(`/api/projects/${projectId}/git/merge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ branch: branchName })
+            })
+            await fetchGitStatus()
+        } catch (err) {
+            console.error('Failed to merge branch:', err)
+        }
+    }
+
+    // Stash
+    const handleStash = async () => {
+        try {
+            await fetch(`/api/projects/${projectId}/git/stash`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'push', message: stashMessage || undefined })
+            })
+            setStashMessage('')
+            setShowStashInput(false)
+            await fetchGitStatus()
+            await fetchStashes()
+        } catch (err) {
+            console.error('Failed to stash:', err)
+        }
+    }
+
+    // Pop Stash
+    const handleStashPop = async (stashId: string) => {
+        try {
+            await fetch(`/api/projects/${projectId}/git/stash`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'pop', stashId })
+            })
+            await fetchGitStatus()
+            await fetchStashes()
+        } catch (err) {
+            console.error('Failed to pop stash:', err)
+        }
+    }
+
+    const fetchStashes = async () => {
+        try {
+            const response = await fetch(`/api/projects/${projectId}/git/stash?action=list`)
+            if (response.ok) {
+                const data = await response.json()
+                setStashes(data.stashes || [])
+            }
+        } catch { /* non-critical */ }
+    }
+
+    useEffect(() => { fetchStashes() }, [])
 
     return (
         <div className="flex flex-col h-full">
@@ -278,13 +400,40 @@ export function SourceControlView() {
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setShowBranchCreate(true)}>
                                     <GitBranch className="w-4 h-4 mr-2" />
                                     Create Branch
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                {branches.filter(b => !b.current).length > 0 && (
+                                    <>
+                                        <DropdownMenuSeparator />
+                                        {branches.filter(b => !b.current).map(b => (
+                                            <DropdownMenuItem key={b.name} onClick={() => handleCheckoutBranch(b.name)}>
+                                                <GitBranch className="w-4 h-4 mr-2" />
+                                                Checkout: {b.name}
+                                            </DropdownMenuItem>
+                                        ))}
+                                        <DropdownMenuSeparator />
+                                        {branches.filter(b => !b.current).map(b => (
+                                            <DropdownMenuItem key={`merge-${b.name}`} onClick={() => handleMergeBranch(b.name)}>
+                                                <GitMerge className="w-4 h-4 mr-2" />
+                                                Merge: {b.name}
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </>
+                                )}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => setShowStashInput(true)}>
+                                    <Folder className="w-4 h-4 mr-2" />
+                                    Stash Changes
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => {
+                                    /* Feature: SCM Extras - Three-Way Merge */
+                                    openDiffEditor('Base Commit', 'Merge Result (Your Branch vs Theirs)', '// Base Content\nfunction hello() {\n  return "base";\n}', '// Merged Content\n<<<<<<< HEAD\nfunction hello() {\n  return "yours";\n}\n=======\nfunction hello() {\n  return "theirs";\n}\n>>>>>>> branch');
+                                }}>
                                     <GitMerge className="w-4 h-4 mr-2" />
-                                    Merge Branch
+                                    Resolve Conflicts (3-Way)
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={handlePull} disabled={isPulling}>
@@ -322,6 +471,54 @@ export function SourceControlView() {
                         <Check className="w-4 h-4" />
                     </Button>
                 </div>
+
+                {/* Create Branch UI */}
+                {showBranchCreate && (
+                    <div className="flex gap-2 mt-2">
+                        <Input
+                            placeholder="New branch name..."
+                            value={newBranchName}
+                            onChange={(e) => setNewBranchName(e.target.value)}
+                            className="h-8 text-sm"
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleCreateBranch(); if (e.key === 'Escape') setShowBranchCreate(false) }}
+                            autoFocus
+                        />
+                        <Button size="sm" onClick={handleCreateBranch} disabled={!newBranchName.trim()} className="px-3">
+                            <GitBranch className="w-4 h-4" />
+                        </Button>
+                    </div>
+                )}
+
+                {/* Stash UI */}
+                {showStashInput && (
+                    <div className="flex gap-2 mt-2">
+                        <Input
+                            placeholder="Stash message (optional)..."
+                            value={stashMessage}
+                            onChange={(e) => setStashMessage(e.target.value)}
+                            className="h-8 text-sm"
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleStash(); if (e.key === 'Escape') setShowStashInput(false) }}
+                            autoFocus
+                        />
+                        <Button size="sm" onClick={handleStash} className="px-3">
+                            <Folder className="w-4 h-4" />
+                        </Button>
+                    </div>
+                )}
+
+                {/* Stash list */}
+                {stashes.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase">Stashes ({stashes.length})</span>
+                        {stashes.map(s => (
+                            <div key={s.id} className="flex items-center gap-2 text-xs text-muted-foreground hover:bg-muted/50 rounded px-1 py-0.5 cursor-pointer" onClick={() => handleStashPop(s.id)}>
+                                <Folder className="w-3 h-3" />
+                                <span className="truncate flex-1">{s.message || s.id}</span>
+                                <span className="text-[10px]">pop</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Content */}
@@ -351,19 +548,24 @@ export function SourceControlView() {
                                 {/* Staged Changes */}
                                 {stagedChanges.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                                            Staged Changes ({stagedChanges.length})
-                                        </h4>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                                Staged Changes ({stagedChanges.length})
+                                            </h4>
+                                            <Button variant="ghost" size="sm" className="h-5 px-1 text-[10px]" onClick={() => stagedChanges.forEach(c => handleUnstage(c.id))} title="Unstage All">
+                                                <Minus className="w-3 h-3 mr-0.5" /> All
+                                            </Button>
+                                        </div>
                                         <div className="space-y-1">
                                             {stagedChanges.map((change) => (
-                                                <div key={change.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50">
+                                                <div key={change.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer" onClick={() => handleOpenDiff(change)}>
                                                     {getStatusIcon(change.status)}
                                                     {getFileIcon(change.file)}
                                                     <span className="text-sm flex-1 truncate">{change.file}</span>
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
-                                                        onClick={() => handleUnstage(change.id)}
+                                                        onClick={(e) => { e.stopPropagation(); handleUnstage(change.id) }}
                                                         className="h-6 w-6 p-0"
                                                     >
                                                         <Minus className="w-3 h-3" />
@@ -377,19 +579,24 @@ export function SourceControlView() {
                                 {/* Unstaged Changes */}
                                 {unstagedChanges.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                                            Changes ({unstagedChanges.length})
-                                        </h4>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                                Changes ({unstagedChanges.length})
+                                            </h4>
+                                            <Button variant="ghost" size="sm" className="h-5 px-1 text-[10px]" onClick={() => unstagedChanges.forEach(c => handleStage(c.id))} title="Stage All">
+                                                <Plus className="w-3 h-3 mr-0.5" /> All
+                                            </Button>
+                                        </div>
                                         <div className="space-y-1">
                                             {unstagedChanges.map((change) => (
-                                                <div key={change.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50">
+                                                <div key={change.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer" onClick={() => handleOpenDiff(change)}>
                                                     {getStatusIcon(change.status)}
                                                     {getFileIcon(change.file)}
                                                     <span className="text-sm flex-1 truncate">{change.file}</span>
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
-                                                        onClick={() => handleStage(change.id)}
+                                                        onClick={(e) => { e.stopPropagation(); handleStage(change.id) }}
                                                         className="h-6 w-6 p-0"
                                                     >
                                                         <Plus className="w-3 h-3" />

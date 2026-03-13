@@ -19,6 +19,7 @@ import {
   ChevronRight,
   FileCode,
   Loader2,
+  FileInput,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -144,6 +145,33 @@ export function SnippetsView() {
     setCopiedId(snippet.id)
     setTimeout(() => setCopiedId(null), 2000)
 
+    // Record usage
+    fetch('/api/snippets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'use', id: snippet.id }),
+    }).catch(() => {})
+  }
+
+  const handleInsertSnippet = (snippet: Snippet) => {
+    const text = snippet.body.join('\n')
+    // Use Monaco's snippet insertion via the global editor reference
+    const monacoWin = window as any
+    if (monacoWin.monaco) {
+      const editors = monacoWin.monaco.editor.getEditors()
+      const editor = editors[editors.length - 1]
+      if (editor) {
+        editor.focus()
+        // Insert as snippet (supports tab stops $1, $2, etc.)
+        const contribution = editor.getContribution('snippetController2')
+        if (contribution) {
+          contribution.insert(text)
+        } else {
+          // Fallback: plain text insertion
+          editor.trigger('snippet', 'type', { text })
+        }
+      }
+    }
     // Record usage
     fetch('/api/snippets', {
       method: 'POST',
@@ -384,6 +412,15 @@ export function SnippetsView() {
                             )}
                           </div>
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="w-5 h-5"
+                              onClick={() => handleInsertSnippet(snippet)}
+                              title="Insert into editor"
+                            >
+                              <FileInput className="w-3 h-3" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"

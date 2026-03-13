@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useRoomEvents } from "@/lib/hooks/use-room-events"
 import {
   Search,
   FileText,
@@ -38,6 +39,9 @@ import {
   Plus,
   Download,
   Tag,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -277,13 +281,399 @@ function KnowledgeCard({
   )
 }
 
+/* ─── Force-directed knowledge graph using canvas + simulation ─── */
+function ForceGraph({ items, onSelect }: { items: KnowledgeItem[]; onSelect: (item: KnowledgeItem) => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const nodesRef = useRef<{ x: number; y: number; vx: number; vy: number; item: KnowledgeItem; type: string; radius: number }[]>([])
+  const edgesRef = useRef<{ source: number; target: number }[]>([])
+  const animFrameRef = useRef<number>(0)
+  const [hoveredNode, setHoveredNode] = useState<KnowledgeItem | null>(null)
+  const [graphSearch, setGraphSearch] = useState("")
+  const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set())
+  
+  // Zoom/pan state
+  const [zoom, setZoom] = useState(1)
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const [draggedNode, setDraggedNode] = useState<number | null>(null)
+  const lastMouseRef = useRef({ x: 0, y: 0 })
+
+  const TYPE_COLORS: Record<string, string> = {
+    file: '#3b82f6', function: '#10b981', component: '#a855f7',
+    api: '#f97316', schema: '#ef4444', doc: '#eab308',
+    external: '#06b6d4', package: '#ec4899', test: '#22c55e',
+  }
+
+  // Search filter for graph nodes
+  useEffect(() => {
+    if (!graphSearch.trim()) {
+      setHighlightedNodes(new Set())
+      return
+    }
+    const query = graphSearch.toLowerCase()
+    const matches = new Set<string>()
+    items.forEach(item => {
+      if (item.title.toLowerCase().includes(query) || 
+          item.path?.toLowerCase().includes(query) ||
+          item.type.toLowerCase().includes(query)) {
+        matches.add(item.id)
+      }
+    })
+    setHighlightedNodes(matches)
+  }, [graphSearch, items])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const container = containerRef.current
+    if (!canvas || !container) return
+
+    const W = container.clientWidth
+    const H = container.clientHeight
+    canvas.width = W * window.devicePixelRatio
+    canvas.height = H * window.devicePixelRatio
+    canvas.style.width = `${W}px`
+    canvas.style.height = `${H}px`
+    const ctx = canvas.getContext('2d')!
+    ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+
+    // Build nodes grouped by type
+    const typeGroups: Record<string, KnowledgeItem[]> = {}
+    items.forEach(item => {
+      if (!typeGroups[item.type]) typeGroups[item.type] = []
+      typeGroups[item.type].push(item)
+    })
+
+    const typeKeys = Object.keys(typeGroups)
+    const nodes: typeof nodesRef.current = []
+    items.forEach((item, i) => {
+      const typeIdx = typeKeys.indexOf(item.type)
+      const angle = (typeIdx / typeKeys.length) * Math.PI * 2
+      const spread = 100 + Math.random() * 150
+      nodes.push({
+        x: W / 2 + Math.cos(angle) * spread + (Math.random() - 0.5) * 80,
+        y: H / 2 + Math.sin(angle) * spread + (Math.random() - 0.5) * 80,
+        vx: 0, vy: 0,
+        item,
+        type: item.type,
+        radius: item.type === 'component' || item.type === 'api' ? 18 : 12,
+      })
+    })
+    nodesRef.current = nodes
+
+    // Build edges: connect items of same type + cross-type by path similarity
+    const edges: { source: number; target: number }[] = []
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        if (nodes[i].type === nodes[j].type && Math.random() < 0.3) {
+          edges.push({ source: i, target: j })
+        } else if (nodes[i].item.path && nodes[j].item.path) {
+          const dir1 = nodes[i].item.path!.split('/').slice(0, -1).join('/')
+          const dir2 = nodes[j].item.path!.split('/').slice(0, -1).join('/')
+          if (dir1 === dir2 && dir1.length > 0) {
+            edges.push({ source: i, target: j })
+          }
+        }
+      }
+    }
+    edgesRef.current = edges
+
+    // Force simulation step
+    const simulate = () => {
+      const alpha = 0.3
+      // Repulsion between all nodes
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const dx = nodes[j].x - nodes[i].x
+          const dy = nodes[j].y - nodes[i].y
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1
+          const force = -800 / (dist * dist)
+          const fx = (dx / dist) * force * alpha
+          const fy = (dy / dist) * force * alpha
+          nodes[i].vx -= fx; nodes[i].vy -= fy
+          nodes[j].vx += fx; nodes[j].vy += fy
+        }
+      }
+      // Spring edges
+      edges.forEach(({ source, target }) => {
+        const dx = nodes[target].x - nodes[source].x
+        const dy = nodes[target].y - nodes[source].y
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1
+        const force = (dist - 80) * 0.006 * alpha
+        const fx = (dx / dist) * force
+        const fy = (dy / dist) * force
+        nodes[source].vx += fx; nodes[source].vy += fy
+        nodes[target].vx -= fx; nodes[target].vy -= fy
+      })
+      // Center gravity
+      nodes.forEach(n => {
+        n.vx += (W / 2 - n.x) * 0.001
+        n.vy += (H / 2 - n.y) * 0.001
+        n.vx *= 0.9; n.vy *= 0.9
+        n.x += n.vx; n.y += n.vy
+        n.x = Math.max(n.radius, Math.min(W - n.radius, n.x))
+        n.y = Math.max(n.radius, Math.min(H - n.radius, n.y))
+      })
+    }
+
+    // Draw with zoom/pan
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H)
+      ctx.save()
+      ctx.translate(panOffset.x, panOffset.y)
+      ctx.scale(zoom, zoom)
+      
+      // Edges
+      ctx.lineWidth = 0.5 / zoom
+      ctx.strokeStyle = '#3f3f46'
+      edges.forEach(({ source, target }) => {
+        ctx.beginPath()
+        ctx.moveTo(nodes[source].x, nodes[source].y)
+        ctx.lineTo(nodes[target].x, nodes[target].y)
+        ctx.stroke()
+      })
+      // Nodes
+      nodes.forEach(n => {
+        const isHighlighted = highlightedNodes.size > 0 && highlightedNodes.has(n.item.id)
+        const isHovered = hoveredNode?.id === n.item.id
+        const isDimmed = highlightedNodes.size > 0 && !isHighlighted
+        
+        ctx.beginPath()
+        ctx.arc(n.x, n.y, isHighlighted ? n.radius * 1.3 : n.radius, 0, Math.PI * 2)
+        ctx.fillStyle = TYPE_COLORS[n.type] || '#888'
+        ctx.globalAlpha = isDimmed ? 0.2 : 0.8
+        ctx.fill()
+        ctx.globalAlpha = 1
+        
+        // Border
+        ctx.strokeStyle = isHighlighted ? '#fff' : isHovered ? '#fbbf24' : '#52525b'
+        ctx.lineWidth = (isHighlighted || isHovered ? 2 : 1) / zoom
+        ctx.stroke()
+        
+        // Highlight ring
+        if (isHighlighted) {
+          ctx.beginPath()
+          ctx.arc(n.x, n.y, n.radius * 1.6, 0, Math.PI * 2)
+          ctx.strokeStyle = '#fbbf24'
+          ctx.lineWidth = 2 / zoom
+          ctx.setLineDash([4, 4])
+          ctx.stroke()
+          ctx.setLineDash([])
+        }
+        
+        // Label
+        if (!isDimmed) {
+          ctx.fillStyle = isHighlighted ? '#fbbf24' : '#e4e4e7'
+          ctx.font = `${9 / zoom}px sans-serif`
+          ctx.textAlign = 'center'
+          ctx.fillText(n.item.title.substring(0, 12), n.x, n.y + n.radius + 12 / zoom)
+        }
+      })
+      ctx.restore()
+    }
+
+    let frameCount = 0
+    const loop = () => {
+      if (frameCount < 300 && draggedNode === null) simulate() // Settle after 300 frames, skip if dragging
+      draw()
+      frameCount++
+      animFrameRef.current = requestAnimationFrame(loop)
+    }
+    loop()
+
+    // Convert screen coords to graph coords
+    const screenToGraph = (sx: number, sy: number) => ({
+      x: (sx - panOffset.x) / zoom,
+      y: (sy - panOffset.y) / zoom,
+    })
+
+    // Click handler
+    const onClick = (e: MouseEvent) => {
+      if (isPanning) return
+      const rect = canvas.getBoundingClientRect()
+      const { x: mx, y: my } = screenToGraph(e.clientX - rect.left, e.clientY - rect.top)
+      for (const n of nodes) {
+        const dx = mx - n.x, dy = my - n.y
+        if (dx * dx + dy * dy < n.radius * n.radius) {
+          onSelect(n.item)
+          break
+        }
+      }
+    }
+
+    const onMouseDown = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      const { x: mx, y: my } = screenToGraph(e.clientX - rect.left, e.clientY - rect.top)
+      lastMouseRef.current = { x: e.clientX, y: e.clientY }
+      
+      // Check if clicking on a node to drag
+      for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i]
+        const dx = mx - n.x, dy = my - n.y
+        if (dx * dx + dy * dy < n.radius * n.radius) {
+          setDraggedNode(i)
+          return
+        }
+      }
+      // Otherwise start panning
+      setIsPanning(true)
+    }
+
+    const onMouseUp = () => {
+      setIsPanning(false)
+      setDraggedNode(null)
+    }
+
+    const onMove = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      const { x: mx, y: my } = screenToGraph(e.clientX - rect.left, e.clientY - rect.top)
+      
+      if (draggedNode !== null) {
+        // Drag node
+        nodes[draggedNode].x = mx
+        nodes[draggedNode].y = my
+        nodes[draggedNode].vx = 0
+        nodes[draggedNode].vy = 0
+      } else if (isPanning) {
+        // Pan
+        const dx = e.clientX - lastMouseRef.current.x
+        const dy = e.clientY - lastMouseRef.current.y
+        setPanOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }))
+        lastMouseRef.current = { x: e.clientX, y: e.clientY }
+      } else {
+        // Hover detection
+        let found: KnowledgeItem | null = null
+        for (const n of nodes) {
+          const dx = mx - n.x, dy = my - n.y
+          if (dx * dx + dy * dy < n.radius * n.radius) {
+            found = n.item
+            break
+          }
+        }
+        setHoveredNode(found)
+        canvas.style.cursor = found ? 'pointer' : isPanning ? 'grabbing' : 'grab'
+      }
+    }
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      const mx = e.clientX - rect.left
+      const my = e.clientY - rect.top
+      
+      const delta = e.deltaY > 0 ? 0.9 : 1.1
+      const newZoom = Math.max(0.2, Math.min(3, zoom * delta))
+      
+      // Zoom toward mouse position
+      const scale = newZoom / zoom
+      setPanOffset(prev => ({
+        x: mx - (mx - prev.x) * scale,
+        y: my - (my - prev.y) * scale,
+      }))
+      setZoom(newZoom)
+    }
+
+    canvas.addEventListener('click', onClick)
+    canvas.addEventListener('mousedown', onMouseDown)
+    canvas.addEventListener('mouseup', onMouseUp)
+    canvas.addEventListener('mouseleave', onMouseUp)
+    canvas.addEventListener('mousemove', onMove)
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+
+    return () => {
+      cancelAnimationFrame(animFrameRef.current)
+      canvas.removeEventListener('click', onClick)
+      canvas.removeEventListener('mousedown', onMouseDown)
+      canvas.removeEventListener('mouseup', onMouseUp)
+      canvas.removeEventListener('mouseleave', onMouseUp)
+      canvas.removeEventListener('mousemove', onMove)
+      canvas.removeEventListener('wheel', onWheel)
+    }
+  }, [items, hoveredNode, onSelect, zoom, panOffset, isPanning, draggedNode, highlightedNodes])
+
+  return (
+    <div ref={containerRef} className="w-full h-full relative min-h-[400px]">
+      <canvas ref={canvasRef} className="w-full h-full cursor-grab" />
+      
+      {/* Graph Search */}
+      <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+          <input
+            type="text"
+            value={graphSearch}
+            onChange={(e) => setGraphSearch(e.target.value)}
+            placeholder="Search graph..."
+            className="w-48 pl-8 pr-3 py-1.5 text-xs bg-zinc-900/90 border border-zinc-700 rounded-lg text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+          />
+          {graphSearch && (
+            <button
+              onClick={() => setGraphSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+        {highlightedNodes.size > 0 && (
+          <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-1 rounded">
+            {highlightedNodes.size} match{highlightedNodes.size !== 1 ? 'es' : ''}
+          </span>
+        )}
+      </div>
+      
+      {/* Zoom Controls */}
+      <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1 bg-zinc-900/90 border border-zinc-700 rounded-lg p-1">
+        <button
+          onClick={() => setZoom(z => Math.max(0.2, z / 1.2))}
+          className="p-1.5 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors"
+        >
+          <ZoomOut className="w-3.5 h-3.5" />
+        </button>
+        <span className="text-[10px] text-zinc-400 w-12 text-center">{Math.round(zoom * 100)}%</span>
+        <button
+          onClick={() => setZoom(z => Math.min(3, z * 1.2))}
+          className="p-1.5 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors"
+        >
+          <ZoomIn className="w-3.5 h-3.5" />
+        </button>
+        <div className="w-px h-4 bg-zinc-700 mx-1" />
+        <button
+          onClick={() => { setZoom(1); setPanOffset({ x: 0, y: 0 }); }}
+          className="p-1.5 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors"
+          title="Reset view"
+        >
+          <Maximize2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      
+      {/* Hover tooltip */}
+      {hoveredNode && (
+        <div className="absolute top-3 right-3 bg-zinc-900/95 border border-zinc-700 rounded-lg px-3 py-2 text-xs max-w-[200px] z-10">
+          <div className="font-semibold text-zinc-200">{hoveredNode.title}</div>
+          <div className="text-zinc-500 mt-0.5">{hoveredNode.type} • {hoveredNode.path || 'unknown'}</div>
+          {hoveredNode.description && <div className="text-zinc-400 mt-1 line-clamp-2">{hoveredNode.description}</div>}
+        </div>
+      )}
+      
+      {/* Instructions */}
+      <div className="absolute bottom-3 right-3 z-10 text-[10px] text-zinc-600 bg-zinc-900/80 px-2 py-1 rounded">
+        Scroll to zoom • Drag to pan • Click nodes to select
+      </div>
+    </div>
+  )
+}
+
 /* ═══════════════════════════════════════════════ */
 /*              KNOWLEDGE OCEAN                    */
 /* ═══════════════════════════════════════════════ */
 export default function KnowledgeOcean() {
+  const { emit, ROOM_EVENTS } = useRoomEvents('knowledge-ocean')
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [isScanning, setIsScanning] = useState(false)
+  const [isGeneratingEmbeddings, setIsGeneratingEmbeddings] = useState(false)
+  const [embeddingsReady, setEmbeddingsReady] = useState(false)
   const [activeTab, setActiveTab] = useState("all")
   const [searchMode, setSearchMode] = useState<"local" | "semantic">("local")
   const [ragQuestion, setRagQuestion] = useState("")
@@ -369,6 +759,10 @@ export default function KnowledgeOcean() {
       setKnowledgeItems([])
     } finally {
       setIsScanning(false)
+      // Bridge: notify all rooms that knowledge index has been updated
+      window.dispatchEvent(new CustomEvent('azora:knowledge-indexed', {
+        detail: { itemCount: knowledgeItems.length, timestamp: new Date().toISOString() },
+      }))
     }
   }, [])
 
@@ -400,6 +794,33 @@ export default function KnowledgeOcean() {
       console.error("Search failed:", error)
     }
   }, [searchMode])
+
+  // Generate vector embeddings for semantic search
+  const generateEmbeddings = useCallback(async () => {
+    if (isGeneratingEmbeddings) return
+    setIsGeneratingEmbeddings(true)
+    
+    try {
+      const resp = await fetch("/api/knowledge/embed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+
+      if (resp.ok) {
+        const data = await resp.json()
+        if (data.success) {
+          setEmbeddingsReady(true)
+          setSearchMode("semantic")
+          console.log(`[KnowledgeOcean] Generated embeddings for ${data.chunksProcessed} chunks`)
+        }
+      }
+    } catch (error) {
+      console.error("Embedding generation failed:", error)
+    } finally {
+      setIsGeneratingEmbeddings(false)
+    }
+  }, [isGeneratingEmbeddings])
 
   // RAG Q&A — Ask questions about the codebase
   const askQuestion = useCallback(async () => {
@@ -449,6 +870,11 @@ export default function KnowledgeOcean() {
         const sources = ragData.sources || []
         setRagAnswer(answer)
         setRagSources(sources)
+
+        // Bridge: broadcast knowledge answer to all rooms
+        window.dispatchEvent(new CustomEvent('azora:knowledge-answer', {
+          detail: { question: ragQuestion, answer, sources, timestamp: new Date().toISOString() },
+        }))
 
         // Save to conversation history
         const entry = { question: ragQuestion, answer, sources, timestamp: new Date().toISOString() }
@@ -687,6 +1113,17 @@ export default function KnowledgeOcean() {
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? "animate-spin" : ""}`} />
             {isScanning ? "Scanning…" : "Rescan"}
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={generateEmbeddings}
+            disabled={isGeneratingEmbeddings || isScanning}
+            className={`h-8 gap-1.5 border-zinc-700 ${embeddingsReady ? 'text-emerald-400 border-emerald-700' : 'text-zinc-300'}`}
+          >
+            <Brain className={`w-3.5 h-3.5 ${isGeneratingEmbeddings ? "animate-pulse" : ""}`} />
+            {isGeneratingEmbeddings ? "Embedding…" : embeddingsReady ? "Vectors ✓" : "Embed"}
           </Button>
         </div>
       </div>
@@ -935,7 +1372,7 @@ export default function KnowledgeOcean() {
           </TabsContent>
         ))}
 
-        {/* Graph tab — SVG knowledge topology (inside Tabs) */}
+        {/* Graph tab — Interactive force-directed knowledge topology */}
         <TabsContent value="graph" className="flex-1 m-0 overflow-hidden">
           <div className="h-full flex flex-col bg-zinc-950/50">
             <div className="px-6 py-3 border-b border-zinc-800/50 flex items-center gap-2">
@@ -951,37 +1388,7 @@ export default function KnowledgeOcean() {
                   <p className="text-xs text-zinc-600 mt-1">Scan your project to visualize connections</p>
                 </div>
               ) : (
-                <svg width="100%" height={Math.max(400, knowledgeItems.length * 24)} className="overflow-visible">
-                  {Object.entries(TYPE_CONFIG).map(([type, conf], ti) => {
-                    const typeItems = knowledgeItems.filter(i => i.type === type)
-                    if (typeItems.length === 0) return null
-                    const cx = 120 + (ti % 3) * 220
-                    const cy = 80 + Math.floor(ti / 3) * 160
-                    return (
-                      <g key={type}>
-                        <circle cx={cx} cy={cy} r={32} fill="#18181b" stroke="#3f3f46" strokeWidth="1.5" />
-                        <text x={cx} y={cy + 4} textAnchor="middle" fontSize="10" fontWeight="600" fill="#e4e4e7">{conf.label}</text>
-                        <text x={cx} y={cy + 18} textAnchor="middle" fontSize="9" fill="#71717a">{typeItems.length}</text>
-                        {typeItems.slice(0, 4).map((item, ii) => {
-                          const angle = (ii / 4) * Math.PI * 2 - Math.PI / 2
-                          const sx = cx + Math.cos(angle) * 70
-                          const sy = cy + Math.sin(angle) * 60
-                          return (
-                            <g key={item.id}>
-                              <line x1={cx} y1={cy} x2={sx} y2={sy} stroke="#3f3f46" strokeWidth="1" />
-                              <circle cx={sx} cy={sy} r={16} fill="#27272a" stroke="#52525b" strokeWidth="1"
-                                className="cursor-pointer hover:stroke-blue-400 transition-colors"
-                                onClick={() => setViewingItem(item)} />
-                              <text x={sx} y={sy + 4} textAnchor="middle" fontSize="8" fill="#a1a1aa">
-                                {item.title.substring(0, 6)}
-                              </text>
-                            </g>
-                          )
-                        })}
-                      </g>
-                    )
-                  })}
-                </svg>
+                <ForceGraph items={knowledgeItems} onSelect={setViewingItem} />
               )}
             </div>
           </div>

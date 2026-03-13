@@ -5,12 +5,31 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { DiffEditor } from "@monaco-editor/react"
 import {
-    Sparkles, Send, Lightbulb, Code, Bug, Zap, Search, FileCode,
-    RefreshCw, Copy, Check, Wand2, MessageSquare, BookOpen,
-    TestTube, Paintbrush, Loader2, StopCircle, ChevronDown
+    AlertTriangle,
+    BookOpen,
+    Bug,
+    Check,
+    ChevronDown,
+    Copy,
+    Eye,
+    EyeOff,
+    FileCode,
+    FileDiff,
+    Loader2,
+    MessageSquare,
+    Paintbrush,
+    RefreshCw,
+    Search,
+    Send,
+    Sparkles,
+    StopCircle,
+    TestTube,
+    Wand2,
 } from "lucide-react"
 import { useFileSystem } from "@/lib/stores/file-system"
+import { useAIIntelligence } from "@/lib/services/ai-intelligence-service"
 
 // ═══════════════════════════════════════════════════════════
 // TYPES
@@ -96,12 +115,37 @@ export function AICodeAssistant({ activeFile, onClose }: AICodeAssistantProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [isStreaming, setIsStreaming] = useState(false)
     const [selectedAction, setSelectedAction] = useState<AIAction>('chat')
-    const [showActions, setShowActions] = useState(false)
+    const [showCodeDiff, setShowCodeDiff] = useState<Record<string, boolean>>({})
+    const [diffData, setDiffData] = useState<Record<string, { original: string; modified: string }>>({})
     const [copiedId, setCopiedId] = useState<string | null>(null)
+    const [showActions, setShowActions] = useState(false)
+    const [errorPredictions, setErrorPredictions] = useState<any[]>([])
     const { fileMap } = useFileSystem()
     const scrollRef = useRef<HTMLDivElement>(null)
     const abortRef = useRef<AbortController | null>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+    // AI Intelligence store integration
+    const {
+        model: selectedModel,
+        setModel,
+        predictErrors,
+        isProcessing: aiProcessing,
+    } = useAIIntelligence()
+
+    const availableModels = ['gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo', 'claude-3-opus', 'claude-3-sonnet']
+
+    // Auto-predict errors when active file changes
+    useEffect(() => {
+        if (activeFile) {
+            const file = fileMap[activeFile]
+            if (file?.content) {
+                predictErrors(file.content, file.name.split('.').pop() || 'typescript')
+                    .then((preds: any[]) => setErrorPredictions(preds || []))
+                    .catch(() => {})
+            }
+        }
+    }, [activeFile]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Auto-scroll to bottom on new messages
     useEffect(() => {
@@ -260,6 +304,43 @@ export function AICodeAssistant({ activeFile, onClose }: AICodeAssistantProps) {
 
     const clearChat = () => {
         setMessages([])
+        setShowCodeDiff({})
+        setDiffData({})
+    }
+
+    // Extract code blocks from AI response and create diff
+    const extractCodeDiff = (messageId: string, content: string) => {
+        const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g
+        const matches = [...content.matchAll(codeBlockRegex)]
+
+        if (matches.length > 0) {
+            const codeBlock = matches[0][2]
+            const language = matches[0][1] || 'typescript'
+
+            // Get current file content as original
+            const fileContext = getFileContext()
+            const originalCode = fileContext?.code || ''
+
+            // Store diff data
+            setDiffData(prev => ({
+                ...prev,
+                [messageId]: {
+                    original: originalCode,
+                    modified: codeBlock
+                }
+            }))
+        }
+    }
+
+    // Toggle diff view for a message
+    const toggleCodeDiff = (messageId: string, content: string) => {
+        setShowCodeDiff(prev => {
+            const newState = { ...prev, [messageId]: !prev[messageId] }
+            if (newState[messageId] && !diffData[messageId]) {
+                extractCodeDiff(messageId, content)
+            }
+            return newState
+        })
     }
 
     // ─── Quick Actions (one-click, no prompt needed) ───────
@@ -367,6 +448,17 @@ export function AICodeAssistant({ activeFile, onClose }: AICodeAssistantProps) {
                     )}
                 </div>
                 <div className="flex items-center gap-1">
+                    {/* Model Selector */}
+                    <select
+                        value={selectedModel}
+                        onChange={(e) => setModel(e.target.value)}
+                        className="text-[10px] bg-transparent border border-border rounded px-1.5 py-0.5 focus:outline-none h-6"
+                        title="Select AI Model"
+                    >
+                    {availableModels.map((m: string) => (
+                            <option key={m} value={m}>{m}</option>
+                        ))}
+                    </select>
                     <Button variant="ghost" size="sm" onClick={clearChat} title="Clear chat">
                         <RefreshCw className="w-3.5 h-3.5" />
                     </Button>
@@ -375,6 +467,23 @@ export function AICodeAssistant({ activeFile, onClose }: AICodeAssistantProps) {
                     </Button>
                 </div>
             </div>
+
+            {/* Error Predictions Banner */}
+            {errorPredictions.length > 0 && (
+                <div className="px-3 py-1.5 border-b bg-amber-500/5 shrink-0">
+                    <div className="flex items-center gap-1.5 mb-1">
+                        <AlertTriangle className="w-3 h-3 text-amber-500" />
+                        <span className="text-[10px] font-medium text-amber-500">
+                            {errorPredictions.length} potential issue{errorPredictions.length > 1 ? "s" : ""} detected
+                        </span>
+                    </div>
+                    {errorPredictions.slice(0, 3).map((pred: any, i: number) => (
+                        <div key={i} className="text-[10px] text-muted-foreground truncate pl-4">
+                            L{pred.line}: {pred.message} ({Math.round(pred.confidence * 100)}% confidence)
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Quick Action Buttons */}
             {fileContext && messages.length === 0 && (
@@ -458,7 +567,23 @@ export function AICodeAssistant({ activeFile, onClose }: AICodeAssistantProps) {
 
                                     {/* Copy button for assistant messages */}
                                     {msg.role === 'assistant' && msg.content && (
-                                        <div className="flex justify-end mt-1">
+                                        <div className="flex justify-end items-center gap-1 mt-1">
+                                            {/* Code diff button if content contains code blocks */}
+                                            {msg.content.includes('```') && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-5 px-1.5 text-[10px]"
+                                                    onClick={() => toggleCodeDiff(msg.id, msg.content)}
+                                                    title="Show code diff"
+                                                >
+                                                    {showCodeDiff[msg.id] ? (
+                                                        <EyeOff className="w-3 h-3" />
+                                                    ) : (
+                                                        <FileDiff className="w-3 h-3" />
+                                                    )}
+                                                </Button>
+                                            )}
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -471,6 +596,53 @@ export function AICodeAssistant({ activeFile, onClose }: AICodeAssistantProps) {
                                                     <Copy className="w-3 h-3" />
                                                 )}
                                             </Button>
+                                        </div>
+                                    )}
+
+                                    {/* Code diff preview */}
+                                    {showCodeDiff[msg.id] && diffData[msg.id] && (
+                                        <div className="mt-2 border rounded-md overflow-hidden">
+                                            <div className="bg-muted px-2 py-1 text-[10px] font-medium flex items-center gap-1">
+                                                <FileDiff className="w-3 h-3" />
+                                                Code Changes Preview
+                                            </div>
+                                            <div className="h-48">
+                                                <DiffEditor
+                                                    height="100%"
+                                                    language={fileContext?.language?.toLowerCase() || 'typescript'}
+                                                    theme="vs-dark"
+                                                    original={diffData[msg.id].original}
+                                                    modified={diffData[msg.id].modified}
+                                                    options={{
+                                                        readOnly: true,
+                                                        minimap: { enabled: false },
+                                                        fontSize: 11,
+                                                        lineNumbers: 'off',
+                                                        renderSideBySide: true,
+                                                        scrollBeyondLastLine: false,
+                                                        automaticLayout: true,
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="bg-muted px-2 py-1 text-[10px] flex justify-between items-center">
+                                                <span className="text-muted-foreground">
+                                                    {fileContext?.fileName || 'current file'}
+                                                </span>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-5 text-[10px] px-2"
+                                                    onClick={() => {
+                                                        // Apply the diff to the current file
+                                                        window.dispatchEvent(new CustomEvent('elara:code-applied', {
+                                                            detail: { fileId: activeFile, code: diffData[msg.id].modified }
+                                                        }))
+                                                        setShowCodeDiff(prev => ({ ...prev, [msg.id]: false }))
+                                                    }}
+                                                >
+                                                    Apply Changes
+                                                </Button>
+                                            </div>
                                         </div>
                                     )}
                                 </div>

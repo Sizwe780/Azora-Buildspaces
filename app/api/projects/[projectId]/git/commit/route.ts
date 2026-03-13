@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 // POST /api/projects/[projectId]/git/commit
 export async function POST(request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
@@ -28,13 +28,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Implement actual git commit using system git
     const projectPath = process.cwd()
     // Ensure git user is configured in this environment
-    await execAsync('git config user.email "buildspaces@example.com"', { cwd: projectPath })
-    await execAsync('git config user.name "BuildSpaces Test"', { cwd: projectPath })
+    await execFileAsync('git', ['config', 'user.email', 'buildspaces@example.com'], { cwd: projectPath })
+    await execFileAsync('git', ['config', 'user.name', 'BuildSpaces Test'], { cwd: projectPath })
 
     try {
-      await execAsync('git add .', { cwd: projectPath })
-      await execAsync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: projectPath })
-      const { stdout: rev } = await execAsync('git rev-parse HEAD', { cwd: projectPath })
+      await execFileAsync('git', ['add', '.'], { cwd: projectPath })
+      await execFileAsync('git', ['commit', '-m', message], { cwd: projectPath })
+      const { stdout: rev } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: projectPath })
       return NextResponse.json({ success: true, commitHash: rev.trim(), message: 'Changes committed successfully' })
     } catch (e: any) {
       return NextResponse.json({ error: e.message }, { status: 500 })

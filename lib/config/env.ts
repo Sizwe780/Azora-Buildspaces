@@ -20,17 +20,31 @@ const envSchema = z.object({
   // Application Configuration
   BUILDSPACES_PORT: z.string().default('3002'),
   BUILDSPACES_ENV: z.string().default('development'),
+  PORT: z.string().default('3000'),
   BUILDSPACES_DEBUG: z.string().transform(val => val === 'true').default('false'),
   BUILDSPACES_LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  PROJECT_ROOT: z.string().optional(),
+  npm_package_version: z.string().optional(),
 
   // Authentication (Required)
   NEXTAUTH_SECRET: z.string().min(1, 'NEXTAUTH_SECRET is required for authentication'),
   NEXTAUTH_URL: z.string().url('NEXTAUTH_URL must be a valid URL').default('http://localhost:3002'),
   NEXTAUTH_URL_INTERNAL: z.string().url().optional(),
-  JWT_SECRET: z.string().min(1, 'JWT_SECRET is required for token signing'),
+  JWT_SECRET: z.string().optional(),
+  GITHUB_ID: z.string().optional(),
+  GITHUB_SECRET: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  DEV_AUTH_EMAIL: z.string().optional(),
+  DEV_AUTH_PASSWORD: z.string().optional(),
+  AUTH_FAILED_LOGIN_THRESHOLD: z.string().transform(val => parseInt(val, 10)).default('5'),
+  AUTH_FAILED_LOGIN_WINDOW_MS: z.string().transform(val => parseInt(val, 10)).default('900000'),
+  AUTH_MULTI_IP_THRESHOLD: z.string().transform(val => parseInt(val, 10)).default('3'),
+  AUTH_MULTI_IP_WINDOW_MS: z.string().transform(val => parseInt(val, 10)).default('300000'),
 
   // Database (Required)
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required. Set to your PostgreSQL connection string.'),
+  DIRECT_URL: z.string().optional(),
   DATABASE_POOL_SIZE: z.string().transform(val => parseInt(val, 10)).default('20'),
 
   // Redis (Optional)
@@ -50,9 +64,9 @@ const envSchema = z.object({
   GITHUB_APP_ID: z.string().optional(),
   GITHUB_APP_PRIVATE_KEY: z.string().optional(),
   GITHUB_WEBHOOK_SECRET: z.string().optional(),
+  SSH_KEY_PATH: z.string().optional(),
 
   // Figma Integration (Optional)
-  FIGMA_API_TOKEN: z.string().optional(),
   FIGMA_TOKEN: z.string().optional(),
 
   // Stripe Payment (Optional)
@@ -63,6 +77,9 @@ const envSchema = z.object({
   // Web3 / Blockchain (Optional)
   ETHEREUM_RPC_URL: z.string().url().optional(),
   SOLANA_RPC_URL: z.string().url().optional(),
+  WEB3_DEPLOY_ADAPTER: z.string().optional(),
+  WEB3_LOCAL_RPC_URL: z.string().url().optional(),
+  WEB3_BRIDGE_URL: z.string().url().optional(),
   AZR_MINT_ENABLED: z.string().transform(val => val === 'true').default('false'),
   AZR_TOTAL_SUPPLY: z.string().transform(val => parseInt(val, 10)).optional(),
   AZR_CHAIN: z.string().optional(),
@@ -78,13 +95,55 @@ const envSchema = z.object({
   // Terminal Service
   NEXT_PUBLIC_TERMINAL_ENABLED: z.string().transform(val => val === 'true').default('false'),
   NEXT_PUBLIC_TERMINAL_HOST: z.string().optional(),
+  TERMINAL_BRIDGE_URL: z.string().url().optional(),
 
   // AI Agent Configuration
   NEXT_PUBLIC_AGENT_API_URL: z.string().default('/api/agents/invoke'),
+  NEXT_PUBLIC_PREVIEW_URL: z.string().optional(),
   NEXT_PUBLIC_EXTERNAL_LLM_ENABLED: z.string().transform(val => val === 'true').default('false'),
   NEXT_PUBLIC_EXTERNAL_LLM_PROVIDER: z.enum(['openai', 'anthropic', 'local']).default('openai'),
+  API_KEY: z.string().optional(),
+  CODE_CHAMBER_PROVIDER: z.enum(['openai', 'citadelsm']).optional(),
+  CITADELSM_ENDPOINT: z.string().url().optional(),
   NEXT_PUBLIC_NOTEBOOK_ENABLED: z.string().transform(val => val === 'true').default('false'),
   NOTEBOOK_EXECUTOR_URL: z.string().optional(),
+  WORKSPACE_COMMANDS_ENABLED: z.string().transform(val => val === 'true').default('false'),
+  DAP_BACKEND_ENABLED: z.string().transform(val => val === 'true').default('false'),
+  DAP_BRIDGE_URL: z.string().url().optional(),
+  NEXT_PUBLIC_DAP_BACKEND_ENABLED: z.string().transform(val => val === 'true').default('false'),
+  LSP_BACKEND_ENABLED: z.string().transform(val => val === 'true').default('false'),
+  GIT_BACKEND_ENABLED: z.string().transform(val => val === 'true').default('false'),
+  PREBUILD_EXECUTOR_ENABLED: z.string().transform(val => val === 'true').default('false'),
+  AUTH_PASSWORD_RESET_ENABLED: z.string().transform(val => val === 'true').default('false'),
+  AUTH_EMAIL_VERIFICATION_ENABLED: z.string().transform(val => val === 'true').default('false'),
+  AZORA_PILOT_AUTOMATIC_INGEST: z.string().transform(val => val === 'true').default('false'),
+  TELEMETRY_ENDPOINT_URL: z.string().url().optional(),
+
+  // Service Integrations
+  AI_FAMILY_URL: z.string().url().optional(),
+  AI_FAMILY_API_KEY: z.string().optional(),
+  KNOWLEDGE_OCEAN_URL: z.string().url().optional(),
+  KNOWLEDGE_OCEAN_API_KEY: z.string().optional(),
+  ELARA_ORCHESTRATOR_URL: z.string().url().optional(),
+  AZORA_ENCRYPTION_KEY: z.string().optional(),
+  AZORA_AI_KEY: z.string().optional(),
+  OPENAI_MODEL: z.string().optional(),
+  ELEVENLABS_API_KEY: z.string().optional(),
+
+  // Deployment Provider Credentials
+  VERCEL_TOKEN: z.string().optional(),
+  VERCEL_ORG_ID: z.string().optional(),
+  VERCEL_PROJECT_ID: z.string().optional(),
+  NETLIFY_AUTH_TOKEN: z.string().optional(),
+  CLOUDFLARE_API_TOKEN: z.string().optional(),
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  FIREBASE_TOKEN: z.string().optional(),
+  FLY_API_TOKEN: z.string().optional(),
+  RAILWAY_TOKEN: z.string().optional(),
+  RENDER_API_KEY: z.string().optional(),
+  FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  PISTON_API_URL: z.string().url().optional(),
 
   // Figma Feature Flag
   NEXT_PUBLIC_FIGMA_ENABLED: z.string().transform(val => val === 'true').default('false'),
@@ -116,6 +175,8 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   LOG_SERVICE_NAME: z.string().default('buildspaces'),
   SENTRY_DSN: z.string().optional(),
+  NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),
+  NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA: z.string().optional(),
   OTEL_ENABLED: z.string().transform(val => val === 'true').default('false'),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
 
@@ -131,9 +192,20 @@ const envSchema = z.object({
   // Security & Compliance
   VAULT_ADDR: z.string().url().optional(),
   VAULT_TOKEN: z.string().optional(),
+  CONSTITUTIONAL_PROFILE: z.enum(['STRICT', 'STANDARD', 'PERMISSIVE']).default('STANDARD'),
   RATE_LIMIT_WINDOW_MS: z.string().transform(val => parseInt(val, 10)).default('60000'),
   RATE_LIMIT_MAX_REQUESTS: z.string().transform(val => parseInt(val, 10)).default('1000'),
   CORS_ORIGIN: z.string().default('http://localhost:3002,http://localhost:3000'),
+
+  // Collaboration
+  NEXT_PUBLIC_WS_URL: z.string().optional(),
+  NEXT_PUBLIC_COLLAB_WS_URL: z.string().optional(),
+  NEXT_PUBLIC_COLLAB_SIGNALING_URL: z.string().optional(),
+  COLLAB_WEBHOOK_URL: z.string().url().optional(),
+
+  // Admin bootstrap
+  ADMIN_EMAIL: z.string().optional(),
+  ADMIN_PASSWORD: z.string().optional(),
 })
 
 /**
@@ -154,6 +226,9 @@ let validationErrors: z.ZodError | null = null
 function initializeEnv() {
   try {
     env = envSchema.parse(process.env)
+    if (!env.JWT_SECRET) {
+      env.JWT_SECRET = env.NEXTAUTH_SECRET
+    }
     validationErrors = null
     
     // Log successful initialization in development

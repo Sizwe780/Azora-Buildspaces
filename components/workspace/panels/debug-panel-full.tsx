@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import {
   Play,
-  Pause,
   Square,
   SkipForward,
   ArrowDownToLine,
@@ -21,13 +20,10 @@ import {
   FileCode,
   Variable,
   Layers,
-  Braces,
+  AlertTriangle,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-
-// ═══════════════════════════════════════════════════════════
-// TYPES
-// ═══════════════════════════════════════════════════════════
+import { useWorkbenchRuntimeStore } from "@/lib/stores/workbench-runtime-store"
 
 interface DebugSession {
   id: string
@@ -71,10 +67,6 @@ interface WatchExpression {
   error?: string
 }
 
-// ═══════════════════════════════════════════════════════════
-// MAIN DEBUG PANEL
-// ═══════════════════════════════════════════════════════════
-
 interface DebugPanelProps {
   projectId?: string
   activeFile?: string
@@ -82,15 +74,22 @@ interface DebugPanelProps {
 }
 
 export function DebugPanel({ projectId, activeFile, onNavigateToFile }: DebugPanelProps) {
+  const addLog = useWorkbenchRuntimeStore((state) => state.addLog)
+  const debugBackendEnabled = process.env.NEXT_PUBLIC_DAP_BACKEND_ENABLED === "true"
+  const debugShell: "bash" | "powershell" = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent)
+    ? "powershell"
+    : "bash"
+
   const [session, setSession] = useState<DebugSession | null>(null)
   const [callStack, setCallStack] = useState<StackFrame[]>([])
-  const [variables, setVariables] = useState<{
-    local: DebugVariable[]
-    closure: DebugVariable[]
-    global: DebugVariable[]
-  }>({ local: [], closure: [], global: [] })
+  const [variables, setVariables] = useState<{ local: DebugVariable[]; closure: DebugVariable[]; global: DebugVariable[] }>({
+    local: [],
+    closure: [],
+    global: [],
+  })
   const [breakpoints, setBreakpoints] = useState<DebugBreakpoint[]>([])
   const [watchExpressions, setWatchExpressions] = useState<WatchExpression[]>([])
+  const [exceptionBreakpoints, setExceptionBreakpoints] = useState({ caught: false, uncaught: true })
   const [consoleOutput, setConsoleOutput] = useState<{ type: "log" | "error" | "warn" | "info"; text: string; timestamp: number }[]>([])
   const [consoleInput, setConsoleInput] = useState("")
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["variables", "callstack", "breakpoints"]))
@@ -98,13 +97,14 @@ export function DebugPanel({ projectId, activeFile, onNavigateToFile }: DebugPan
   const [selectedFrameId, setSelectedFrameId] = useState<number>(0)
   const [newWatchExpr, setNewWatchExpr] = useState("")
   const consoleEndRef = useRef<HTMLDivElement>(null)
+  const lastInspectErrorRef = useRef<string>("")
 
   useEffect(() => {
     consoleEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [consoleOutput])
 
   const toggleSection = (section: string) => {
-    setExpandedSections(prev => {
+    setExpandedSections((prev) => {
       const next = new Set(prev)
       next.has(section) ? next.delete(section) : next.add(section)
       return next
@@ -112,165 +112,399 @@ export function DebugPanel({ projectId, activeFile, onNavigateToFile }: DebugPan
   }
 
   const toggleVarScope = (scope: string) => {
-    setExpandedVarScopes(prev => {
+    setExpandedVarScopes((prev) => {
       const next = new Set(prev)
       next.has(scope) ? next.delete(scope) : next.add(scope)
       return next
     })
   }
 
-  // Debug actions
-  const startDebug = useCallback(async () => {
-    const newSession: DebugSession = {
-      id: `dbg_${Date.now()}`,
-      name: activeFile || "Debug Session",
-      type: "node",
-      status: "running",
-    }
-    setSession(newSession)
-    setConsoleOutput(prev => [...prev, {
-      type: "info",
-      text: `▶ Debug session started: ${newSession.name}`,
-      timestamp: Date.now(),
-    }])
+  const syncInspection = useCallback(async (sessionId: string) => {
+    try {
+      const res = await fetch(`/api/workbench/debug?action=inspect&sessionId=${encodeURIComponent(sessionId)}`, { cache: "no-store" })
+      const data = await res.json().catch(() => ({}))
 
-    // Simulate hitting a breakpoint after a delay
-    setTimeout(() => {
-      setSession(s => s ? { ...s, status: "paused" } : null)
-      setCallStack([
-        { id: 0, name: "handleClick", source: "app/page.tsx", line: 42, column: 8 },
-        { id: 1, name: "processEvent", source: "lib/events.ts", line: 18, column: 4 },
-        { id: 2, name: "dispatch", source: "node_modules/react-dom/index.js", line: 2100, column: 12 },
-      ])
+      if (data.session) {
+        setSession({
+          id: String(data.session.id || sessionId),
+          name: String(data.session.name || activeFile || "Debug Session"),
+          type: String(data.session.type || "node"),
+          status: String(data.session.status || "running") as DebugSession["status"],
+          threadId: Number.isFinite(Number(data.session.threadId)) ? Number(data.session.threadId) : undefined,
+        })
+      }
+
+      setCallStack(Array.isArray(data.callStack) ? data.callStack.map((frame: any, index: number) => ({
+        id: Number.isFinite(Number(frame?.id)) ? Number(frame.id) : index,
+        name: String(frame?.name || "<frame>"),
+        source: String(frame?.source || "unknown"),
+        line: Number.isFinite(Number(frame?.line)) ? Number(frame.line) : 1,
+        column: Number.isFinite(Number(frame?.column)) ? Number(frame.column) : 1,
+      })) : [])
+
       setVariables({
-        local: [
-          { name: "event", value: "MouseEvent {...}", type: "MouseEvent", children: [
-            { name: "clientX", value: "245", type: "number" },
-            { name: "clientY", value: "312", type: "number" },
-            { name: "target", value: "<button>", type: "Element" },
-          ]},
-          { name: "count", value: "3", type: "number" },
-          { name: "isActive", value: "true", type: "boolean" },
-          { name: "items", value: "Array(5)", type: "Array", children: [
-            { name: "[0]", value: '"item-1"', type: "string" },
-            { name: "[1]", value: '"item-2"', type: "string" },
-            { name: "[2]", value: '"item-3"', type: "string" },
-            { name: "length", value: "5", type: "number" },
-          ]},
-        ],
-        closure: [
-          { name: "setState", value: "ƒ setState()", type: "function" },
-          { name: "props", value: "{id: 'main', ...}", type: "Object" },
-        ],
-        global: [
-          { name: "window", value: "Window {...}", type: "Window" },
-          { name: "document", value: "#document", type: "Document" },
-        ],
+        local: Array.isArray(data?.variables?.local) ? data.variables.local : [],
+        closure: Array.isArray(data?.variables?.closure) ? data.variables.closure : [],
+        global: Array.isArray(data?.variables?.global) ? data.variables.global : [],
       })
-      setConsoleOutput(prev => [...prev, {
-        type: "info",
-        text: "⏸ Paused at breakpoint: app/page.tsx:42",
-        timestamp: Date.now(),
-      }])
-    }, 1200)
+
+      // Dispatch inline debug values to editor
+      if (session?.status === 'paused' && Array.isArray(data?.variables?.local)) {
+        const topFrame = Array.isArray(data.callStack) && data.callStack[0]
+        if (topFrame) {
+          const inlineVars = data.variables.local
+            .filter((v: any) => v.name && v.value)
+            .map((v: any, i: number) => ({
+              name: v.name,
+              value: String(v.value).slice(0, 50),
+              line: (topFrame.line || 1) + i,
+            }))
+          window.dispatchEvent(new CustomEvent('debug:inlineValues', { detail: { variables: inlineVars } }))
+        }
+      }
+
+      if (Array.isArray(data.breakpoints)) {
+        setBreakpoints(data.breakpoints.map((bp: any, index: number) => ({
+          id: String(bp?.id || `bp-${index}`),
+          file: String(bp?.file || "unknown"),
+          line: Number.isFinite(Number(bp?.line)) ? Number(bp.line) : 1,
+          enabled: Boolean(bp?.enabled),
+          condition: bp?.condition ? String(bp.condition) : undefined,
+          verified: bp?.verified !== false,
+          hitCount: bp?.hitCount ? Number(bp.hitCount) : undefined,
+        })))
+      }
+
+      if (Array.isArray(data.watchExpressions)) {
+        setWatchExpressions(data.watchExpressions.map((watch: any, index: number) => ({
+          id: String(watch?.id || `watch-${index}`),
+          expression: String(watch?.expression || ""),
+          value: watch?.value ? String(watch.value) : undefined,
+          type: watch?.type ? String(watch.type) : undefined,
+          error: watch?.error ? String(watch.error) : undefined,
+        })))
+      }
+
+      const errorText = String(data?.error || "")
+      if (errorText && errorText !== lastInspectErrorRef.current) {
+        lastInspectErrorRef.current = errorText
+        setConsoleOutput((prev) => [...prev, { type: "warn", text: `⚠ ${errorText}`, timestamp: Date.now() }])
+      }
+      if (!errorText) {
+        lastInspectErrorRef.current = ""
+      }
+
+      if (!res.ok && !errorText) {
+        setConsoleOutput((prev) => [...prev, { type: "warn", text: "⚠ Debug inspection unavailable", timestamp: Date.now() }])
+      }
+    } catch {
+      if (lastInspectErrorRef.current !== "Inspection request failed") {
+        lastInspectErrorRef.current = "Inspection request failed"
+        setConsoleOutput((prev) => [...prev, { type: "warn", text: "⚠ Inspection request failed", timestamp: Date.now() }])
+      }
+    }
   }, [activeFile])
 
-  const continueExec = () => {
+  useEffect(() => {
+    if (!session?.id) return
+    const interval = setInterval(() => {
+      syncInspection(session.id)
+    }, 2500)
+    return () => clearInterval(interval)
+  }, [session?.id, syncInspection])
+
+  const controlDebug = useCallback(async (command: "continue" | "pause" | "stepOver" | "stepInto" | "stepOut" | "restart") => {
+    if (!session) return false
+
+    const res = await fetch("/api/workbench/debug", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "control", sessionId: session.id, command }),
+    })
+    const data = await res.json().catch(() => ({}))
+
+    if (!res.ok) {
+      const message = String(data?.error || `Failed to execute ${command}`)
+      setConsoleOutput((prev) => [...prev, { type: "error", text: `← ${message}`, timestamp: Date.now() }])
+      addLog({ source: "debug", level: "error", message })
+      return false
+    }
+
+    if (data.session) {
+      setSession({
+        id: String(data.session.id || session.id),
+        name: String(data.session.name || session.name),
+        type: String(data.session.type || session.type),
+        status: String(data.session.status || session.status) as DebugSession["status"],
+        threadId: Number.isFinite(Number(data.session.threadId)) ? Number(data.session.threadId) : undefined,
+      })
+    }
+
+    await syncInspection(session.id)
+    return true
+  }, [addLog, session, syncInspection])
+
+  const mutateDebugState = useCallback(async (
+    action: "breakpoint" | "watch",
+    payload: Record<string, unknown>,
+    failureLabel: string,
+  ) => {
+    if (!session?.id) return false
+
+    const res = await fetch("/api/workbench/debug", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action,
+        sessionId: session.id,
+        ...payload,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      const message = String(data?.error || failureLabel)
+      setConsoleOutput((prev) => [...prev, { type: "error", text: `← ${message}`, timestamp: Date.now() }])
+      addLog({ source: "debug", level: "error", message })
+      return false
+    }
+
+    await syncInspection(session.id)
+    return true
+  }, [addLog, session?.id, syncInspection])
+
+  const startDebug = useCallback(async () => {
+    if (!debugBackendEnabled) {
+      const message = "Debug backend is not configured. Set NEXT_PUBLIC_DAP_BACKEND_ENABLED=true and connect a DAP broker."
+      setConsoleOutput((prev) => [...prev, { type: "warn", text: message, timestamp: Date.now() }])
+      addLog({ source: "debug", level: "warn", message })
+      return
+    }
+
+    const res = await fetch("/api/workbench/debug", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "start",
+        activeFile,
+        workspaceId: projectId || "default",
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+
+    if (!res.ok || !data?.session?.id) {
+      const message = String(data?.error || "Failed to start debug session")
+      setConsoleOutput((prev) => [...prev, { type: "error", text: `← ${message}`, timestamp: Date.now() }])
+      addLog({ source: "debug", level: "error", message })
+      return
+    }
+
+    const newSession: DebugSession = {
+      id: String(data.session.id),
+      name: String(data.session.name || activeFile || "Debug Session"),
+      type: String(data.session.type || "node"),
+      status: String(data.session.status || "running") as DebugSession["status"],
+      threadId: Number.isFinite(Number(data.session.threadId)) ? Number(data.session.threadId) : undefined,
+    }
+    setSession(newSession)
+    setConsoleOutput((prev) => [...prev, { type: "info", text: `▶ Debug session started: ${newSession.name}`, timestamp: Date.now() }])
+    await syncInspection(newSession.id)
+  }, [activeFile, addLog, debugBackendEnabled, projectId, syncInspection])
+
+  const continueExec = async () => {
     if (!session) return
-    setSession(s => s ? { ...s, status: "running" } : null)
-    setConsoleOutput(prev => [...prev, { type: "info", text: "▶ Continuing...", timestamp: Date.now() }])
+    if (!debugBackendEnabled) {
+      setConsoleOutput((prev) => [...prev, { type: "warn", text: "Continue requires DAP backend support (set NEXT_PUBLIC_DAP_BACKEND_ENABLED=true).", timestamp: Date.now() }])
+      return
+    }
+    if (await controlDebug("continue")) {
+      setConsoleOutput((prev) => [...prev, { type: "info", text: "▶ Continuing...", timestamp: Date.now() }])
+    }
   }
 
-  const stepOver = () => {
-    setConsoleOutput(prev => [...prev, { type: "info", text: "⏭ Step over", timestamp: Date.now() }])
+  const stepOver = async () => {
+    if (!debugBackendEnabled) {
+      setConsoleOutput((prev) => [...prev, { type: "warn", text: "Step over requires DAP backend support (set NEXT_PUBLIC_DAP_BACKEND_ENABLED=true).", timestamp: Date.now() }])
+      return
+    }
+    if (await controlDebug("stepOver")) {
+      setConsoleOutput((prev) => [...prev, { type: "info", text: "⏭ Step over", timestamp: Date.now() }])
+    }
   }
 
-  const stepInto = () => {
-    setConsoleOutput(prev => [...prev, { type: "info", text: "⬇ Step into", timestamp: Date.now() }])
+  const stepInto = async () => {
+    if (!debugBackendEnabled) {
+      setConsoleOutput((prev) => [...prev, { type: "warn", text: "Step into requires DAP backend support (set NEXT_PUBLIC_DAP_BACKEND_ENABLED=true).", timestamp: Date.now() }])
+      return
+    }
+    if (await controlDebug("stepInto")) {
+      setConsoleOutput((prev) => [...prev, { type: "info", text: "⬇ Step into", timestamp: Date.now() }])
+    }
   }
 
-  const stepOut = () => {
-    setConsoleOutput(prev => [...prev, { type: "info", text: "⬆ Step out", timestamp: Date.now() }])
+  const stepOut = async () => {
+    if (!debugBackendEnabled) {
+      setConsoleOutput((prev) => [...prev, { type: "warn", text: "Step out requires DAP backend support (set NEXT_PUBLIC_DAP_BACKEND_ENABLED=true).", timestamp: Date.now() }])
+      return
+    }
+    if (await controlDebug("stepOut")) {
+      setConsoleOutput((prev) => [...prev, { type: "info", text: "⬆ Step out", timestamp: Date.now() }])
+    }
   }
 
-  const stopDebug = () => {
+  const stopDebug = async () => {
+    if (session?.id) {
+      await fetch("/api/workbench/debug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "stop", sessionId: session.id }),
+      }).catch(() => undefined)
+    }
     setSession(null)
     setCallStack([])
     setVariables({ local: [], closure: [], global: [] })
-    setConsoleOutput(prev => [...prev, { type: "info", text: "⏹ Debug session ended", timestamp: Date.now() }])
+    setConsoleOutput((prev) => [...prev, { type: "info", text: "⏹ Debug session ended", timestamp: Date.now() }])
   }
 
-  const restartDebug = () => {
-    stopDebug()
-    setTimeout(startDebug, 200)
+  const restartDebug = async () => {
+    await stopDebug()
+    await startDebug()
   }
 
-  const toggleBreakpoint = (id: string) => {
-    setBreakpoints(prev => prev.map(bp => bp.id === id ? { ...bp, enabled: !bp.enabled } : bp))
+  const toggleBreakpoint = async (id: string) => {
+    if (!debugBackendEnabled) {
+      setConsoleOutput((prev) => [...prev, { type: "warn", text: "Breakpoint updates require DAP backend support (set NEXT_PUBLIC_DAP_BACKEND_ENABLED=true).", timestamp: Date.now() }])
+      return
+    }
+    await mutateDebugState("breakpoint", { command: "toggle", breakpointId: id }, "Failed to toggle breakpoint")
   }
 
-  const removeBreakpoint = (id: string) => {
-    setBreakpoints(prev => prev.filter(bp => bp.id !== id))
+  const removeBreakpoint = async (id: string) => {
+    if (!debugBackendEnabled) {
+      setConsoleOutput((prev) => [...prev, { type: "warn", text: "Breakpoint updates require DAP backend support (set NEXT_PUBLIC_DAP_BACKEND_ENABLED=true).", timestamp: Date.now() }])
+      return
+    }
+    await mutateDebugState("breakpoint", { command: "remove", breakpointId: id }, "Failed to remove breakpoint")
   }
 
-  const addWatchExpression = () => {
-    if (!newWatchExpr.trim()) return
-    setWatchExpressions(prev => [...prev, {
-      id: `watch_${Date.now()}`,
-      expression: newWatchExpr.trim(),
-      value: "undefined",
-      type: "undefined",
-    }])
+  const addWatchExpression = async () => {
+    if (!debugBackendEnabled) {
+      setConsoleOutput((prev) => [...prev, { type: "warn", text: "Watch expressions require DAP backend support (set NEXT_PUBLIC_DAP_BACKEND_ENABLED=true).", timestamp: Date.now() }])
+      return
+    }
+    const expression = newWatchExpr.trim()
+    if (!expression) return
+
+    const ok = await mutateDebugState("watch", { command: "add", expression }, "Failed to add watch expression")
+    if (!ok) return
     setNewWatchExpr("")
   }
 
-  const removeWatch = (id: string) => {
-    setWatchExpressions(prev => prev.filter(w => w.id !== id))
+  const removeWatch = async (id: string) => {
+    if (!debugBackendEnabled) {
+      setConsoleOutput((prev) => [...prev, { type: "warn", text: "Watch expressions require DAP backend support (set NEXT_PUBLIC_DAP_BACKEND_ENABLED=true).", timestamp: Date.now() }])
+      return
+    }
+    await mutateDebugState("watch", { command: "remove", watchId: id }, "Failed to remove watch expression")
   }
 
-  const executeConsole = () => {
-    if (!consoleInput.trim()) return
-    setConsoleOutput(prev => [
-      ...prev,
-      { type: "log", text: `> ${consoleInput}`, timestamp: Date.now() },
-      { type: "log", text: `← ${JSON.stringify(eval("undefined"))}`, timestamp: Date.now() },
-    ])
+  const executeConsole = async () => {
+    const expression = consoleInput.trim()
+    if (!expression) return
+
+    setConsoleOutput((prev) => [...prev, { type: "log", text: `> ${expression}`, timestamp: Date.now() }])
+    addLog({ source: "debug", level: "log", message: `> ${expression}` })
     setConsoleInput("")
-  }
 
-  // Demo breakpoints
-  useEffect(() => {
-    setBreakpoints([
-      { id: "bp_1", file: "app/page.tsx", line: 42, enabled: true, verified: true },
-      { id: "bp_2", file: "app/page.tsx", line: 67, enabled: true, verified: true, condition: "count > 5" },
-      { id: "bp_3", file: "lib/utils.ts", line: 15, enabled: false, verified: true },
-    ])
-  }, [])
+    try {
+      const wrapped = `node -p ${JSON.stringify(expression)}`
+      const res = await fetch("/api/workbench/runtime", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "exec",
+          command: wrapped,
+          workspaceId: projectId || "default",
+          shell: debugShell,
+        }),
+      })
+
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const errorText = String(data.error || "Debug console command failed")
+        setConsoleOutput((prev) => [...prev, { type: "error", text: `← ${errorText}`, timestamp: Date.now() }])
+        addLog({ source: "debug", level: "error", message: errorText })
+        return
+      }
+
+      const out = String(data.stdout || "").trim()
+      const err = String(data.stderr || "").trim()
+
+      if (out) {
+        setConsoleOutput((prev) => [...prev, { type: "log", text: `← ${out}`, timestamp: Date.now() }])
+        addLog({ source: "debug", level: "log", message: out })
+      }
+      if (err) {
+        setConsoleOutput((prev) => [...prev, { type: "error", text: `← ${err}`, timestamp: Date.now() }])
+        addLog({ source: "debug", level: "error", message: err })
+      }
+      if (!out && !err) {
+        setConsoleOutput((prev) => [...prev, { type: "info", text: "← (no output)", timestamp: Date.now() }])
+      }
+    } catch (error: any) {
+      const message = error?.message || "Failed to execute debug console command"
+      setConsoleOutput((prev) => [...prev, { type: "error", text: `← ${message}`, timestamp: Date.now() }])
+      addLog({ source: "debug", level: "error", message })
+    }
+  }
 
   const isPaused = session?.status === "paused"
   const isRunning = session?.status === "running"
 
   return (
     <div className="flex flex-col h-full bg-background text-sm">
-      {/* Debug Toolbar */}
       <div className="flex items-center justify-between px-2 py-1 border-b border-border bg-muted/20">
         <div className="flex items-center gap-0.5">
           {!session ? (
-            <button onClick={startDebug} className="p-1.5 rounded hover:bg-green-500/20 text-green-500 transition-colors" title="Start Debugging (F5)">
+            <button
+              onClick={startDebug}
+              className="p-1.5 rounded hover:bg-green-500/20 text-green-500 transition-colors disabled:opacity-40"
+              title={debugBackendEnabled ? "Start Debugging (F5)" : "Requires DAP backend support"}
+              disabled={!debugBackendEnabled}
+            >
               <Play className="w-4 h-4" />
             </button>
           ) : (
             <>
-              <button onClick={continueExec} disabled={!isPaused} className="p-1.5 rounded hover:bg-green-500/20 text-green-500 disabled:opacity-30 transition-colors" title="Continue (F5)">
+              <button
+                onClick={continueExec}
+                disabled={!isPaused || !debugBackendEnabled}
+                className="p-1.5 rounded hover:bg-green-500/20 text-green-500 disabled:opacity-30 transition-colors"
+                title={debugBackendEnabled ? "Continue (F5)" : "Requires DAP backend support"}
+              >
                 <Play className="w-4 h-4" />
               </button>
-              <button onClick={stepOver} disabled={!isPaused} className="p-1.5 rounded hover:bg-blue-500/20 text-blue-500 disabled:opacity-30 transition-colors" title="Step Over (F10)">
+              <button
+                onClick={stepOver}
+                disabled={!isPaused || !debugBackendEnabled}
+                className="p-1.5 rounded hover:bg-blue-500/20 text-blue-500 disabled:opacity-30 transition-colors"
+                title={debugBackendEnabled ? "Step Over (F10)" : "Requires DAP backend support"}
+              >
                 <SkipForward className="w-4 h-4" />
               </button>
-              <button onClick={stepInto} disabled={!isPaused} className="p-1.5 rounded hover:bg-blue-500/20 text-blue-500 disabled:opacity-30 transition-colors" title="Step Into (F11)">
+              <button
+                onClick={stepInto}
+                disabled={!isPaused || !debugBackendEnabled}
+                className="p-1.5 rounded hover:bg-blue-500/20 text-blue-500 disabled:opacity-30 transition-colors"
+                title={debugBackendEnabled ? "Step Into (F11)" : "Requires DAP backend support"}
+              >
                 <ArrowDownToLine className="w-4 h-4" />
               </button>
-              <button onClick={stepOut} disabled={!isPaused} className="p-1.5 rounded hover:bg-blue-500/20 text-blue-500 disabled:opacity-30 transition-colors" title="Step Out (Shift+F11)">
+              <button
+                onClick={stepOut}
+                disabled={!isPaused || !debugBackendEnabled}
+                className="p-1.5 rounded hover:bg-blue-500/20 text-blue-500 disabled:opacity-30 transition-colors"
+                title={debugBackendEnabled ? "Step Out (Shift+F11)" : "Requires DAP backend support"}
+              >
                 <ArrowUpFromLine className="w-4 h-4" />
               </button>
               <div className="w-px h-4 bg-border mx-1" />
@@ -293,22 +527,30 @@ export function DebugPanel({ projectId, activeFile, onNavigateToFile }: DebugPan
         )}
       </div>
 
-      {/* Main Content - Scrollable */}
       <div className="flex-1 overflow-y-auto">
         {!session ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
             <Bug className="w-8 h-8 opacity-30" />
             <p className="text-xs">No active debug session</p>
-            <button onClick={startDebug} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green-500/10 text-green-500 rounded-md hover:bg-green-500/20 transition-colors">
+            {!debugBackendEnabled && (
+              <p className="text-[11px] text-amber-400 text-center max-w-[260px]">
+                Debug backend unavailable. Set NEXT_PUBLIC_DAP_BACKEND_ENABLED=true to enable debug sessions.
+              </p>
+            )}
+            <button
+              onClick={startDebug}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green-500/10 text-green-500 rounded-md hover:bg-green-500/20 transition-colors disabled:opacity-40"
+              disabled={!debugBackendEnabled}
+              title={debugBackendEnabled ? "Start Debugging" : "Requires DAP backend support"}
+            >
               <Play className="w-3 h-3" />
               Start Debugging
             </button>
           </div>
         ) : (
           <>
-            {/* Variables */}
             <CollapsibleSection title="Variables" icon={<Variable className="w-3.5 h-3.5" />} isOpen={expandedSections.has("variables")} onToggle={() => toggleSection("variables")}>
-              {(["local", "closure", "global"] as const).map(scope => (
+              {(["local", "closure", "global"] as const).map((scope) => (
                 <div key={scope}>
                   <button onClick={() => toggleVarScope(scope)} className="w-full flex items-center gap-1 px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground hover:bg-muted/30">
                     {expandedVarScopes.has(scope) ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
@@ -323,19 +565,27 @@ export function DebugPanel({ projectId, activeFile, onNavigateToFile }: DebugPan
               ))}
             </CollapsibleSection>
 
-            {/* Watch */}
-            <CollapsibleSection title="Watch" icon={<Eye className="w-3.5 h-3.5" />} isOpen={expandedSections.has("watch")} onToggle={() => toggleSection("watch")} action={
-              <button onClick={() => setExpandedSections(prev => { const n = new Set(prev); n.add("watch"); return n })} className="p-0.5 rounded hover:bg-muted/50">
-                <Plus className="w-3 h-3" />
-              </button>
-            }>
-              {watchExpressions.map(w => (
+            <CollapsibleSection
+              title="Watch"
+              icon={<Eye className="w-3.5 h-3.5" />}
+              isOpen={expandedSections.has("watch")}
+              onToggle={() => toggleSection("watch")}
+              action={
+                <button
+                  onClick={() => setExpandedSections((prev) => { const n = new Set(prev); n.add("watch"); return n })}
+                  className="p-0.5 rounded hover:bg-muted/50 disabled:opacity-40"
+                  disabled={!debugBackendEnabled}
+                  title={debugBackendEnabled ? "Add watch expression" : "Requires DAP backend support"}
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+              }
+            >
+              {watchExpressions.map((w) => (
                 <div key={w.id} className="flex items-center gap-2 px-3 py-1 text-xs hover:bg-muted/30 group">
                   <span className="text-blue-400 font-mono">{w.expression}</span>
                   <span className="text-muted-foreground">=</span>
-                  <span className={`font-mono ${w.error ? "text-red-400" : "text-foreground"}`}>
-                    {w.error || w.value}
-                  </span>
+                  <span className={`font-mono ${w.error ? "text-red-400" : "text-foreground"}`}>{w.error || w.value}</span>
                   <button onClick={() => removeWatch(w.id)} className="ml-auto opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-muted/50">
                     <X className="w-3 h-3 text-muted-foreground" />
                   </button>
@@ -345,17 +595,17 @@ export function DebugPanel({ projectId, activeFile, onNavigateToFile }: DebugPan
                 <input
                   type="text"
                   value={newWatchExpr}
-                  onChange={e => setNewWatchExpr(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && addWatchExpression()}
-                  placeholder="Add expression..."
+                  onChange={(e) => setNewWatchExpr(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addWatchExpression()}
+                  placeholder={debugBackendEnabled ? "Add expression..." : "Watch expressions require DAP backend"}
+                  disabled={!debugBackendEnabled}
                   className="flex-1 text-xs bg-transparent border-none focus:outline-none placeholder:text-muted-foreground/50 font-mono"
                 />
               </div>
             </CollapsibleSection>
 
-            {/* Call Stack */}
             <CollapsibleSection title="Call Stack" icon={<Layers className="w-3.5 h-3.5" />} isOpen={expandedSections.has("callstack")} onToggle={() => toggleSection("callstack")}>
-              {callStack.map(frame => (
+              {callStack.map((frame) => (
                 <button
                   key={frame.id}
                   onClick={() => {
@@ -371,21 +621,18 @@ export function DebugPanel({ projectId, activeFile, onNavigateToFile }: DebugPan
               ))}
             </CollapsibleSection>
 
-            {/* Breakpoints */}
             <CollapsibleSection title="Breakpoints" icon={<CircleDot className="w-3.5 h-3.5 text-red-400" />} isOpen={expandedSections.has("breakpoints")} onToggle={() => toggleSection("breakpoints")}>
-              {breakpoints.map(bp => (
+              {breakpoints.map((bp) => (
                 <div key={bp.id} className="flex items-center gap-2 px-3 py-1 text-xs hover:bg-muted/30 group">
-                  <button onClick={() => toggleBreakpoint(bp.id)} className="flex-shrink-0">
-                    {bp.enabled ? (
-                      <Circle className="w-3.5 h-3.5 fill-red-500 text-red-500" />
-                    ) : (
-                      <Circle className="w-3.5 h-3.5 text-muted-foreground" />
-                    )}
-                  </button>
                   <button
-                    onClick={() => onNavigateToFile?.(bp.file, bp.line)}
-                    className="flex-1 text-left truncate hover:underline"
+                    onClick={() => toggleBreakpoint(bp.id)}
+                    className="flex-shrink-0 disabled:opacity-40"
+                    disabled={!debugBackendEnabled}
+                    title={debugBackendEnabled ? "Toggle breakpoint" : "Requires DAP backend support"}
                   >
+                    {bp.enabled ? <Circle className="w-3.5 h-3.5 fill-red-500 text-red-500" /> : <Circle className="w-3.5 h-3.5 text-muted-foreground" />}
+                  </button>
+                  <button onClick={() => onNavigateToFile?.(bp.file, bp.line)} className="flex-1 text-left truncate hover:underline">
                     <span className="text-foreground">{bp.file.split("/").pop()}</span>
                     <span className="text-muted-foreground">:{bp.line}</span>
                   </button>
@@ -394,17 +641,43 @@ export function DebugPanel({ projectId, activeFile, onNavigateToFile }: DebugPan
                       {bp.condition}
                     </span>
                   )}
-                  <button onClick={() => removeBreakpoint(bp.id)} className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-muted/50 flex-shrink-0">
+                  <button
+                    onClick={() => removeBreakpoint(bp.id)}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-muted/50 flex-shrink-0 disabled:opacity-40"
+                    disabled={!debugBackendEnabled}
+                    title={debugBackendEnabled ? "Remove breakpoint" : "Requires DAP backend support"}
+                  >
                     <X className="w-3 h-3 text-muted-foreground" />
                   </button>
                 </div>
               ))}
             </CollapsibleSection>
+
+            {/* Exception Breakpoints */}
+            <CollapsibleSection title="Exception Breakpoints" icon={<AlertTriangle className="w-3.5 h-3.5 text-amber-400" />} isOpen={expandedSections.has("exceptions")} onToggle={() => toggleSection("exceptions")}>
+              <div className="flex items-center gap-2 px-3 py-1 text-xs hover:bg-muted/30">
+                <input
+                  type="checkbox"
+                  checked={exceptionBreakpoints.caught}
+                  onChange={(e) => setExceptionBreakpoints(prev => ({ ...prev, caught: e.target.checked }))}
+                  className="w-3 h-3 accent-red-500"
+                />
+                <span className="text-foreground">Caught Exceptions</span>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1 text-xs hover:bg-muted/30">
+                <input
+                  type="checkbox"
+                  checked={exceptionBreakpoints.uncaught}
+                  onChange={(e) => setExceptionBreakpoints(prev => ({ ...prev, uncaught: e.target.checked }))}
+                  className="w-3 h-3 accent-red-500"
+                />
+                <span className="text-foreground">Uncaught Exceptions</span>
+              </div>
+            </CollapsibleSection>
           </>
         )}
       </div>
 
-      {/* Debug Console */}
       {session && (
         <div className="border-t border-border">
           <div className="flex items-center justify-between px-3 py-1 bg-muted/20">
@@ -426,8 +699,8 @@ export function DebugPanel({ projectId, activeFile, onNavigateToFile }: DebugPan
             <input
               type="text"
               value={consoleInput}
-              onChange={e => setConsoleInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && executeConsole()}
+              onChange={(e) => setConsoleInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && executeConsole()}
               placeholder="Evaluate expression..."
               className="flex-1 px-1 py-1.5 text-xs font-mono bg-transparent focus:outline-none placeholder:text-muted-foreground/40"
             />
@@ -437,10 +710,6 @@ export function DebugPanel({ projectId, activeFile, onNavigateToFile }: DebugPan
     </div>
   )
 }
-
-// ═══════════════════════════════════════════════════════════
-// COLLAPSIBLE SECTION
-// ═══════════════════════════════════════════════════════════
 
 function CollapsibleSection({
   title,
@@ -463,7 +732,7 @@ function CollapsibleSection({
         {isOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
         {icon}
         <span>{title}</span>
-        {action && <span className="ml-auto" onClick={e => e.stopPropagation()}>{action}</span>}
+        {action && <span className="ml-auto" onClick={(e) => e.stopPropagation()}>{action}</span>}
       </button>
       <AnimatePresence>
         {isOpen && (
@@ -475,10 +744,6 @@ function CollapsibleSection({
     </div>
   )
 }
-
-// ═══════════════════════════════════════════════════════════
-// VARIABLE NODE (recursive)
-// ═══════════════════════════════════════════════════════════
 
 function VariableNode({ variable, depth }: { variable: DebugVariable; depth: number }) {
   const [isExpanded, setIsExpanded] = useState(false)

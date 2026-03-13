@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import ReactFlow, {
     Controls,
     Background,
@@ -14,51 +14,81 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-const initialNodes: Node[] = [
-    {
-        id: 'elara',
-        position: { x: 250, y: 0 },
-        data: { label: 'Elara (Orchestrator)' },
-        style: { background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '8px', padding: '10px' }
-    },
-    {
-        id: 'sankofa',
-        position: { x: 50, y: 150 },
-        data: { label: 'Sankofa (Code)' },
-        style: { background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', padding: '10px' }
-    },
-    {
-        id: 'themba',
-        position: { x: 250, y: 150 },
-        data: { label: 'Themba (Backend)' },
-        style: { background: '#f59e0b', color: 'white', border: 'none', borderRadius: '8px', padding: '10px' }
-    },
-    {
-        id: 'jabari',
-        position: { x: 450, y: 150 },
-        data: { label: 'Jabari (Security)' },
-        style: { background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', padding: '10px' }
-    },
-    {
-        id: 'knowledge',
-        position: { x: 250, y: 300 },
-        data: { label: 'Knowledge Ocean (Vector DB)' },
-        style: { background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', padding: '10px' }
-    },
+interface AgentDef {
+    id: string;
+    name: string;
+    role: string;
+    color?: string;
+}
+
+interface AgentGraphProps {
+    agents?: AgentDef[];
+}
+
+const ROLE_COLORS: Record<string, string> = {
+    orchestrator: '#8b5cf6',
+    code: '#3b82f6',
+    backend: '#f59e0b',
+    security: '#ef4444',
+    knowledge: '#10b981',
+    data: '#06b6d4',
+    testing: '#ec4899',
+    default: '#6b7280',
+};
+
+const defaultAgents: AgentDef[] = [
+    { id: 'elara', name: 'Elara', role: 'orchestrator' },
+    { id: 'sankofa', name: 'Sankofa', role: 'code' },
+    { id: 'themba', name: 'Themba', role: 'backend' },
+    { id: 'jabari', name: 'Jabari', role: 'security' },
+    { id: 'knowledge', name: 'Knowledge Ocean', role: 'knowledge' },
 ];
 
-const initialEdges: Edge[] = [
-    { id: 'e1', source: 'elara', target: 'sankofa', animated: true, label: 'delegate' },
-    { id: 'e2', source: 'elara', target: 'themba', animated: true, label: 'delegate' },
-    { id: 'e3', source: 'elara', target: 'jabari', animated: true, label: 'delegate' },
-    { id: 'e4', source: 'sankofa', target: 'knowledge', animated: true, label: 'query' },
-    { id: 'e5', source: 'themba', target: 'knowledge', animated: true, label: 'query' },
-    { id: 'e6', source: 'jabari', target: 'knowledge', animated: true, label: 'query' },
-];
+function buildGraph(agents: AgentDef[]) {
+    if (agents.length === 0) return { nodes: [], edges: [] };
 
-export default function AgentGraph() {
-    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+    // First agent is orchestrator (center top), rest are arranged below
+    const orchestrator = agents[0];
+    const workers = agents.slice(1);
+    const spacing = 200;
+    const startX = Math.max(0, 250 - ((workers.length - 1) * spacing) / 2);
+
+    const nodes: Node[] = [
+        {
+            id: orchestrator.id,
+            position: { x: 250, y: 0 },
+            data: { label: `${orchestrator.name} (${orchestrator.role})` },
+            style: {
+                background: orchestrator.color || ROLE_COLORS[orchestrator.role] || ROLE_COLORS.default,
+                color: 'white', border: 'none', borderRadius: '8px', padding: '10px',
+            },
+        },
+        ...workers.map((a, i) => ({
+            id: a.id,
+            position: { x: startX + i * spacing, y: 150 },
+            data: { label: `${a.name} (${a.role})` },
+            style: {
+                background: a.color || ROLE_COLORS[a.role] || ROLE_COLORS.default,
+                color: 'white', border: 'none', borderRadius: '8px', padding: '10px',
+            },
+        })),
+    ];
+
+    const edges: Edge[] = workers.map((a, i) => ({
+        id: `e-${orchestrator.id}-${a.id}`,
+        source: orchestrator.id,
+        target: a.id,
+        animated: true,
+        label: 'delegate',
+    }));
+
+    return { nodes, edges };
+}
+
+export default function AgentGraph({ agents }: AgentGraphProps) {
+    const graph = useMemo(() => buildGraph(agents || defaultAgents), [agents]);
+    const [nodes, setNodes, onNodesChange] = useNodesState(graph.nodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(graph.edges);
 
     const onConnect = useCallback(
         (params: Connection) => setEdges((eds: Edge[]) => addEdge(params, eds)),

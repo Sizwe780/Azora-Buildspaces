@@ -38,7 +38,8 @@ interface DeploymentTarget {
 }
 
 export default function DeploymentConfig({ projectName }: DeploymentConfigProps) {
-    const { data: session } = useSession();
+    const sessionResult = useSession();
+    const session = sessionResult?.data ?? null;
     const [targets, setTargets] = useState<DeploymentTarget[]>([
         {
             id: "vercel",

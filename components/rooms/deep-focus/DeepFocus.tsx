@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRoomEvents } from "@/lib/hooks/use-room-events";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -41,11 +42,11 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const AMBIENT_SOUNDS = [
     { id: 'rain', name: 'Rain', Icon: CloudRain, url: 'https://assets.mixkit.co/sfx/preview/mixkit-light-rain-loop-2393.mp3' },
-    { id: 'forest', name: 'Forest', Icon: TreePine, url: '' },
-    { id: 'cafe', name: 'Cafe', Icon: Coffee, url: '' },
-    { id: 'ocean', name: 'Ocean', Icon: Waves, url: '' },
-    { id: 'whitenoise', name: 'White Noise', Icon: Wind, url: '' },
-    { id: 'binaural', name: 'Binaural', Icon: Headphones, url: '' },
+    { id: 'forest', name: 'Forest', Icon: TreePine, url: 'https://assets.mixkit.co/sfx/preview/mixkit-forest-birds-ambience-1210.mp3' },
+    { id: 'cafe', name: 'Cafe', Icon: Coffee, url: 'https://assets.mixkit.co/sfx/preview/mixkit-restaurant-crowd-talking-ambience-444.mp3' },
+    { id: 'ocean', name: 'Ocean', Icon: Waves, url: 'https://assets.mixkit.co/sfx/preview/mixkit-sea-waves-loop-1196.mp3' },
+    { id: 'whitenoise', name: 'White Noise', Icon: Wind, url: 'https://assets.mixkit.co/sfx/preview/mixkit-blizzard-cold-wind-1153.mp3' },
+    { id: 'binaural', name: 'Binaural', Icon: Headphones, url: 'https://assets.mixkit.co/sfx/preview/mixkit-ethereal-fairy-win-sound-2019.mp3' },
 ];
 
 const FOCUS_MODES = [
@@ -56,6 +57,7 @@ const FOCUS_MODES = [
 ];
 
 export default function DeepFocus() {
+    const { emit, ROOM_EVENTS } = useRoomEvents('deep-focus')
     const [timeLeft, setTimeLeft] = useState(25 * 60);
     const [isActive, setIsActive] = useState(false);
     const [mode, setMode] = useState('pomodoro');
@@ -74,6 +76,7 @@ export default function DeepFocus() {
     const [distractionLog, setDistractionLog] = useState<{ time: string; note: string }[]>([]);
     const [sessionLog, setSessionLog] = useState<{ date: string; minutes: number; mode: string }[]>([]);
     const [aiInsights, setAiInsights] = useState<string[]>([]);
+    const [showInsights, setShowInsights] = useState(false);
     const [breakCount, setBreakCount] = useState(0);
     const [longestSession, setLongestSession] = useState(0); // minutes
     const [dailyGoalText, setDailyGoalText] = useState('');
@@ -148,6 +151,44 @@ export default function DeepFocus() {
     useEffect(() => {
         persistState()
     }, [completedSessions, totalFocusTime, persistState])
+
+    // Generate AI insights based on session analytics
+    const generateInsights = useCallback(() => {
+        const todayStr = new Date().toISOString().split('T')[0]
+        const insights: string[] = []
+        const avgSessionMinutes = completedSessions > 0 ? Math.round(totalFocusTime / 60 / completedSessions) : 0
+        const todaySessions = sessionLog.filter(s => s.date === todayStr)
+        const todayMins = todaySessions.reduce((sum, s) => sum + s.minutes, 0)
+        const deepSessions = sessionLog.filter(s => s.mode === 'deep').length
+        const pomodoroSessions = sessionLog.filter(s => s.mode === 'pomodoro').length
+
+        if (completedSessions === 0) {
+            insights.push('Start your first focus session to begin tracking productivity patterns.')
+        } else {
+            if (streak >= 7) insights.push(`Impressive ${streak}-day streak! Consistency is the key to deep expertise.`)
+            else if (streak >= 3) insights.push(`${streak}-day streak building. Keep it up to form a lasting habit!`)
+            else insights.push('Try to maintain a daily focus habit — even one session counts toward your streak.')
+
+            if (avgSessionMinutes >= 45) insights.push(`Your average session is ${avgSessionMinutes}min — excellent deep work capacity.`)
+            else if (avgSessionMinutes >= 20) insights.push(`Average session: ${avgSessionMinutes}min. Try extending to 50min for deeper flow states.`)
+            else insights.push(`Short ${avgSessionMinutes}min average — consider longer Pomodoro cycles for complex tasks.`)
+
+            if (deepSessions > pomodoroSessions) insights.push('You prefer Deep Work mode — great for complex problem-solving tasks.')
+            else if (pomodoroSessions > 0) insights.push(`${pomodoroSessions} Pomodoro vs ${deepSessions} Deep Work sessions. Mix both for optimal productivity.`)
+
+            if (todayMins >= dailyGoal) insights.push(`Daily goal reached (${todayMins}/${dailyGoal}min)! Consider stretching tomorrow\'s target.`)
+            else if (todayMins > 0) insights.push(`${dailyGoal - todayMins}min remaining to hit today\'s ${dailyGoal}min goal.`)
+            else insights.push(`No sessions yet today. Your goal is ${dailyGoal}min — start a session to get on track.`)
+
+            if (distractions > 3) insights.push(`${distractions} distractions logged. Try closing tabs and notifications before your next session.`)
+            else if (distractions > 0) insights.push(`Only ${distractions} distraction(s) — good focus discipline.`)
+
+            if (longestSession >= 50) insights.push(`Personal best: ${longestSession}min session. You can sustain deep flow!`)
+            if (breakCount > 0 && breakCount < completedSessions * 0.3) insights.push('Take more breaks — regular rest improves long-term focus stamina.')
+        }
+        setAiInsights(insights)
+        setShowInsights(true)
+    }, [completedSessions, totalFocusTime, sessionLog, streak, dailyGoal, distractions, longestSession, breakCount])
 
     useEffect(() => {
         if (isActive && timeLeft > 0) {
@@ -680,6 +721,34 @@ export default function DeepFocus() {
                                         <span className="text-[9px] text-muted-foreground">30d ago</span>
                                         <span className="text-[9px] text-muted-foreground">Today</span>
                                     </div>
+                                </div>
+                                {/* AI Insights Section */}
+                                <div className="px-4 pb-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                                            <Brain className="w-3.5 h-3.5 text-purple-400" />
+                                            AI Focus Insights
+                                        </h4>
+                                        <button
+                                            onClick={generateInsights}
+                                            className="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors"
+                                        >
+                                            {aiInsights.length > 0 ? 'Refresh' : 'Generate'}
+                                        </button>
+                                    </div>
+                                    {showInsights && aiInsights.length > 0 && (
+                                        <div className="space-y-1.5">
+                                            {aiInsights.map((insight, i) => (
+                                                <div key={i} className="text-xs text-muted-foreground bg-muted/10 border rounded px-3 py-2 flex items-start gap-2">
+                                                    <span className="text-purple-400 mt-0.5">{'\u2727'}</span>
+                                                    <span>{insight}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {showInsights && aiInsights.length === 0 && (
+                                        <div className="text-xs text-muted-foreground/50 italic">Complete a focus session to unlock insights.</div>
+                                    )}
                                 </div>
                             </motion.div>
                         )}

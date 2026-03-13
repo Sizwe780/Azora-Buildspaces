@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef, useCallback, useEffect } from "react"
 import dynamic from "next/dynamic"
 import {
   ArrowLeftRight,
@@ -11,11 +11,15 @@ import {
   Check,
   GitBranch,
   FileCode,
+  X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { ErrorBoundary } from "@/components/shared/error-boundary"
+import { useWorkbench } from "@/lib/stores/workbench-store"
+import { getLanguageByExtension } from "@/lib/languages"
 
 const MonacoDiffEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => {
@@ -26,58 +30,13 @@ const MonacoDiffEditor = dynamic(
 )
 
 interface DiffEditorViewProps {
+  projectId?: string
   originalFile?: string
   modifiedFile?: string
   originalContent?: string
   modifiedContent?: string
   language?: string
 }
-
-// Demo content for when no files are provided
-const DEMO_ORIGINAL = `import { useState } from "react"
-
-export function Counter() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <div className="counter">
-      <h2>Count: {count}</h2>
-      <button onClick={() => setCount(count + 1)}>
-        Increment
-      </button>
-    </div>
-  )
-}`
-
-const DEMO_MODIFIED = `import { useState, useCallback } from "react"
-import { cn } from "@/lib/utils"
-
-export function Counter({ initial = 0 }: { initial?: number }) {
-  const [count, setCount] = useState(initial)
-
-  const increment = useCallback(() => {
-    setCount(prev => prev + 1)
-  }, [])
-
-  const decrement = useCallback(() => {
-    setCount(prev => Math.max(0, prev - 1))
-  }, [])
-
-  const reset = useCallback(() => {
-    setCount(initial)
-  }, [initial])
-
-  return (
-    <div className={cn("counter", "flex flex-col gap-2 p-4")}>
-      <h2 className="text-lg font-bold">Count: {count}</h2>
-      <div className="flex gap-2">
-        <button onClick={decrement}>-</button>
-        <button onClick={increment}>+</button>
-        <button onClick={reset}>Reset</button>
-      </div>
-    </div>
-  )
-}`
 
 interface DiffStats {
   additions: number
@@ -104,20 +63,274 @@ function computeDiffStats(original: string, modified: string): DiffStats {
 }
 
 export function DiffEditorView({
+  projectId = "default",
   originalFile = "counter.tsx (HEAD)",
   modifiedFile = "counter.tsx (Working)",
   originalContent,
   modifiedContent,
-  language = "typescript",
+  language,
 }: DiffEditorViewProps) {
+  const { closeDiffEditor } = useWorkbench()
   const [viewMode, setViewMode] = useState<"inline" | "side-by-side">("side-by-side")
   const [wordWrap, setWordWrap] = useState(false)
   const [showUnchanged, setShowUnchanged] = useState(true)
+  const [ignoreWhitespace, setIgnoreWhitespace] = useState(false)
+  const [showBlame, setShowBlame] = useState(false)
+  const [activeChangeIndex, setActiveChangeIndex] = useState(0)
+  const [changeCount, setChangeCount] = useState(0)
+  const diffEditorRef = useRef<any>(null)
 
-  const original = originalContent ?? DEMO_ORIGINAL
-  const modified = modifiedContent ?? DEMO_MODIFIED
+  const original = originalContent ?? `// No original diff content available for ${originalFile}.`
+  const modified = modifiedContent ?? `// No modified diff content available for ${modifiedFile}.`
+
+  const canPersistModifiedFile = useMemo(
+    () => Boolean(modifiedFile && !modifiedFile.startsWith('HEAD:') && !/\s\((?:HEAD|Working)\)$/.test(modifiedFile)),
+    [modifiedFile]
+  )
+
+  const resolvedLanguage = useMemo(() => {
+    if (language) return language
+    const candidateFile = modifiedFile || originalFile
+    const extension = candidateFile?.split('/').pop()?.split('.').pop()
+    if (extension) {
+      return getLanguageByExtension(`.${extension}`)?.monaco || "typescript"
+    }
+    return "typescript"
+  }, [language, modifiedFile, originalFile])
 
   const stats = useMemo(() => computeDiffStats(original, modified), [original, modified])
+
+  const getLineChanges = useCallback(() => diffEditorRef.current?.getLineChanges?.() || [], [])
+
+  const focusChange = useCallback((change: any) => {
+    const modifiedEditor = diffEditorRef.current?.getModifiedEditor?.()
+    if (!modifiedEditor || !change) return
+    const targetLine = change.modifiedStartLineNumber || change.modifiedEndLineNumber || 1
+    modifiedEditor.revealLineInCenter(targetLine)
+    modifiedEditor.setPosition({ lineNumber: targetLine, column: 1 })
+    modifiedEditor.focus()
+  }, [])
+
+  const refreshLineChanges = useCallback(() => {
+    const changes = getLineChanges()
+    setChangeCount(changes.length)
+    setActiveChangeIndex((prev) => {
+      if (changes.length === 0) return 0
+      return Math.min(prev, changes.length - 1)
+    })
+    return changes
+  }, [getLineChanges])
+
+  const persistModifiedEditor = useCallback(async () => {
+    if (!canPersistModifiedFile || !modifiedFile) return
+
+    const modifiedEditor = diffEditorRef.current?.getModifiedEditor?.()
+    const content = modifiedEditor?.getValue?.()
+    if (typeof content !== 'string') return
+
+    try {
+      await fetch('/api/fs/write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: modifiedFile, content }),
+      })
+
+      window.dispatchEvent(new CustomEvent('azora:file-saved', {
+        detail: { path: modifiedFile, content },
+      }))
+    } catch {
+      // Ignore persistence failures and keep the editor interactive.
+    }
+  }, [canPersistModifiedFile, modifiedFile])
+
+  // Accept all changes: copy modified into original
+  const handleAccept = useCallback(async () => {
+    if (diffEditorRef.current) {
+      const modifiedEditor = diffEditorRef.current.getModifiedEditor()
+      const originalEditor = diffEditorRef.current.getOriginalEditor()
+      if (modifiedEditor && originalEditor) {
+        originalEditor.setValue(modifiedEditor.getValue())
+      }
+    }
+    refreshLineChanges()
+    await persistModifiedEditor()
+  }, [persistModifiedEditor, refreshLineChanges])
+
+  // Revert all changes: copy original into modified
+  const handleRevert = useCallback(async () => {
+    if (diffEditorRef.current) {
+      const modifiedEditor = diffEditorRef.current.getModifiedEditor()
+      const originalEditor = diffEditorRef.current.getOriginalEditor()
+      if (modifiedEditor && originalEditor) {
+        modifiedEditor.setValue(originalEditor.getValue())
+      }
+    }
+    refreshLineChanges()
+    await persistModifiedEditor()
+  }, [persistModifiedEditor, refreshLineChanges])
+
+  // Accept individual hunk
+  const handleAcceptHunk = useCallback(async (hunkIndex: number) => {
+    if (diffEditorRef.current) {
+      const lineChanges = diffEditorRef.current.getLineChanges()
+      if (lineChanges && lineChanges[hunkIndex]) {
+        const change = lineChanges[hunkIndex]
+        const modifiedEditor = diffEditorRef.current.getModifiedEditor()
+        const originalEditor = diffEditorRef.current.getOriginalEditor()
+
+        if (modifiedEditor && originalEditor) {
+          const modifiedLines = modifiedEditor.getValue().split('\n')
+          const originalLines = originalEditor.getValue().split('\n')
+
+          // Replace the original lines with modified lines for this hunk
+          const startLine = change.originalStartLineNumber - 1
+          const endLine = change.originalEndLineNumber
+          const modifiedStartLine = change.modifiedStartLineNumber - 1
+          const modifiedEndLine = change.modifiedEndLineNumber
+
+          const newOriginalLines = [
+            ...originalLines.slice(0, startLine),
+            ...modifiedLines.slice(modifiedStartLine, modifiedEndLine),
+            ...originalLines.slice(endLine)
+          ]
+
+          originalEditor.setValue(newOriginalLines.join('\n'))
+        }
+      }
+    }
+    refreshLineChanges()
+    await persistModifiedEditor()
+  }, [persistModifiedEditor, refreshLineChanges])
+
+  // Revert individual hunk
+  const handleRevertHunk = useCallback(async (hunkIndex: number) => {
+    if (diffEditorRef.current) {
+      const lineChanges = diffEditorRef.current.getLineChanges()
+      if (lineChanges && lineChanges[hunkIndex]) {
+        const change = lineChanges[hunkIndex]
+        const modifiedEditor = diffEditorRef.current.getModifiedEditor()
+        const originalEditor = diffEditorRef.current.getOriginalEditor()
+
+        if (modifiedEditor && originalEditor) {
+          const modifiedLines = modifiedEditor.getValue().split('\n')
+          const originalLines = originalEditor.getValue().split('\n')
+
+          // Replace the modified lines with original lines for this hunk
+          const startLine = change.modifiedStartLineNumber - 1
+          const endLine = change.modifiedEndLineNumber
+          const originalStartLine = change.originalStartLineNumber - 1
+          const originalEndLine = change.originalEndLineNumber
+
+          const newModifiedLines = [
+            ...modifiedLines.slice(0, startLine),
+            ...originalLines.slice(originalStartLine, originalEndLine),
+            ...modifiedLines.slice(endLine)
+          ]
+
+          modifiedEditor.setValue(newModifiedLines.join('\n'))
+        }
+      }
+    }
+    refreshLineChanges()
+    await persistModifiedEditor()
+  }, [persistModifiedEditor, refreshLineChanges])
+
+  // Navigate to previous/next change
+  const navigateChange = useCallback((direction: 'prev' | 'next') => {
+    const changes = refreshLineChanges()
+    if (!changes.length) return
+
+    setActiveChangeIndex((prev) => {
+      const nextIndex = direction === 'next'
+        ? Math.min(prev + 1, changes.length - 1)
+        : Math.max(prev - 1, 0)
+      focusChange(changes[nextIndex])
+      return nextIndex
+    })
+  }, [focusChange, refreshLineChanges])
+
+  // Keyboard shortcuts (F7 = next diff, Shift+F7 = prev diff)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F7') {
+        e.preventDefault()
+        if (e.shiftKey) {
+          navigateChange('prev')
+        } else {
+          navigateChange('next')
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [navigateChange])
+
+  useEffect(() => {
+    setActiveChangeIndex(0)
+    setChangeCount(0)
+  }, [original, modified])
+
+  // Blame annotations effect
+  useEffect(() => {
+    if (!diffEditorRef.current || !showBlame) return
+
+    const modifiedEditor = diffEditorRef.current.getModifiedEditor()
+    const originalEditor = diffEditorRef.current.getOriginalEditor()
+
+    if (!modifiedEditor || !originalEditor) return
+
+    // Fetch real blame data from API, fall back to "not available" if endpoint missing
+    const applyBlameDecorations = async (editor: any, file: string | undefined) => {
+      const lines = editor.getValue().split('\n')
+      let blameData: string[] | null = null
+
+      if (file) {
+        try {
+          const resp = await fetch(`/api/projects/${projectId}/git/blame?file=${encodeURIComponent(file)}`)
+          if (resp.ok) {
+            const data = await resp.json()
+            blameData = data.blame || null
+          }
+        } catch { /* API unavailable */ }
+      }
+
+      const decorations = lines.map((_: string, idx: number) => {
+        const annotation = blameData?.[idx] || 'blame unavailable'
+        return {
+          range: { startLineNumber: idx + 1, startColumn: 1, endLineNumber: idx + 1, endColumn: 1 },
+          options: {
+            after: {
+              content: ` // ${annotation}`,
+              inlineClassName: 'blame-annotation',
+            },
+          },
+        }
+      })
+
+      return editor.createDecorationsCollection(decorations)
+    }
+
+    let cancelled = false
+    const setup = async () => {
+      if (cancelled) return
+      const origDec = await applyBlameDecorations(originalEditor, originalFile)
+      if (cancelled) { origDec.clear(); return }
+      const modDec = await applyBlameDecorations(modifiedEditor, modifiedFile)
+      if (cancelled) { modDec.clear(); origDec.clear(); return }
+      // Store cleanup refs
+      ;(cleanup as any).origDec = origDec
+      ;(cleanup as any).modDec = modDec
+    }
+    const cleanup: any = () => {
+      cancelled = true
+      if (cleanup.origDec) cleanup.origDec.clear()
+      if (cleanup.modDec) cleanup.modDec.clear()
+    }
+    setup()
+
+    return cleanup
+  }, [modified, modifiedFile, original, originalFile, projectId, showBlame])
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -180,6 +393,28 @@ export function DiffEditorView({
           <Button
             variant="ghost"
             size="sm"
+            className={cn("h-6 px-2 text-[11px]", ignoreWhitespace && "bg-primary/15 text-primary")}
+            onClick={() => setIgnoreWhitespace(!ignoreWhitespace)}
+            title="Toggle whitespace changes"
+          >
+            Whitespace
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn("h-6 px-2 text-[11px]", showBlame && "bg-primary/15 text-primary")}
+            onClick={() => setShowBlame(!showBlame)}
+            title="Toggle blame annotations"
+          >
+            Blame
+          </Button>
+
+          <div className="w-px h-4 bg-border/40 mx-1" />
+
+          <Button
+            variant="ghost"
+            size="sm"
             className={cn("h-6 px-2 text-[11px]", wordWrap && "bg-primary/15 text-primary")}
             onClick={() => setWordWrap(!wordWrap)}
           >
@@ -189,8 +424,19 @@ export function DiffEditorView({
           <Button
             variant="ghost"
             size="sm"
+            className={cn("h-6 px-2 text-[11px]", !showUnchanged && "bg-primary/15 text-primary")}
+            onClick={() => setShowUnchanged(!showUnchanged)}
+            title="Toggle unchanged region folding"
+          >
+            {showUnchanged ? 'Show All' : 'Focus Changes'}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
             className="h-6 px-2 text-[11px]"
             title="Accept all changes"
+            onClick={handleAccept}
           >
             <Check className="w-3 h-3 mr-1" />
             Accept
@@ -201,26 +447,50 @@ export function DiffEditorView({
             size="sm"
             className="h-6 px-2 text-[11px]"
             title="Revert all changes"
+            onClick={handleRevert}
           >
             <RotateCcw className="w-3 h-3 mr-1" />
             Revert
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            title="Close diff editor"
+            onClick={closeDiffEditor}
+          >
+            <X className="w-3.5 h-3.5" />
           </Button>
         </div>
       </div>
 
       {/* Diff Editor */}
       <div className="flex-1 min-h-0">
+        <ErrorBoundary componentName="Diff Editor (Monaco)">
         <MonacoDiffEditor
           height="100%"
-          language={language}
+          language={resolvedLanguage}
           original={original}
           modified={modified}
           theme="vs-dark"
+          onMount={(editor) => {
+            diffEditorRef.current = editor
+            setTimeout(() => {
+              const changes = refreshLineChanges()
+              if (changes.length > 0) {
+                focusChange(changes[0])
+              }
+            }, 0)
+          }}
           options={{
             readOnly: false,
             renderSideBySide: viewMode === "side-by-side",
             enableSplitViewResizing: true,
-            ignoreTrimWhitespace: false,
+            ignoreTrimWhitespace: ignoreWhitespace,
+            hideUnchangedRegions: showUnchanged
+              ? { enabled: false }
+              : { enabled: true, contextLineCount: 3, minimumLineCount: 3, revealLineCount: 20 },
             renderIndicators: true,
             renderOverviewRuler: true,
             originalEditable: false,
@@ -239,6 +509,7 @@ export function DiffEditorView({
             automaticLayout: true,
           }}
         />
+        </ErrorBoundary>
       </div>
 
       {/* Summary Bar */}
@@ -247,11 +518,20 @@ export function DiffEditorView({
           {stats.changes} changes ({stats.additions} insertions, {stats.deletions} deletions)
         </span>
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+          <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+            {changeCount > 0 ? `Change ${activeChangeIndex + 1}/${changeCount}` : 'No hunks'}
+          </Badge>
+          <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px]" disabled={changeCount === 0} onClick={() => handleAcceptHunk(activeChangeIndex)}>
+            Accept Change
+          </Button>
+          <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px]" disabled={changeCount === 0} onClick={() => handleRevertHunk(activeChangeIndex)}>
+            Revert Change
+          </Button>
+          <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => navigateChange('prev')}>
             <ChevronUp className="w-3 h-3" />
             Previous Change
           </button>
-          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+          <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => navigateChange('next')}>
             Next Change
             <ChevronDown className="w-3 h-3" />
           </button>

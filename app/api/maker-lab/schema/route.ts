@@ -21,9 +21,6 @@ interface ColumnSchema {
   };
 }
 
-// In-memory storage for demo - replace with database in production
-let projectSchemas: Record<string, { tables: TableSchema[]; updatedAt: string }> = {}
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)

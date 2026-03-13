@@ -117,7 +117,7 @@ export function PreviewPanel() {
       </div>
 
       {/* Preview Frame */}
-      <div className="flex-1 bg-[#1a1a1a] flex items-center justify-center p-4 overflow-auto">
+      <div className="flex-1 bg-[var(--ide-widget-bg)] flex items-center justify-center p-4 overflow-auto">
         <motion.div
           layout
           className="bg-white rounded-lg shadow-2xl overflow-hidden transition-all duration-300 relative h-full"

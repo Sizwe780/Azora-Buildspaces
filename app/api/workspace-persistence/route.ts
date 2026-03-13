@@ -1,13 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
 import { workspacePersistence } from '@/lib/services/workspace-persistence'
 
+const WORKSPACE_ID_PATTERN = /^[a-zA-Z0-9._-]{1,128}$/
+
+function normalizeWorkspaceId(raw: unknown): string | null {
+  const value = String(raw ?? 'default')
+  return WORKSPACE_ID_PATTERN.test(value) ? value : null
+}
+
 export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   const { searchParams } = new URL(request.url)
   const action = searchParams.get('action') || 'snapshots'
 
   switch (action) {
     case 'snapshots': {
-      const workspaceId = searchParams.get('workspaceId') || undefined
+      const workspaceId = normalizeWorkspaceId(searchParams.get('workspaceId') || session.user.id)
+      if (!workspaceId) {
+        return NextResponse.json({ error: 'Invalid workspaceId' }, { status: 400 })
+      }
       return NextResponse.json({ snapshots: workspacePersistence.getSnapshots(workspaceId) })
     }
     case 'profiles':
@@ -20,14 +37,23 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   try {
     const body = await request.json()
     const { action } = body
 
     switch (action) {
       case 'save-snapshot': {
-        const { workspaceId, state, label } = body
-        const snapshot = await workspacePersistence.saveSnapshot(workspaceId || 'default', state, label)
+        const { workspaceId: rawWorkspaceId, state, label } = body
+        const workspaceId = normalizeWorkspaceId(rawWorkspaceId || session.user.id)
+        if (!workspaceId) {
+          return NextResponse.json({ error: 'Invalid workspaceId' }, { status: 400 })
+        }
+        const snapshot = await workspacePersistence.saveSnapshot(workspaceId, state, label)
         return NextResponse.json({ snapshot })
       }
       case 'restore-snapshot': {

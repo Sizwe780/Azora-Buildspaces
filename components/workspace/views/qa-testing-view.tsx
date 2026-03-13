@@ -40,6 +40,7 @@ interface TestRun {
   completedAt?: number
   results: { passed: number; failed: number; skipped: number; total: number }
   coverage?: { lines: number; branches: number; functions: number; statements: number }
+  suites?: Array<{ name: string; file: string; tests: TestResult[] }>
 }
 
 interface Framework {
@@ -47,6 +48,14 @@ interface Framework {
   name: string
   languages: string[]
   testPattern: string
+}
+
+interface QACapabilities {
+  watchMode?: {
+    supported?: boolean
+    reason?: string
+    pollingIntervalMs?: number
+  }
 }
 
 const STATUS_CONFIG: Record<string, { icon: any; color: string; bg: string }> = {
@@ -71,11 +80,24 @@ export function QATestingView() {
   const [isRunning, setIsRunning] = useState(false)
   const [watchMode, setWatchMode] = useState(false)
   const [watchId, setWatchId] = useState<string | null>(null)
+  const [capabilities, setCapabilities] = useState<QACapabilities>({})
+  const [watchError, setWatchError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchFrameworks()
     fetchRecentRuns()
+    fetchCapabilities()
   }, [])
+
+  const fetchCapabilities = async () => {
+    try {
+      const res = await fetch('/api/qa-testing?action=capabilities')
+      const data = await res.json()
+      setCapabilities(data.capabilities || {})
+    } catch {
+      setCapabilities({ watchMode: { supported: false, reason: 'Unable to load QA capabilities' } })
+    }
+  }
 
   const fetchFrameworks = async () => {
     try {
@@ -103,12 +125,25 @@ export function QATestingView() {
       const res = await fetch('/api/qa-testing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'run', framework: selectedFramework, testPattern: '**/*.test.*' })
+        body: JSON.stringify({
+          action: 'run',
+          config: {
+            framework: selectedFramework,
+            testDir: 'tests',
+            pattern: '**/*.test.*',
+            coverage: true,
+            watch: false,
+            parallel: true,
+            timeout: 120000,
+            env: {},
+          }
+        })
       })
       const data = await res.json()
       if (data.run) {
-        setCurrentRun(data.run)
-        buildSuites(data.run)
+        const normalized = normalizeRun(data.run)
+        setCurrentRun(normalized)
+        buildSuites(normalized)
         fetchRecentRuns()
       }
     } catch (err) { console.error('Failed to run tests:', err) }
@@ -129,6 +164,12 @@ export function QATestingView() {
   }
 
   const toggleWatch = async () => {
+    const watchSupported = capabilities.watchMode?.supported === true
+    if (!watchSupported) {
+      setWatchError(capabilities.watchMode?.reason || 'Watch mode is unavailable')
+      return
+    }
+
     if (watchMode && watchId) {
       await fetch('/api/qa-testing', {
         method: 'POST',
@@ -137,39 +178,94 @@ export function QATestingView() {
       })
       setWatchMode(false)
       setWatchId(null)
+      setWatchError(null)
     } else {
       const res = await fetch('/api/qa-testing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'watch', framework: selectedFramework, testPattern: '**/*.test.*' })
+        body: JSON.stringify({
+          action: 'watch',
+          config: {
+            framework: selectedFramework,
+            testDir: 'tests',
+            pattern: '**/*.test.*',
+            coverage: false,
+            watch: true,
+            parallel: true,
+            timeout: 120000,
+            env: {},
+          }
+        })
       })
       const data = await res.json()
-      if (data.watchId) {
+      if (res.ok && data.watchId) {
         setWatchId(data.watchId)
         setWatchMode(true)
+        setWatchError(null)
+      } else {
+        if (data?.capabilities) {
+          setCapabilities(data.capabilities)
+        }
+        setWatchMode(false)
+        setWatchId(null)
+        setWatchError(data?.error || 'Failed to start watch mode')
       }
     }
   }
 
+  const normalizeRun = (run: any): TestRun => {
+    const suites = Array.isArray(run?.suites)
+      ? run.suites.map((suite: any) => ({
+          name: suite?.name || suite?.file || 'suite',
+          file: suite?.file || suite?.name || 'unknown',
+          tests: Array.isArray(suite?.tests)
+            ? suite.tests.map((test: any, index: number) => ({
+                id: test?.id || `${suite?.name || 'suite'}-${index}`,
+                name: test?.name || 'test',
+                status: test?.status || 'pending',
+                duration: typeof test?.duration === 'number' ? test.duration : undefined,
+                error: test?.error,
+                file: test?.file || suite?.file,
+                line: typeof test?.line === 'number' ? test.line : undefined,
+              }))
+            : [],
+        }))
+      : []
+
+    return {
+      id: run?.id,
+      framework: run?.framework,
+      status: run?.status === 'passed' ? 'completed' : run?.status === 'error' ? 'failed' : run?.status,
+      startedAt: run?.startedAt,
+      completedAt: run?.completedAt,
+      results: {
+        passed: run?.results?.passed ?? run?.passed ?? 0,
+        failed: run?.results?.failed ?? run?.failed ?? 0,
+        skipped: run?.results?.skipped ?? run?.skipped ?? 0,
+        total: run?.results?.total ?? run?.total ?? 0,
+      },
+      coverage: run?.coverage
+        ? {
+            lines: run.coverage?.percentage ?? 0,
+            branches: run.coverage?.branches?.percentage ?? 0,
+            functions: run.coverage?.functions?.percentage ?? 0,
+            statements: run.coverage?.percentage ?? 0,
+          }
+        : undefined,
+      suites,
+    }
+  }
+
   const buildSuites = (run: TestRun) => {
-    // Group mock results into suites
-    const suiteMap = new Map<string, TestResult[]>()
-    const mockTests: TestResult[] = Array.from({ length: run.results.total }, (_, i) => ({
-      id: `test-${i}`,
-      name: `Test case ${i + 1}`,
-      status: i < run.results.passed ? 'passed' : i < run.results.passed + run.results.failed ? 'failed' : 'skipped',
-      duration: Math.random() * 500,
-      file: `src/__tests__/suite-${Math.floor(i / 5)}.test.ts`,
-    }))
-    mockTests.forEach(t => {
-      const file = t.file || 'unknown'
-      if (!suiteMap.has(file)) suiteMap.set(file, [])
-      suiteMap.get(file)!.push(t)
-    })
-    setTestSuites(Array.from(suiteMap.entries()).map(([name, tests]) => ({
-      name: name.split('/').pop() || name,
-      file: name,
-      tests,
+    if (!run.suites || run.suites.length === 0) {
+      setTestSuites([])
+      return
+    }
+
+    setTestSuites(run.suites.map((suite) => ({
+      name: suite.name.split('/').pop() || suite.name,
+      file: suite.file,
+      tests: suite.tests,
       expanded: true,
     })))
   }
@@ -189,6 +285,8 @@ export function QATestingView() {
 
   const coverage = currentRun?.coverage
   const results = currentRun?.results
+  const watchSupported = capabilities.watchMode?.supported === true
+  const watchReason = capabilities.watchMode?.reason || 'Watch mode is unavailable'
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -205,9 +303,10 @@ export function QATestingView() {
               size="icon"
               className="w-6 h-6"
               onClick={toggleWatch}
-              title={watchMode ? 'Stop watch mode' : 'Start watch mode'}
+              title={watchSupported ? (watchMode ? 'Stop watch mode' : 'Start watch mode') : watchReason}
+              disabled={!watchSupported}
             >
-              <Eye className={cn("w-3.5 h-3.5", watchMode && "text-green-400")} />
+              <Eye className={cn("w-3.5 h-3.5", watchMode && "text-green-400", !watchSupported && "opacity-40")} />
             </Button>
             <Button variant="ghost" size="icon" className="w-6 h-6" onClick={fetchRecentRuns}>
               <RotateCw className="w-3.5 h-3.5" />
@@ -237,6 +336,9 @@ export function QATestingView() {
             </Button>
           )}
         </div>
+        {watchError && (
+          <div className="mt-1 text-[10px] text-amber-400">{watchError}</div>
+        )}
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col">

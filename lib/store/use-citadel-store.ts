@@ -5,7 +5,8 @@ import type { create } from 'zustand'
 let createStore: typeof create
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  createStore = require('zustand').default
+  const zustandModule = require('zustand')
+  createStore = zustandModule.create || zustandModule.default || zustandModule
   if (typeof createStore !== 'function') {
     throw new Error('zustand.create not a function')
   }

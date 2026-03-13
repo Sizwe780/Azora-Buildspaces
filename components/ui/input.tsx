@@ -14,6 +14,9 @@ function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
         className,
       )}
       {...props}
+      aria-label={props['aria-label'] || 'Input'}
+      aria-required={props.required || false}
+      tabIndex={0}
     />
   )
 }

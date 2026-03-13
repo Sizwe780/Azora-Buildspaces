@@ -33,7 +33,7 @@ export const authOptions: NextAuthOptions = {
   },
   
   // Secure secret for JWT signing
-  secret: process.env.NEXTAUTH_SECRET || "supersecretkey123",
+  secret: process.env.NEXTAUTH_SECRET,
   
   // Enable debug logging in development
   debug: process.env.NODE_ENV !== 'production',

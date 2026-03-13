@@ -46,12 +46,17 @@ export async function POST(req: NextRequest) {
     }
 
     // if executionId present, ensure we have a record with project metadata
+    // (best-effort — skip if database is unavailable)
     if (body.executionId) {
-      await upsertExecutionRecord(body.executionId, {
-        id: body.executionId,
-        projectId: body.projectId || 'default',
-        status: 'running',
-      })
+      try {
+        await upsertExecutionRecord(body.executionId, {
+          id: body.executionId,
+          projectId: body.projectId || 'default',
+          status: 'running',
+        })
+      } catch (dbErr) {
+        console.warn('[Agent Stream] DB unavailable, skipping execution record:', (dbErr as any)?.message)
+      }
     }
     // create a readable stream that will emit SSE events
     const encoder = new TextEncoder()

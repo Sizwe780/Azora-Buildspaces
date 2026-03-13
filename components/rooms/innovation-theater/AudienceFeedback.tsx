@@ -18,44 +18,34 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
-const INITIAL_COMMENTS = [
-    { id: 1, user: 'Sarah Chen', avatar: 'SC', message: 'The architecture diagram is very clear!', time: '2m ago', reaction: 'heart' },
-    { id: 2, user: 'Mike Ross', avatar: 'MR', message: 'Can you zoom in on the code block?', time: '1m ago', reaction: 'zap' },
-    { id: 3, user: 'Jessica P', avatar: 'JP', message: 'Great demo of the real-time features.', time: 'Just now', reaction: 'thumbsup' },
-];
-
-const BOT_MESSAGES = [
-    "Wow, that's impressive!",
-    "How does this scale?",
-    "Love the UI design.",
-    "Is this open source?",
-    "Can we see the backend?",
-    "The performance looks solid.",
-    "Azora is changing the game!",
-    "Wait, did you just use Yjs for that?",
-];
+// No hardcoded comments — feedback comes from real audience during live sessions
 
 export default function AudienceFeedback() {
-    const [comments, setComments] = useState(INITIAL_COMMENTS);
+    const [comments, setComments] = useState<{ id: number; user: string; avatar: string; message: string; time: string; reaction: string }[]>([]);
     const [inputValue, setInputValue] = useState("");
-    const [sentiment, setSentiment] = useState(85);
+    const [sentiment, setSentiment] = useState(50);
 
+    // Listen for real audience feedback events (e.g. via WebSocket or room event bus)
     useEffect(() => {
-        const interval = setInterval(() => {
-            if (Math.random() > 0.8) {
+        const handler = (e: Event) => {
+            const { user, avatar, message, reaction } = (e as CustomEvent).detail || {};
+            if (message) {
                 const newComment = {
                     id: Date.now(),
-                    user: 'Guest ' + Math.floor(Math.random() * 1000),
-                    avatar: 'G',
-                    message: BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)],
+                    user: user || 'Anonymous',
+                    avatar: avatar || 'A',
+                    message,
                     time: 'Just now',
-                    reaction: ['heart', 'zap', 'thumbsup'][Math.floor(Math.random() * 3)]
+                    reaction: reaction || 'heart',
                 };
-                setComments(prev => [newComment, ...prev].slice(0, 20));
-                setSentiment(prev => Math.min(100, Math.max(0, prev + (Math.random() * 10 - 5))));
+                setComments(prev => [newComment, ...prev].slice(0, 50));
+                // Update sentiment based on positive reaction keywords
+                const isPositive = /great|amazing|wow|love|awesome|impressive/i.test(message);
+                setSentiment(prev => Math.min(100, Math.max(0, prev + (isPositive ? 3 : -1))));
             }
-        }, 3000);
-        return () => clearInterval(interval);
+        };
+        window.addEventListener('theater:audience-comment', handler);
+        return () => window.removeEventListener('theater:audience-comment', handler);
     }, []);
 
     const handleSend = () => {

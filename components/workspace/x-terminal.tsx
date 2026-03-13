@@ -5,6 +5,9 @@ import dynamic from "next/dynamic"
 export interface XTerminalProps {
     onData?: (data: string) => void
     socket?: WebSocket | null
+    sessionId?: string
+    shell?: 'bash' | 'powershell'
+    onShellChange?: (shell: 'bash' | 'powershell') => void
 }
 
 const XTerminal = dynamic(() => import("./x-terminal-client"), {
