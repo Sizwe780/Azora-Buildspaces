@@ -185,7 +185,7 @@ export function EditorPanel({ groupId, activeFile, openFiles, onFileSelect, onCl
   const [showBlame, setShowBlame] = useState(false)
   const [blameDecorations, setBlameDecorations] = useState<any>(null)
 
-  const { fileMap } = useFileSystem()
+  const { fileMap, workspaceId } = useFileSystem()
   const { startFileWatching, watchFile, unwatchFile, externalChanges, acknowledgeExternalChange } = useFileSystem()
   const { pinnedTabs, pinTab, unpinTab, closeAllTabs, closeOtherTabs, closeTabsToRight, reorderTab, activeGroupId, dirtyFiles, markDirty, markClean, setCursorPosition, setEditorLanguage, setEditorIndentation, setEditorEOL, navigateBack, navigateForward, addNavigationEntry, saveEditorViewState, getEditorViewState } = useWorkbench()
   const currentGroupId = groupId || activeGroupId
@@ -379,26 +379,44 @@ export function EditorPanel({ groupId, activeFile, openFiles, onFileSelect, onCl
   useEffect(() => {
     if (!activeFile) return
 
+    let cancelled = false
+
     const fetchContent = async () => {
       setIsLoadingFile(true)
       try {
-        const response = await fetch(`/api/fs/content?path=${encodeURIComponent(activeFile)}`)
+        const params = new URLSearchParams({ path: activeFile })
+        if (workspaceId) {
+          params.set('workspaceId', workspaceId)
+        }
+
+        const response = await fetch(`/api/fs/content?${params.toString()}`)
         const data = await response.json()
-        if (data.content !== undefined) {
-          loadedFileRef.current = activeFile
+
+        if (cancelled) return
+
+        if (response.ok && data.content !== undefined) {
           setCode(data.content)
+        } else {
+          const reason = data?.error || `HTTP ${response.status}`
+          setCode(`// Unable to load ${activeFile}\n// ${reason}`)
         }
       } catch (error) {
+        if (cancelled) return
         console.error("Failed to fetch file content:", error)
-        loadedFileRef.current = activeFile
         setCode("// Error loading file")
       } finally {
+        if (cancelled) return
+        loadedFileRef.current = activeFile
         setIsLoadingFile(false)
       }
     }
 
     fetchContent()
-  }, [activeFile])
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeFile, workspaceId])
 
   // Setup Monaco LSP client when editor mounts and language changes
   useMonacoEffect(() => {

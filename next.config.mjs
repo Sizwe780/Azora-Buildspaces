@@ -24,11 +24,13 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "font-src 'self' data:",
-              "connect-src 'self'",
+              "connect-src 'self' ws://localhost:* wss://localhost:* https://vercel.live wss://vercel.live https://*.pusher.com wss://*.pusher.com https://emkc.org https://*.azora.world wss://*.azora.world wss://signaling.yjs.dev wss://y-webrtc-signaling-eu.herokuapp.com wss://y-webrtc-signaling-us.herokuapp.com",
+              "worker-src 'self' blob:",
+              "child-src 'self' blob:",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'"

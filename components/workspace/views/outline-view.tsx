@@ -161,7 +161,7 @@ export function OutlineView({ activeFile, onNavigateToLine }: {
   activeFile?: string | null
   onNavigateToLine?: (file: string, line: number) => void
 }) {
-  const { fileMap } = useFileSystem()
+  const { fileMap, workspaceId } = useFileSystem()
   const [symbols, setSymbols] = useState<DocumentSymbol[]>([])
   const [loading, setLoading] = useState(false)
   const [sortByPosition, setSortByPosition] = useState(true)
@@ -179,7 +179,12 @@ export function OutlineView({ activeFile, onNavigateToLine }: {
 
     const fetchAndParse = async () => {
       try {
-        const res = await fetch(`/api/fs/content?path=${encodeURIComponent(activeFile)}`)
+        const params = new URLSearchParams({ path: activeFile })
+        if (workspaceId) {
+          params.set('workspaceId', workspaceId)
+        }
+
+        const res = await fetch(`/api/fs/content?${params.toString()}`)
         const data = await res.json()
         if (cancelled) return
 
@@ -198,7 +203,7 @@ export function OutlineView({ activeFile, onNavigateToLine }: {
 
     fetchAndParse()
     return () => { cancelled = true }
-  }, [activeFile])
+  }, [activeFile, workspaceId])
 
   const sortedSymbols = useMemo(() => {
     let filtered = symbols

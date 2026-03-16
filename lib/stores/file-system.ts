@@ -267,12 +267,12 @@ export const useFileSystem = create<FileSystemState>((set, get) => ({
                 }
 
                 // Workspace doesn't exist yet — scaffold from template if it matches
-                const isTemplate = projectTemplates.some(t => t.id === _projectId)
-                if (isTemplate) {
+                const templateMatch = projectTemplates.find(t => t.id === _projectId || _projectId.includes(t.id))
+                if (templateMatch) {
                     const scaffoldRes = await fetch('/api/fs/scaffold', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ templateId: _projectId, workspaceId: _projectId })
+                        body: JSON.stringify({ templateId: templateMatch.id, workspaceId: _projectId })
                     })
 
                     if (scaffoldRes.ok) {

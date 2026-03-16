@@ -182,6 +182,20 @@ export function AIChatSidebar({ onApplyCode }: AIChatSidebarProps) {
         setMessages([messages[0]])
     }
 
+    const renderInlineFormatting = (text: string) => {
+        return text.split('`').map((segment, index) => {
+            if (index % 2 === 1) {
+                return (
+                    <code key={`code-${index}`} className="px-1 py-0.5 rounded bg-[#161b22] text-[#e6edf3] text-[12px] font-mono">
+                        {segment}
+                    </code>
+                )
+            }
+
+            return <span key={`text-${index}`}>{segment}</span>
+        })
+    }
+
     const renderContent = (content: string, msgId: string) => {
         // Simple markdown-like rendering for code blocks
         const parts = content.split(/(```[\s\S]*?```)/g)
@@ -217,12 +231,19 @@ export function AIChatSidebar({ onApplyCode }: AIChatSidebarProps) {
                     </div>
                 )
             }
-            // Bold, inline code
-            const formatted = part
-                .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>')
-                .replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-[#161b22] text-[#e6edf3] text-[12px] font-mono">$1</code>')
-                .replace(/\n/g, "<br/>")
-            return <span key={i} dangerouslySetInnerHTML={{ __html: formatted }} />
+
+            const lines = part.split('\n')
+
+            return (
+                <span key={i}>
+                    {lines.map((line, lineIndex) => (
+                        <span key={`line-${i}-${lineIndex}`}>
+                            {renderInlineFormatting(line)}
+                            {lineIndex < lines.length - 1 && <br />}
+                        </span>
+                    ))}
+                </span>
+            )
         })
     }
 

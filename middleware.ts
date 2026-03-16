@@ -11,6 +11,7 @@ const rateLimitWarning =
  * More restrictive limits for sensitive endpoints.
  */
 const PATH_RATE_LIMITS: { pattern: RegExp; limit: number }[] = [
+  { pattern: /^\/api\/auth\/session$/, limit: 200 },
   { pattern: /^\/api\/auth\//, limit: 20 },
   { pattern: /^\/api\/agents\/invoke/, limit: 30 },
   { pattern: /^\/api\/specs\/generate/, limit: 20 },
@@ -121,16 +122,16 @@ function cleanupBuckets(now: number) {
   lastCleanup = now
 }
 
-async function isRateLimitedRedis(ip: string) {
+async function isRateLimitedRedis(ip: string, pathname: string, limit: number = RATE_LIMIT) {
   const client = await getRedisClient()
   if (!client) return null
 
-  const key = `ratelimit:${ip}`
+  const key = `ratelimit:${pathname}:${ip}`
   const count = await client.incr(key)
   if (count === 1) {
     await client.pexpire(key, WINDOW_MS)
   }
-  return count > RATE_LIMIT
+  return count > limit
 }
 
 function isRateLimitedMemory(ip: string, limit: number = RATE_LIMIT) {
@@ -177,7 +178,7 @@ export async function middleware(req: NextRequest) {
   // Prefer Redis-backed limiter if a REDIS_URL is configured
   if (process.env.REDIS_URL) {
     try {
-      const limited = await isRateLimitedRedis(ip)
+      const limited = await isRateLimitedRedis(ip, req.nextUrl.pathname, pathLimit)
       if (limited === true) {
         const res = NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 })
         res.headers.set('Retry-After', String(Math.ceil(WINDOW_MS / 1000)))

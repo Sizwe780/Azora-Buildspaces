@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from "react"
 import dynamic from 'next/dynamic'
-import { SessionProvider } from "next-auth/react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { WorkspaceHeader } from "@/components/workspace/workspace-header"
 import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar"
@@ -67,11 +66,9 @@ function WorkspaceWithParams() {
 
 export default function WorkspacePage() {
   return (
-    <SessionProvider>
-      <Suspense fallback={<WorkspaceLoader />}>
-        <WorkspaceWithParams />
-      </Suspense>
-    </SessionProvider>
+    <Suspense fallback={<WorkspaceLoader />}>
+      <WorkspaceWithParams />
+    </Suspense>
   )
 }
 

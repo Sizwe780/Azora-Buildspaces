@@ -54,6 +54,11 @@ export function WorkbenchLayout({ sidebarContent, secondarySidebarContent, edito
                 e.preventDefault()
                 setCommandPaletteOpen(true)
             }
+            // Command Palette: Ctrl+K / Cmd+K (modern IDE convention)
+            if (e.key === "k" && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && !inInput) {
+                e.preventDefault()
+                setCommandPaletteOpen(true)
+            }
             // Quick Open: Ctrl+P (without Shift)
             if (e.key === "p" && e.ctrlKey && !e.shiftKey && !e.altKey) {
                 e.preventDefault()
@@ -99,6 +104,11 @@ export function WorkbenchLayout({ sidebarContent, secondarySidebarContent, edito
                 e.preventDefault()
                 closeDiffEditor()
             }
+            // Exit Zen Mode quickly with Escape
+            if (e.key === "Escape" && isZenMode && !inInput) {
+                e.preventDefault()
+                toggleZenMode()
+            }
             // Zen Mode: Ctrl+K Z
             if (e.key === "k" && e.ctrlKey && !e.shiftKey && !inInput) {
                 const handleZ = (e2: KeyboardEvent) => {
@@ -123,7 +133,7 @@ export function WorkbenchLayout({ sidebarContent, secondarySidebarContent, edito
 
         document.addEventListener("keydown", handleKeyDown)
         return () => document.removeEventListener("keydown", handleKeyDown)
-    }, [toggleSidebar, togglePanel, toggleSecondarySidebar, toggleZenMode, splitEditor, closeDiffEditor, diffEditor.isOpen, saveLayout, savedLayouts.length, resetLayout, toggleTerminalOverlay])
+    }, [toggleSidebar, togglePanel, toggleSecondarySidebar, toggleZenMode, splitEditor, closeDiffEditor, diffEditor.isOpen, isZenMode, saveLayout, savedLayouts.length, resetLayout, toggleTerminalOverlay])
 
     return (
         <div className="flex flex-col h-screen overflow-hidden bg-background text-foreground">

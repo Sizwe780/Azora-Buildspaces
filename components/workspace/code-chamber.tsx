@@ -4,7 +4,7 @@ import { useEffect, useMemo, useCallback, useState } from "react"
 import * as Y from "yjs"
 import { WebrtcProvider } from "y-webrtc"
 import { useWorkspaceSession } from "@/lib/hooks/use-workspace-session"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { useFileSystem } from "@/lib/stores/file-system"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
@@ -56,15 +56,19 @@ interface CodeChamberProps {
 
 export function CodeChamber({ id }: CodeChamberProps) {
     const pathname = usePathname()
+    const searchParams = useSearchParams()
     const sessionResult = useSession()
     const session = sessionResult?.data ?? null
     const userName = session?.user?.name || session?.user?.email || 'Anonymous'
     const userId = session?.user?.email || `user-${Date.now()}`
     const projectId = useMemo(() => {
+        const projectParam = searchParams?.get('project');
+        if (projectParam) return projectParam;
+
         if (id && id.trim().length > 0) return id
         const parts = pathname?.split("/").filter(Boolean) ?? []
         return parts[parts.length - 1] || "default"
-    }, [id, pathname])
+    }, [id, pathname, searchParams])
 
     // Real-time synchronization
     const [yDoc, setYDoc] = useState<Y.Doc | null>(null)
@@ -99,7 +103,8 @@ export function CodeChamber({ id }: CodeChamberProps) {
         createFile,
         openFile,
         fileMap,
-        loadProject
+        loadProject,
+        restoreSessionState,
     } = useFileSystem()
 
     const {
@@ -120,35 +125,97 @@ export function CodeChamber({ id }: CodeChamberProps) {
     } = useWorkbench()
 
     useEffect(() => {
-        if (projectId) {
-            loadProject(projectId)
+        if (!projectId) return
+
+        let cancelled = false
+
+        const initializeProject = async () => {
+            await loadProject(projectId)
+            if (cancelled || typeof window === 'undefined') return
+
+            const currentFileMap = useFileSystem.getState().fileMap
+            const availableFilePaths = new Set(
+                Object.values(currentFileMap)
+                    .filter((node) => node.type === 'file')
+                    .map((node) => node.path)
+            )
+
+            let restoredAnyFile = false
 
             // Restore session state (open files, active file) from localStorage
-            if (typeof window !== 'undefined') {
-                try {
-                    const savedSession = localStorage.getItem(`buildspaces.session.${projectId}`)
-                    if (savedSession) {
-                        const session = JSON.parse(savedSession)
-                        if (Array.isArray(session.openFiles)) {
-                            session.openFiles.forEach((f: string) => {
-                                openFile(f)
-                                setWorkbenchActiveFile(f)
-                            })
-                        }
-                        if (Array.isArray(session.editorGroups)) {
-                            restoreEditorState(session.editorGroups, session.activeGroupId, session.splitDirection)
-                        }
-                        if (session.activeFile) {
-                            setFileSystemActiveFile(session.activeFile)
-                            setWorkbenchActiveFile(session.activeFile)
-                        }
+            try {
+                const savedSession = localStorage.getItem(`buildspaces.session.${projectId}`)
+                if (savedSession) {
+                    const session = JSON.parse(savedSession)
+
+                    const validOpenFiles = Array.isArray(session.openFiles)
+                        ? session.openFiles.filter((filePath: unknown): filePath is string =>
+                            typeof filePath === 'string' && availableFilePaths.has(filePath)
+                        )
+                        : []
+
+                    validOpenFiles.forEach((filePath) => {
+                        openFile(filePath)
+                        setWorkbenchActiveFile(filePath)
+                        restoredAnyFile = true
+                    })
+
+                    if (Array.isArray(session.editorGroups)) {
+                        const sanitizedGroups = session.editorGroups.map((group: any) => {
+                            const groupOpenFiles = Array.isArray(group.openFiles)
+                                ? group.openFiles.filter((filePath: unknown): filePath is string =>
+                                    typeof filePath === 'string' && availableFilePaths.has(filePath)
+                                )
+                                : []
+                            const groupActiveFile =
+                                typeof group.activeFile === 'string' && groupOpenFiles.includes(group.activeFile)
+                                    ? group.activeFile
+                                    : (groupOpenFiles[0] || null)
+
+                            return {
+                                ...group,
+                                openFiles: groupOpenFiles,
+                                activeFile: groupActiveFile,
+                            }
+                        })
+
+                        restoreEditorState(sanitizedGroups, session.activeGroupId, session.splitDirection)
                     }
-                } catch (e) {
-                    console.warn('[CodeChamber] Failed to restore session:', e)
+
+                    const hasValidActiveFile =
+                        typeof session.activeFile === 'string' && availableFilePaths.has(session.activeFile)
+                    const activeFileToRestore = hasValidActiveFile
+                        ? session.activeFile
+                        : (validOpenFiles[0] || null)
+
+                    if (activeFileToRestore) {
+                        setFileSystemActiveFile(activeFileToRestore)
+                        setWorkbenchActiveFile(activeFileToRestore)
+                        restoredAnyFile = true
+                    }
                 }
+            } catch (e) {
+                console.warn('[CodeChamber] Failed to restore session:', e)
+            }
+
+            if (!restoredAnyFile && availableFilePaths.size > 0) {
+                const fallbackFile = Array.from(availableFilePaths).sort()[0]
+                openFile(fallbackFile)
+                setFileSystemActiveFile(fallbackFile)
+                setWorkbenchActiveFile(fallbackFile)
+            } else if (!restoredAnyFile) {
+                // Workspace has no files yet; clear stale persisted editor tabs.
+                restoreSessionState([], null)
+                restoreEditorState([{ id: 'group-1', activeFile: null, openFiles: [] }], 'group-1', 'horizontal')
             }
         }
-    }, [projectId, loadProject, openFile, restoreEditorState, setFileSystemActiveFile, setWorkbenchActiveFile])
+
+        initializeProject()
+
+        return () => {
+            cancelled = true
+        }
+    }, [projectId, loadProject, openFile, restoreEditorState, restoreSessionState, setFileSystemActiveFile, setWorkbenchActiveFile])
 
     // Auto-save session on navigate away / close
     useEffect(() => {
@@ -349,8 +416,17 @@ export function CodeChamber({ id }: CodeChamberProps) {
 
     // Build editor content with diff editor & split editor support
     const renderEditorContent = () => {
-        if (!rootId) {
-            return <ProjectWelcome onProjectSelect={(projectId) => loadProject(projectId)} />
+        const hasFiles = Object.values(fileMap).some((node) => node.type === 'file')
+
+        if (!rootId || !hasFiles) {
+            return <ProjectWelcome onProjectSelect={(newProjectId) => {
+                if (typeof window !== 'undefined') {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('project', newProjectId);
+                    window.history.pushState({}, '', url.toString());
+                }
+                loadProject(newProjectId);
+            }} />
         }
 
         // Diff editor mode

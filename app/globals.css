@@ -615,3 +615,53 @@
   border: 1px solid rgba(0, 122, 204, 0.5) !important;
   border-radius: 2px !important;
 }
+
+/* Agent Status Gutter (8E) — 2px colored strip for AI activity */
+.agent-gutter-thinking {
+  border-left: 2px solid var(--ide-ansi-yellow) !important;
+  opacity: 0.8;
+  animation: agent-pulse 1.5s ease-in-out infinite;
+}
+
+.agent-gutter-writing {
+  border-left: 2px solid var(--ide-ansi-green) !important;
+}
+
+.agent-gutter-reviewing {
+  border-left: 2px solid var(--ide-ansi-cyan) !important;
+  opacity: 0.8;
+}
+
+.agent-gutter-error {
+  border-left: 2px solid var(--ide-ansi-red) !important;
+}
+
+@keyframes agent-pulse {
+
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Command Desk glassmorphism overlay (8A) */
+[cmdk-overlay] {
+  background: rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+[cmdk-dialog] {
+  background: rgba(30, 30, 30, 0.85) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Zen Mode centered editor glow */
+.zen-glow {
+  box-shadow: 0 0 80px rgba(16, 185, 129, 0.04), 0 0 160px rgba(16, 185, 129, 0.02);
+}

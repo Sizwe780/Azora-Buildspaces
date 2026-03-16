@@ -103,6 +103,7 @@ const MODELS = [
   { id: "elara-fast", name: "Elara Fast", provider: "Azora", icon: "⚡", description: "Fastest responses", badge: "Fast" },
   { id: "elara-reason", name: "Elara Reason", provider: "Azora", icon: "🧠", description: "Deep reasoning & analysis", badge: "Reason" },
   { id: "elara-code", name: "Elara Code", provider: "Azora", icon: "💻", description: "Specialized for coding", badge: "Code" },
+  { id: "mistral-7b", name: "Mistral 7B", provider: "Mistral", icon: "🧩", description: "Local Mistral backend", badge: "Local" },
 ]
 
 /* ───────── quick actions ───────── */
@@ -484,11 +485,15 @@ export function CommandDesk() {
 
         const msgRes = await fetch(`/api/chat/sessions/${sessionId_}/messages`)
         if (msgRes.ok) {
-          const history = await msgRes.json()
+          const historyPayload = await msgRes.json()
+          const historyItems = Array.isArray(historyPayload)
+            ? historyPayload
+            : (Array.isArray(historyPayload?.messages) ? historyPayload.messages : [])
+
           setMessages(
-            history.map((m: any) => ({
+            historyItems.map((m: any) => ({
               ...m,
-              timestamp: new Date(m.timestamp),
+              timestamp: new Date(m.timestamp || m.createdAt || Date.now()),
             }))
           )
         }
@@ -576,6 +581,29 @@ export function CommandDesk() {
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
+
+    let activeSessionId = sessionId
+    if (!activeSessionId) {
+      try {
+        const createRes = await fetch('/api/chat/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ aiPersona: 'elara' }),
+        })
+
+        if (createRes.ok) {
+          const data = await createRes.json()
+          const createdSessionId = data.session?.id ?? data.id ?? null
+          if (createdSessionId) {
+            activeSessionId = createdSessionId
+            setSessionId(createdSessionId)
+            setExecutionId(createdSessionId)
+          }
+        }
+      } catch {
+        // Keep activeSessionId as null and continue with stream path only.
+      }
+    }
 
     // Parse slash commands
     const parsed = parseSlashCommand(input.trim())
@@ -676,8 +704,25 @@ export function CommandDesk() {
             if (event === 'step') {
               addStep(parsed)
             } else if (event === 'done') {
-              // final result could contain assistant message text
-              fullContent = parsed?.nodeResults ? JSON.stringify(parsed.nodeResults) : ''
+              // Handle done payloads from both orchestrator and direct-model responses.
+              if (typeof parsed?.text === 'string' && parsed.text.trim().length > 0) {
+                fullContent = parsed.text
+              } else if (typeof parsed?.response === 'string' && parsed.response.trim().length > 0) {
+                fullContent = parsed.response
+              } else if (typeof parsed?.error === 'string' && parsed.error.trim().length > 0) {
+                fullContent = `Mistral error: ${parsed.error}`
+              } else if (parsed?.nodeResults && typeof parsed.nodeResults === 'object') {
+                const nodeResults = parsed.nodeResults as Record<string, unknown>
+                if (typeof nodeResults.assistant === 'string' && nodeResults.assistant.trim().length > 0) {
+                  fullContent = nodeResults.assistant
+                } else if (typeof nodeResults.output === 'string' && nodeResults.output.trim().length > 0) {
+                  fullContent = nodeResults.output
+                } else {
+                  fullContent = JSON.stringify(nodeResults)
+                }
+              } else {
+                fullContent = ''
+              }
             } else if (event === 'error') {
               console.error('Stream error', parsed)
             }
@@ -698,7 +743,11 @@ export function CommandDesk() {
       console.error("Streaming failed, falling back:", error)
       // Fallback to non-streaming endpoint
       try {
-        const res = await fetch(`/api/chat/sessions/${sessionId}/messages`, {
+        if (!activeSessionId) {
+          throw new Error('No active session available for fallback messaging')
+        }
+
+        const res = await fetch(`/api/chat/sessions/${activeSessionId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

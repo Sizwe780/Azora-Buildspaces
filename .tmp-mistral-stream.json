@@ -1,0 +1,9 @@
+{
+    "model":  "mistral-7b",
+    "messages":  [
+                     {
+                         "content":  "Reply briefly: local mistral stream test works",
+                         "role":  "user"
+                     }
+                 ]
+}

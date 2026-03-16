@@ -14,6 +14,82 @@ interface RefactoringToolsProps {
 
 type RefactorAction = 'extract-function' | 'rename-symbol' | 'inline-variable' | 'extract-variable' | 'convert-arrow'
 
+const IDENTIFIER_PATTERN = /^[A-Za-z_$][A-Za-z0-9_$]*$/
+
+function extractRefactoredCodePayload(data: unknown): string | null {
+    if (!data || typeof data !== 'object') return null
+
+    const record = data as Record<string, unknown>
+    const candidates = [record.code, record.result]
+
+    for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim().length > 0) {
+            return candidate.replace(/\0/g, '').slice(0, 1_000_000)
+        }
+    }
+
+    return null
+}
+
+function isIdentifierChar(char: string | undefined): boolean {
+    return Boolean(char && /[A-Za-z0-9_$]/.test(char))
+}
+
+function countStandaloneIdentifier(source: string, identifier: string): number {
+    if (!identifier) return 0
+
+    let count = 0
+    let cursor = 0
+
+    while (cursor < source.length) {
+        const index = source.indexOf(identifier, cursor)
+        if (index === -1) break
+
+        const before = index > 0 ? source[index - 1] : undefined
+        const afterIndex = index + identifier.length
+        const after = afterIndex < source.length ? source[afterIndex] : undefined
+
+        if (!isIdentifierChar(before) && !isIdentifierChar(after)) {
+            count += 1
+        }
+
+        cursor = index + identifier.length
+    }
+
+    return count
+}
+
+function replaceStandaloneIdentifier(source: string, identifier: string, replacement: string): string {
+    if (!identifier) return source
+
+    let result = ''
+    let cursor = 0
+
+    while (cursor < source.length) {
+        const index = source.indexOf(identifier, cursor)
+
+        if (index === -1) {
+            result += source.slice(cursor)
+            break
+        }
+
+        const before = index > 0 ? source[index - 1] : undefined
+        const afterIndex = index + identifier.length
+        const after = afterIndex < source.length ? source[afterIndex] : undefined
+
+        if (!isIdentifierChar(before) && !isIdentifierChar(after)) {
+            result += source.slice(cursor, index) + replacement
+            cursor = afterIndex
+            continue
+        }
+
+        result += source.slice(cursor, afterIndex)
+        cursor = afterIndex
+    }
+
+    return result
+}
+
 interface RefactorResult {
     action: RefactorAction
     success: boolean
@@ -48,14 +124,15 @@ export function RefactoringTools({ activeFile, fileMap, onApplyRefactor }: Refac
             const res = await fetch('/api/code-chamber/ai', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                cache: 'no-store',
                 body: JSON.stringify({
                     prompt: `Perform the following refactoring on this code: ${action}${action === 'rename-symbol' && newName ? ` (rename to "${newName}")` : ''}.\n\nReturn ONLY the refactored code, no explanations.\n\nCode:\n${content}`,
                     language: activeFile?.split('.').pop() || 'typescript',
                 }),
             })
             if (res.ok) {
-                const data = await res.json()
-                const refactored = data.code || data.result
+                const data: unknown = await res.json()
+                const refactored = extractRefactoredCodePayload(data)
                 if (refactored) {
                     setResult({ action, success: true, description: `${action} applied via AI refactoring.`, newContent: refactored })
                     setIsProcessing(false)
@@ -85,17 +162,26 @@ export function RefactoringTools({ activeFile, fileMap, onApplyRefactor }: Refac
                     break
                 }
                 case 'rename-symbol': {
-                    if (!newName) {
+                    const trimmedNewName = newName.trim()
+
+                    if (!trimmedNewName) {
                         setShowRenameInput(true)
                         setIsProcessing(false)
                         return
                     }
+
+                    if (!IDENTIFIER_PATTERN.test(trimmedNewName)) {
+                        desc = 'Invalid symbol name. Use a valid identifier (letters, numbers, _, $; cannot start with a number).'
+                        break
+                    }
+
                     // Find the first function/const name and rename it
                     const match = content.match(/(function|const|let|var)\s+(\w+)/)
                     if (match) {
                         const oldName = match[2]
-                        newContent = content.replace(new RegExp(`\\b${oldName}\\b`, 'g'), newName)
-                        desc = `Renamed \`${oldName}\` → \`${newName}\` (${(content.match(new RegExp(`\\b${oldName}\\b`, 'g')) || []).length} occurrences).`
+                        const oldNameRegex = new RegExp(`\\b${oldName}\\b`, 'g')
+                        newContent = content.replace(oldNameRegex, () => trimmedNewName)
+                        desc = `Renamed \`${oldName}\` → \`${trimmedNewName}\` (${(content.match(oldNameRegex) || []).length} occurrences).`
                     } else {
                         desc = 'No symbol found to rename.'
                     }
@@ -107,10 +193,16 @@ export function RefactoringTools({ activeFile, fileMap, onApplyRefactor }: Refac
                     const constMatch = content.match(/const\s+(\w+)\s*=\s*([^;\n]+);/)
                     if (constMatch) {
                         const [fullMatch, varName, value] = constMatch
-                        const usages = (content.match(new RegExp(`\\b${varName}\\b`, 'g')) || []).length - 1
+                        const declarationIndex = content.indexOf(fullMatch)
+                        const withoutDeclaration = declarationIndex >= 0
+                            ? `${content.slice(0, declarationIndex)}${content.slice(declarationIndex + fullMatch.length)}`
+                            : content
+
+                        const usages = countStandaloneIdentifier(withoutDeclaration, varName)
                         if (usages > 0) {
-                            newContent = content.replace(fullMatch, '').replace(new RegExp(`\\b${varName}\\b`, 'g'), value.trim())
-                            desc = `Inlined \`${varName}\` = \`${value.trim()}\` at ${usages} usage(s).`
+                            const inlineValue = value.trim()
+                            newContent = replaceStandaloneIdentifier(withoutDeclaration, varName, inlineValue)
+                            desc = `Inlined \`${varName}\` at ${usages} usage(s).`
                         } else {
                             desc = `\`${varName}\` has no usages to inline.`
                         }
