@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Code2, FileText, Play, Plus, RefreshCw, Save, Trash2 } from "lucide-react"
+import { Code2, FileText, Play, Plus, RefreshCw, Save, Trash2, Database, PanelRightClose, PanelRightOpen, TerminalSquare, AlertCircle } from "lucide-react"
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false })
 
@@ -53,6 +53,8 @@ export default function NotebookInterface() {
     const [kernelStatus, setKernelStatus] = useState("idle")
     const [executionCount, setExecutionCount] = useState(0)
     const [variableCount, setVariableCount] = useState(0)
+    const [variables, setVariables] = useState<Array<{ name: string; type: string; value: string; size?: number }>>([])
+    const [isInspectorOpen, setIsInspectorOpen] = useState(false)
     const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
     const saveTimersRef = useRef<Record<string, number | undefined>>({})
 
@@ -67,6 +69,7 @@ export default function NotebookInterface() {
             setKernelStatus(data.kernel?.status || "idle")
             setExecutionCount(data.kernel?.executionCount || 0)
             setVariableCount(data.variableCount || 0)
+            setVariables(data.variables || [])
         } catch {
             // Kernel polling is best-effort.
         }
@@ -301,7 +304,11 @@ export default function NotebookInterface() {
                         {kernelStatus}
                     </Badge>
                     <span className="text-[10px] text-zinc-500">exec #{executionCount}</span>
-                    <span className="text-[10px] text-zinc-500">{variableCount} vars</span>
+                    <Button variant="ghost" size="sm" onClick={() => setIsInspectorOpen(!isInspectorOpen)} className="h-6 px-2 gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 ml-1">
+                        <Database className="w-3 h-3" />
+                        <span className="text-[10px]">{variableCount} vars</span>
+                        {isInspectorOpen ? <PanelRightClose className="w-3 h-3 ml-0.5" /> : <PanelRightOpen className="w-3 h-3 ml-0.5" />}
+                    </Button>
                     {lastSavedAt && <span className="text-[10px] text-zinc-600">saved {lastSavedAt}</span>}
                 </div>
                 <div className="flex items-center gap-2">
@@ -324,8 +331,9 @@ export default function NotebookInterface() {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {isLoading ? (
+            <div className="flex-1 flex overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {isLoading ? (
                     <div className="h-48 flex items-center justify-center text-zinc-600 text-sm">
                         <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Loading notebook…
                     </div>
@@ -397,6 +405,36 @@ export default function NotebookInterface() {
                             <Plus className="w-4 h-4" />
                             Add Markdown Cell
                         </Button>
+                    </div>
+                )}
+                </div>
+
+                {isInspectorOpen && (
+                    <div className="w-72 md:w-80 border-l border-zinc-800 bg-zinc-900/20 flex flex-col overflow-hidden shrink-0">
+                        <div className="h-9 border-b border-zinc-800 px-3 flex items-center justify-between bg-zinc-900/40">
+                            <span className="text-xs font-semibold text-zinc-300">Variable Inspector</span>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                            {variables.length > 0 ? (
+                                variables.map((v) => (
+                                    <div key={v.name} className="bg-zinc-900/60 border border-zinc-800 rounded-md p-2.5 overflow-hidden shadow-sm">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className="font-mono text-[11px] font-semibold text-blue-400">{v.name}</span>
+                                            <Badge variant="outline" className="text-[9px] h-4 py-0 px-1 border-zinc-700 font-normal text-zinc-500 bg-zinc-950/50">{v.type}</Badge>
+                                        </div>
+                                        <div className="font-mono text-[10px] text-zinc-300 break-all bg-black/40 p-1.5 rounded border border-zinc-800/50">
+                                            {v.value.length > 150 ? `${v.value.substring(0, 150)}...` : v.value}
+                                        </div>
+                                        {v.size && <div className="text-[9px] text-zinc-600 mt-1.5 text-right font-mono">{v.size} bytes</div>}
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center text-zinc-500 text-xs py-8 px-4">
+                                    <Database className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                                    No variables in memory.<br/>Execute some code cells.
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>

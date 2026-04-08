@@ -124,7 +124,7 @@ async function queryLocalMistral(
   const configuredTokens = parsePositiveInt(process.env.LOCAL_LLM_MAX_NEW_TOKENS, 8)
   // Keep local CPU generations short enough to avoid upstream fetch header timeouts.
   const maxNewTokens = Math.max(1, Math.min(configuredTokens, 16))
-  const timeoutMs = parsePositiveInt(process.env.LOCAL_LLM_TIMEOUT_MS, 600000)
+  const timeoutMs = parsePositiveInt(process.env.LOCAL_LLM_TIMEOUT_MS, 30000)
   const controller = new AbortController()
   const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs)
   const requestBody = {

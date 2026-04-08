@@ -21,21 +21,30 @@ interface Collaborator {
     selection?: { start: number; end: number }
 }
 
+const mockCollaborators: Collaborator[] = [
+    { id: "1", name: "Sizwe", status: "online", avatar: "https://github.com/shadcn.png" },
+    { id: "2", name: "Lekau", status: "online" },
+    { id: "3", name: "Azora Agent", status: "away" }
+]
+
 export function CollaborationPanel({ projectId, onClose }: CollaborationPanelProps) {
-    const [collaborators, setCollaborators] = useState<Collaborator[]>([])
+    const [collaborators, setCollaborators] = useState<Collaborator[]>([])      
     const [message, setMessage] = useState("")
     const [isVoiceEnabled, setIsVoiceEnabled] = useState(false)
 
     useEffect(() => {
         // Load collaborators from API
         const loadCollaborators = async () => {
+            setCollaborators(mockCollaborators)
             if (!projectId) return
 
             try {
                 const resp = await fetch(`/api/collaboration/${projectId}/members`)
                 if (resp.ok) {
                     const data = await resp.json()
-                    setCollaborators(data.members || [])
+                    if (data.members && data.members.length > 0) {
+                        setCollaborators(data.members)
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load collaborators:', error)

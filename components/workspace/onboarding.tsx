@@ -42,6 +42,18 @@ const steps = [
     icon: Terminal,
     highlight: "command-desk",
   },
+  {
+    title: "Collaboration Pod",
+    description: "Collaborate in real-time with multi-cursor editing, video calls, and shared whiteboards.",
+    icon: Users,
+    highlight: "collaboration-pod",
+  },
+  {
+    title: "Knowledge Ocean",
+    description: "AI-powered semantic search across your entire codebase. Find functions, components, and logic instantly.",
+    icon: Sparkles,
+    highlight: "knowledge-ocean",
+  },
 ]
 
 export function Onboarding({ onComplete }: OnboardingProps) {

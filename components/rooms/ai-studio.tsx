@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useRoomEvents } from "@/lib/hooks/use-room-events"
+import AgentMetrics from "./ai-studio/AgentMetrics"
+import ModelComparison from "./ai-studio/ModelComparison"
+import PromptLibrary from "./ai-studio/PromptLibrary"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -1163,73 +1166,7 @@ export default function AIStudio() {
                 {/* ── Phase 1: Prompt Templates ── */}
                 <TabsContent value="templates" className="flex-1 m-0 overflow-auto">
                   <ErrorBoundary componentName="AI Studio Prompt Templates">
-                    <div className="p-4 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-sm font-semibold text-zinc-200">Prompt Templates</h3>
-                          <p className="text-[10px] text-zinc-600 mt-0.5">Pre-built prompts for common engineering tasks</p>
-                        </div>
-                      </div>
-
-                      {/* Template grid */}
-                      <div className="grid grid-cols-2 gap-2">
-                        {PROMPT_TEMPLATES.map((tpl) => (
-                          <button
-                            key={tpl.id}
-                            onClick={() => { setActiveTemplate(tpl.id); setTemplateResult('') }}
-                            className={`text-left p-3 rounded-lg border transition-all ${
-                              activeTemplate === tpl.id
-                                ? 'border-purple-500/50 bg-purple-500/10'
-                                : 'border-zinc-800 hover:border-zinc-700 bg-zinc-900/40'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-sm">{tpl.icon}</span>
-                              <span className="text-xs font-medium text-zinc-200">{tpl.name}</span>
-                            </div>
-                            <p className="text-[10px] text-zinc-600">{tpl.category}</p>
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Template execution */}
-                      {activeTemplate && (
-                        <Card className="bg-zinc-900/60 border-zinc-700/50">
-                          <CardContent className="p-4 space-y-3">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm">{PROMPT_TEMPLATES.find(t => t.id === activeTemplate)?.icon}</span>
-                              <span className="text-xs font-bold text-zinc-200">{PROMPT_TEMPLATES.find(t => t.id === activeTemplate)?.name}</span>
-                            </div>
-                            <textarea
-                              className="w-full h-24 text-xs bg-zinc-950/50 border border-zinc-700/50 rounded-md p-3 text-zinc-300 resize-none font-mono placeholder:text-zinc-700"
-                              placeholder="Paste your code, query, or description here…"
-                              value={templateInput}
-                              onChange={(e) => setTemplateInput(e.target.value)}
-                            />
-                            <Button
-                              size="sm"
-                              onClick={() => runTemplate(activeTemplate)}
-                              disabled={isTemplateRunning || !templateInput.trim()}
-                              className="gap-2 bg-purple-600 hover:bg-purple-700 w-full"
-                            >
-                              {isTemplateRunning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                              {isTemplateRunning ? 'Running…' : 'Run Template'}
-                            </Button>
-                            {templateResult && (
-                              <div className="mt-2">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-[10px] text-zinc-600 uppercase font-semibold">Result</span>
-                                  <Button size="sm" variant="ghost" className="h-5 text-[10px]" onClick={() => navigator.clipboard.writeText(templateResult)}>
-                                    <Copy className="w-3 h-3 mr-1" /> Copy
-                                  </Button>
-                                </div>
-                                <pre className="bg-zinc-950/80 border border-zinc-800 rounded-md p-3 text-xs font-mono text-zinc-300 max-h-60 overflow-auto whitespace-pre-wrap">{templateResult}</pre>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
+                    <PromptLibrary />
                   </ErrorBoundary>
                 </TabsContent>
 
@@ -1407,69 +1344,9 @@ export default function AIStudio() {
                 </TabsContent>
 
                 {/* Model Compare */}
-                <TabsContent value="compare" className="flex-1 m-0 overflow-auto">
-                  <div className="p-4 space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Model A</label>
-                        <select
-                          className="w-full h-8 text-xs bg-zinc-900 border border-zinc-700/50 rounded-md px-2 mt-1 text-zinc-300"
-                          value={compareModel1}
-                          onChange={(e) => setCompareModel1(e.target.value)}
-                        >
-                          {MODEL_NAMES.map((m) => <option key={m} value={m}>{m}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Model B</label>
-                        <select
-                          className="w-full h-8 text-xs bg-zinc-900 border border-zinc-700/50 rounded-md px-2 mt-1 text-zinc-300"
-                          value={compareModel2}
-                          onChange={(e) => setCompareModel2(e.target.value)}
-                        >
-                          {MODEL_NAMES.map((m) => <option key={m} value={m}>{m}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      {[compareModel1, compareModel2].map((modelName, idx) => {
-                        const m = MODEL_COMPARISON_DATA[modelName]
-                        return (
-                          <Card key={idx} className={`border ${idx === 0 ? "border-blue-500/30 bg-blue-500/5" : "border-purple-500/30 bg-purple-500/5"}`}>
-                            <CardHeader className="p-3 pb-1">
-                              <CardTitle className="text-xs font-bold text-zinc-200">{modelName}</CardTitle>
-                              <Badge variant="outline" className={`text-[9px] w-fit ${idx === 0 ? "border-blue-500/30 text-blue-400" : "border-purple-500/30 text-purple-400"}`}>
-                                Model {idx === 0 ? "A" : "B"}
-                              </Badge>
-                            </CardHeader>
-                            <CardContent className="p-3 pt-2 space-y-2">
-                              <div className="flex justify-between text-[10px]">
-                                <span className="text-zinc-600">Latency</span>
-                                <span className="text-zinc-300 font-mono">{m.latency}</span>
-                              </div>
-                              <div className="flex justify-between text-[10px]">
-                                <span className="text-zinc-600">Cost/1K</span>
-                                <span className="text-zinc-300 font-mono">{m.cost}</span>
-                              </div>
-                              <div className="flex justify-between text-[10px]">
-                                <span className="text-zinc-600">Context</span>
-                                <span className="text-zinc-300 font-mono">{m.context}</span>
-                              </div>
-                              <div className="pt-1">
-                                <span className="text-[10px] text-zinc-600">Strengths</span>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {m.strengths.map((s) => (
-                                    <Badge key={s} variant="outline" className="text-[9px] border-zinc-700 text-zinc-500">{s}</Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </TabsContent>
+                <TabsContent value="compare" className="flex-1 m-0 overflow-hidden h-full relative">
+                    <ModelComparison />
+                  </TabsContent>
 
                 <TabsContent value="reasoning" className="flex-1 m-0 overflow-auto bg-[#0a0a0f] p-6">
                   <div className="max-w-4xl mx-auto space-y-6">
@@ -1739,102 +1616,7 @@ export default function AIStudio() {
                 {/* Metrics */}
                 <TabsContent value="metrics" className="flex-1 m-0 overflow-auto">
                   <ErrorBoundary componentName="AI Studio Metrics Dashboard">
-                    <ScrollArea className="h-full">
-                      <div className="p-4 space-y-4">
-                        {/* Live metrics sparkline bars */}
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Live Metrics</span>
-                            <span className="text-[9px] text-zinc-700">polls every 10s</span>
-                          </div>
-                          <div className="space-y-3">
-                            {[
-                              { label: "Success Rate", value: liveMetrics.successRate, max: 100, unit: "%", color: "bg-emerald-500" },
-                              { label: "Avg Latency (ms)", value: Math.min(liveMetrics.avgLatency, 2000), max: 2000, unit: "ms", color: "bg-blue-500" },
-                              { label: "Tokens/min", value: Math.min(liveMetrics.tokensPerMin, 10000), max: 10000, unit: "", color: "bg-purple-500" },
-                            ].map((stat) => (
-                              <div key={stat.label}>
-                                <div className="flex justify-between items-center mb-1">
-                                  <span className="text-[10px] text-zinc-500">{stat.label}</span>
-                                  <span className="text-[10px] font-mono text-zinc-300">{stat.label === "Avg Latency (ms)" ? liveMetrics.avgLatency : stat.label === "Tokens/min" ? liveMetrics.tokensPerMin : liveMetrics.successRate}{stat.unit}</span>
-                                </div>
-                                <Progress value={(stat.value / stat.max) * 100} className="h-1.5" />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div>
-                          <span className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Performance</span>
-                          <div className="grid grid-cols-2 gap-3 mt-2">
-                            {metrics.length > 0 ? (
-                              metrics.map((m, i) => (
-                                <Card key={i} className="bg-zinc-900/50 border-zinc-800">
-                                  <CardContent className="p-3">
-                                    <p className="text-[10px] text-zinc-600">{m.label}</p>
-                                    <p className="text-lg font-bold text-zinc-200 mt-0.5">{m.value}</p>
-                                    {m.change && (
-                                      <p className={`text-[10px] mt-0.5 ${m.trend === "up" ? "text-emerald-400" : m.trend === "down" ? "text-red-400" : "text-zinc-500"}`}>
-                                        {m.change}
-                                      </p>
-                                    )}
-                                  </CardContent>
-                                </Card>
-                              ))
-                            ) : (
-                              <>
-                                <Card className="bg-zinc-900/50 border-zinc-800">
-                                  <CardContent className="p-3">
-                                    <p className="text-[10px] text-zinc-600">Total Runs</p>
-                                    <p className="text-lg font-bold text-zinc-200 mt-0.5">{runs.length}</p>
-                                  </CardContent>
-                                </Card>
-                                <Card className="bg-zinc-900/50 border-zinc-800">
-                                  <CardContent className="p-3">
-                                    <p className="text-[10px] text-zinc-600">Nodes</p>
-                                    <p className="text-lg font-bold text-zinc-200 mt-0.5">{nodes.length}</p>
-                                  </CardContent>
-                                </Card>
-                                <Card className="bg-zinc-900/50 border-zinc-800">
-                                  <CardContent className="p-3">
-                                    <p className="text-[10px] text-zinc-600">Success Rate</p>
-                                    <p className="text-lg font-bold text-zinc-200 mt-0.5">
-                                      {runs.length > 0 ? `${Math.round((runs.filter((r) => r.status === "completed").length / runs.length) * 100)}%` : "—"}
-                                    </p>
-                                  </CardContent>
-                                </Card>
-                                <Card className="bg-zinc-900/50 border-zinc-800">
-                                  <CardContent className="p-3">
-                                    <p className="text-[10px] text-zinc-600">Avg Duration</p>
-                                    <p className="text-lg font-bold text-zinc-200 mt-0.5">
-                                      {runs.length > 0
-                                        ? `${Math.round(runs.filter((r) => r.duration).reduce((s, r) => s + (r.duration || 0), 0) / Math.max(runs.filter((r) => r.duration).length, 1))}ms`
-                                        : "—"}
-                                    </p>
-                                  </CardContent>
-                                </Card>
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        <div>
-                          <span className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Node Status</span>
-                          <div className="mt-2 space-y-2">
-                            {nodes.map((node) => (
-                              <div key={node.id} className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-zinc-900/30 border border-zinc-800">
-                                {getStatusIcon(node.status)}
-                                <span className="text-xs text-zinc-400 flex-1">{node.name}</span>
-                                <Badge variant="outline" className="text-[9px] border-zinc-800 text-zinc-600">
-                                  {node.status}
-                                </Badge>
-                              </div>
-                            ))}
-                            {nodes.length === 0 && <p className="text-xs text-zinc-700">No nodes</p>}
-                          </div>
-                        </div>
-                      </div>
-                    </ScrollArea>
+                    <AgentMetrics />
                   </ErrorBoundary>
                 </TabsContent>
 

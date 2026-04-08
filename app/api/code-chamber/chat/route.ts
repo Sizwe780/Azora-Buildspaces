@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     tools: {
       run_terminal_command: {
         description: 'Execute a command in the integrated terminal (e.g. npm install, ls, git status)',
-        parameters: z.object({
+        schema: z.object({
           command: z.string().describe('The command to execute'),
         }),
       },

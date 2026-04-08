@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Play, Plus, Trash2, Save, Send, Sparkles, Loader2 } from "lucide-react";
+import { Play, Plus, Trash2, Save, Send, Sparkles, Loader2, Clock, Check } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
@@ -18,23 +18,38 @@ interface WorkflowStep {
 export default function AgentWorkflowEditor() {
     const [steps, setSteps] = useState<WorkflowStep[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     // Load workflow steps from API on mount
     useEffect(() => {
         const loadWorkflow = async () => {
             setIsLoading(true);
             try {
-                const resp = await fetch('/api/agents/workflows/current');
+                const resp = await fetch('/api/agents/workflows/current');      
                 if (resp.ok) {
                     const data = await resp.json();
                     if (data.steps && data.steps.length > 0) {
                         setSteps(data.steps);
+                        setLastSaved(new Date());
+                        setIsInitialLoad(false);
+                        return;
                     }
                 }
+                throw new Error("API load failed or returned empty");
             } catch (error) {
-                console.error('Failed to load workflow:', error);
+                console.warn('API workflow load failed, trying local fallback...');
+                // Fallback to localStorage
+                try {
+                    const localData = localStorage.getItem('azora_workflow_backup');
+                    if (localData) {
+                        setSteps(JSON.parse(localData));
+                    }
+                } catch (e) {}
             } finally {
                 setIsLoading(false);
+                setTimeout(() => setIsInitialLoad(false), 500); // Give time for state to settle
             }
         };
 
@@ -120,23 +135,25 @@ export default function AgentWorkflowEditor() {
     return (
         <div className="h-full flex flex-col bg-background">
             <div className="p-2 border-b flex items-center justify-between bg-card">
-                <div className="flex items-center gap-2">
+                                <div className="flex flex-1 items-center gap-2">
                     <Sparkles className="w-4 h-4 text-purple-500" />
                     <span className="font-semibold px-2">Agent Workflow Designer</span>
+                    
+                    {/* Auto-save Indicator */}
+                    <div className="ml-4 flex items-center px-2 py-1 rounded-md bg-zinc-900/50 text-[10px] text-zinc-400 border border-zinc-800">
+                        {isSaving ? (
+                            <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> Saving...</>
+                        ) : lastSaved ? (
+                            <><Check className="w-3 h-3 mr-1.5 text-emerald-500" /> Saved {lastSaved.toLocaleTimeString()}</>
+                        ) : (
+                            <><Clock className="w-3 h-3 mr-1.5" /> Not saved</>
+                        )}
+                    </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button size="sm" variant="outline" onClick={addStep} className="gap-2">
                         <Plus className="w-4 h-4" />
                         Add Step
-                    </Button>
-                    <Button 
-                        size="sm" 
-                        className="gap-2 bg-purple-600 hover:bg-purple-700"
-                        onClick={saveWorkflow}
-                        disabled={steps.length === 0}
-                    >
-                        <Save className="w-4 h-4" />
-                        Save Workflow
                     </Button>
                 </div>
             </div>

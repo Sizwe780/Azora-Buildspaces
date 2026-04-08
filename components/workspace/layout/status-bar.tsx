@@ -60,7 +60,7 @@ const StatusItem = memo(function StatusItem({ children, className, tooltip, tool
 )
 
 export function StatusBar() {
-    const { cursorLine, cursorColumn, editorLanguage, editorIndentation, editorEOL, editorEncoding, toggleGoToLine, diagnosticErrors, diagnosticWarnings, currentGitBranch, gitAhead, gitBehind, setPanelView, isZenMode, toggleZenMode } = useWorkbench()
+    const { cursorLine, cursorColumn, editorLanguage, editorIndentation, editorEOL, editorEncoding, toggleGoToLine, diagnosticErrors, diagnosticWarnings, currentGitBranch, gitAhead, gitBehind, setPanelView, setSidebarView, isZenMode, toggleZenMode } = useWorkbench()
     const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting')
     const [cpuUsage, setCpuUsage] = useState<number | null>(null)
     const [memoryUsage, setMemoryUsage] = useState<number | null>(null)
@@ -236,13 +236,13 @@ export function StatusBar() {
                     </StatusItem>
 
                     {/* AI Status */}
-                    <StatusItem tooltip="Azora AI" tooltipSub="AI assistant ready" className="gap-1">
+                    <StatusItem tooltip="Azora AI" tooltipSub="AI assistant ready" className="gap-1" onClick={() => setSidebarView('ai-assistant')}>
                         <Sparkles className="w-3 h-3" />
                         <span>AI</span>
                     </StatusItem>
 
                     {/* Formatter */}
-                    <StatusItem tooltip="Formatting" tooltipSub="Prettier active">
+                    <StatusItem tooltip="Formatting" tooltipSub="Prettier active" onClick={() => setPanelView('problems')}>
                         <CheckCircle2 className="w-3 h-3" />
                         <span>Prettier</span>
                     </StatusItem>
@@ -251,13 +251,14 @@ export function StatusBar() {
                     <StatusItem
                         tooltip={`CPU: ${cpuUsage !== null ? `${Math.round(cpuUsage)}%` : 'n/a'}`}
                         tooltipSub={`Memory: ${memoryUsage !== null ? `${Math.round(memoryUsage)}%` : 'n/a'}${networkUsage ? ` • Net ↓${formatBytesPerSecond(networkUsage.rxPerSec)} ↑${formatBytesPerSecond(networkUsage.txPerSec)}` : ''}`}
+                        onClick={() => setPanelView('performance')}
                     >
                         <Cpu className="w-3 h-3" />
                         <span>{cpuUsage !== null ? `${Math.round(cpuUsage)}%` : 'N/A'}</span>
                     </StatusItem>
 
                     {/* Copilot-style status */}
-                    <StatusItem tooltip="Secure Workspace" tooltipSub="HTTPS · Sandboxed">
+                    <StatusItem tooltip="Secure Workspace" tooltipSub="HTTPS • Sandboxed" onClick={() => setSidebarView('security')}>
                         <Lock className="w-3 h-3" />
                     </StatusItem>
 

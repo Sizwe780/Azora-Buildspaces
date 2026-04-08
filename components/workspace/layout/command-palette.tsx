@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { Pin, Clock } from "lucide-react"
 import {
     File, Settings, Terminal, GitBranch, Package, Zap, Command, Play, Cloud, Eye, BookOpen, Bot,
     Search, Box, Sparkles, MessageSquare, Scissors, Paintbrush, Hexagon, Rocket, Shield, Figma,
@@ -38,6 +39,15 @@ interface CommandEntry {
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     const [value, setValue] = useState("")
+    const [recentIds, setRecentIds] = useState<string[]>([])
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem("buildspaces.recent_commands")
+            if (saved) setRecentIds(JSON.parse(saved))
+        } catch {}
+    }, [])
+
     const router = useRouter()
     const {
         setSidebarView, setPanelView, toggleSidebar, togglePanel,
@@ -254,6 +264,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     }
 
     const groups = [
+        { heading: "Recently Used", prefix: "recent." },
         { heading: "Files", prefix: "file." },
         { heading: "Views", prefix: "view." },
         { heading: "Panel", prefix: "panel." },
@@ -264,6 +275,23 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         { heading: "Git", prefix: "git." },
         { heading: "Run & Debug", prefix: "dev." },
     ]
+
+    const displayCommands = useMemo(() => {
+        if (!value.trim()) {
+            const recentCommands = recentIds
+                .map(id => commands.find(c => c.id === id))
+                .filter(Boolean) as CommandEntry[]
+            
+            const recentMapped = recentCommands.map(cmd => ({
+                ...cmd,
+                id: `recent.${cmd.id}`,
+                originalId: cmd.id
+            }))
+            
+            return [...recentMapped, ...commands]
+        }
+        return filteredCommands
+    }, [value, filteredCommands, recentIds, commands])
 
     const renderItem = (cmd: CommandEntry) => (
         <CommandItem
@@ -307,7 +335,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 <CommandList className="max-h-[400px]">
                     <CommandEmpty>No results found.</CommandEmpty>
                     {groups.map((group, idx) => {
-                        const items = filteredCommands.filter(cmd => cmd.id.startsWith(group.prefix))
+                        const items = displayCommands.filter(cmd => cmd.id.startsWith(group.prefix))
                         if (items.length === 0) return null
                         return (
                             <div key={group.prefix}>

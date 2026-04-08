@@ -7,6 +7,7 @@ import { openai } from "@ai-sdk/openai"
 import { executeTool, getTool } from "@/lib/agents/tools"
 import { runCommand } from "@/lib/runtime/command-runner"
 import { fileSystem } from "@/lib/workspace/file-system"
+import { LangGraphOrchestrator } from "@/lib/agents/langgraph-orchestrator"
 
 // Move miningEngine instantiation into the route handler or a getter to facilitate testing
 function getMiningEngine() {
