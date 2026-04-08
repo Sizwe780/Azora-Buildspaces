@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/database/client";
+import { prisma, PRISMA_AVAILABLE } from "@/lib/database/client";
 import { hashPassword } from "@/lib/auth/utils";
 import { logAuthEvent } from "@/lib/auth-audit";
 
@@ -13,6 +13,23 @@ export async function POST(req: Request) {
                 { status: 400 }
             );
         }
+
+        // Development fallback when database is unavailable
+        if (!PRISMA_AVAILABLE) {
+            if (process.env.NODE_ENV !== 'production') {
+                return NextResponse.json({
+                    success: true,
+                    user: { id: 'dev-admin', email },
+                    message: "Database not configured. Please login using dev credentials (admin@azora.world / Azora2026!)"
+                });
+            } else {
+                return NextResponse.json(
+                    { error: "Database not configured. Registration disabled." },
+                    { status: 503 }
+                );
+            }
+        }
+
 
         // Check if user already exists
         const existingUser = await prisma.user.findUnique({

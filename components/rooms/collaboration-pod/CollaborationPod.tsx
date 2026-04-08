@@ -44,6 +44,13 @@ const STATUS_COLORS: Record<string, string> = {
     typing: "bg-blue-400",
 };
 
+interface SessionSnapshot {
+    id: string;
+    timestamp: number;
+    participants: string[];
+    snapshotLabel: string;
+}
+
 export default function CollaborationPod() {
     const { emit, ROOM_EVENTS } = useRoomEvents('collaboration-pod')
     const [activeTab, setActiveTab] = useState("video");
@@ -54,9 +61,14 @@ export default function CollaborationPod() {
     const [isSharing, setIsSharing] = useState(false);
     const screenStreamRef = useRef<MediaStream | null>(null);
 
+    // Roadmap Feature: Driver Mode & Session Handoff
+    const [isDriver, setIsDriver] = useState(false);
+    const [followingUserId, setFollowingUserId] = useState<number | null>(null);
+    const [snapshots, setSnapshots] = useState<SessionSnapshot[]>([]);
+    const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
+
     // Feature 2: Participants — derived from Yjs awareness protocol
-    // Feature 2: Participants — derived from Yjs awareness protocol (effect placed after provider useMemo below)
-    const [participants, setParticipants] = useState<{ id: number; name: string; initials: string; status: 'online' | 'away' | 'typing' }[]>([]);
+    const [participants, setParticipants] = useState<{ id: number; name: string; initials: string; status: 'online' | 'away' | 'typing'; isDriver?: boolean }[]>([]);
 
     // Feature 3: Emoji Reactions
     const [showEmojiBar, setShowEmojiBar] = useState(false);
@@ -128,10 +140,12 @@ export default function CollaborationPod() {
             name: 'You',
             initials: 'YO',
             color: '#ec4899',
+            isDriver: isDriver,
         });
+
         const updateParticipants = () => {
             const states = awareness.getStates();
-            const users: { id: number; name: string; initials: string; status: 'online' | 'away' | 'typing' }[] = [];
+            const users: any[] = [];
             states.forEach((state: any, clientId: number) => {
                 if (state.user) {
                     users.push({
@@ -139,15 +153,59 @@ export default function CollaborationPod() {
                         name: state.user.name || `User ${clientId}`,
                         initials: state.user.initials || state.user.name?.slice(0, 2)?.toUpperCase() || 'U',
                         status: state.user.typing ? 'typing' : 'online',
+                        isDriver: state.user.isDriver,
                     });
                 }
             });
             setParticipants(users);
+
+            // Handle Following Logic
+            const driver = users.find(u => u.isDriver);
+            if (driver && driver.id !== awareness.clientID) {
+                setFollowingUserId(driver.id);
+            } else if (!driver) {
+                setFollowingUserId(null);
+            }
         };
         awareness.on('change', updateParticipants);
         updateParticipants();
         return () => awareness.off('change', updateParticipants);
-    }, [provider]);
+    }, [provider, isDriver]);
+
+    // Handle Snapshot Generation
+    const createSessionSnapshot = useCallback(async () => {
+        if (!provider || !ydoc) return;
+        setIsCreatingSnapshot(true);
+        try {
+            const stateVector = Y.encodeStateVector(ydoc);
+            const update = Y.encodeStateAsUpdate(ydoc);
+            const snapshotId = `snap-${Date.now()}`;
+
+            const response = await fetch('/api/collaboration/snapshot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: snapshotId,
+                    data: Buffer.from(update).toString('base64'),
+                    participants: participants.map(p => p.name)
+                })
+            });
+
+            if (response.ok) {
+                setSnapshots(prev => [{
+                    id: snapshotId,
+                    timestamp: Date.now(),
+                    participants: participants.map(p => p.initials),
+                    snapshotLabel: `Handoff Snapshot - ${new Date().toLocaleTimeString()}`
+                }, ...prev]);
+                toast({ title: "Snapshot Created", description: "Current session state preserved." });
+            }
+        } catch (err) {
+            console.error("Snapshot failed:", err);
+        } finally {
+            setIsCreatingSnapshot(false);
+        }
+    }, [provider, ydoc, participants]);
 
     // Feature 1: Screen share helpers
     const startScreenShare = useCallback(async () => {
@@ -224,15 +282,44 @@ export default function CollaborationPod() {
                         <Badge variant="secondary" className={isConnected ? "bg-green-600" : "bg-red-600"}>
                             {isConnected ? "Connected" : "Offline"}
                         </Badge>
+                        {followingUserId && (
+                            <Badge variant="outline" className="border-emerald-500 text-emerald-400 animate-pulse text-[10px]">
+                                <Users className="w-2.5 h-2.5 mr-1" /> Following Host
+                            </Badge>
+                        )}
                     </h1>
                     <p className="text-slate-400">Real-time team collaboration powered by Yjs</p>
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 text-sm text-slate-400">
+                        {isDriver && <span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-tighter border border-emerald-500/30">Session Driver</span>}
                         {isConnected ? <Wifi className="w-4 h-4 text-emerald-400" /> : <WifiOff className="w-4 h-4 text-red-400" />}
                         <span>{isConnected ? "Sync Active" : "Sync Paused"}</span>
                     </div>
                     <div className="flex items-center gap-2">
+                        {/* Roadmap Feature: Driver & Snapshot Controls */}
+                        <div className="flex items-center bg-slate-800/50 rounded-lg p-1 mr-2 border border-white/5">
+                            <Button
+                                variant={isDriver ? "default" : "ghost"}
+                                size="sm"
+                                onClick={() => setIsDriver(!isDriver)}
+                                className={isDriver ? "bg-emerald-600 hover:bg-emerald-700 h-7 text-[10px]" : "h-7 text-[10px]"}
+                            >
+                                <Zap className={`w-3 h-3 mr-1 ${isDriver ? "fill-white" : ""}`} />
+                                {isDriver ? "Driving" : "Take Lead"}
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={isCreatingSnapshot}
+                                onClick={createSessionSnapshot}
+                                className="h-7 text-[10px] text-slate-400 hover:text-white"
+                            >
+                                {isCreatingSnapshot ? <RefreshCw className="w-3 h-3 animate-spin mr-1" /> : <GitBranch className="w-3 h-3 mr-1" />}
+                                Snapshot
+                            </Button>
+                        </div>
+
                         {/* Feature 1: Screen Share button */}
                         <Button
                             variant="outline"
@@ -243,6 +330,43 @@ export default function CollaborationPod() {
                             <Monitor className="w-4 h-4 mr-2" />
                             {isSharing ? "Sharing" : "Share Screen"}
                         </Button>
+
+                        <div className="relative group">
+                            <Button variant="outline" size="sm" className="relative">
+                                <History className="w-4 h-4" />
+                                {snapshots.length > 0 && (
+                                    <Badge className="absolute -top-2 -right-2 w-4 h-4 p-0 flex items-center justify-center text-[8px] bg-purple-600">
+                                        {snapshots.length}
+                                    </Badge>
+                                )}
+                            </Button>
+                            {/* Snapshots Popover (Feature 6) */}
+                            <div className="absolute top-full right-0 mt-2 w-64 bg-slate-900 border border-white/10 rounded-xl shadow-2xl opacity-0 translate-y-2 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all z-50 p-2">
+                                <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold px-2 py-1.5 border-b border-white/5 mb-2 flex items-center justify-between">
+                                    <span>Session History</span>
+                                    <History className="w-3 h-3" />
+                                </div>
+                                <div className="max-h-60 overflow-y-auto space-y-1">
+                                    {snapshots.length === 0 ? (
+                                        <div className="text-center py-6 text-slate-600 text-[10px] font-mono italic">No snapshots recorded</div>
+                                    ) : (
+                                        snapshots.map(snap => (
+                                            <button key={snap.id} className="w-full text-left p-2 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/5 transition-all group/item">
+                                                <div className="text-[11px] font-bold text-slate-300 truncate group-hover/item:text-white">{snap.snapshotLabel}</div>
+                                                <div className="flex items-center justify-between mt-1">
+                                                    <div className="flex -space-x-1">
+                                                        {snap.participants.slice(0, 3).map((p, i) => (
+                                                            <div key={i} className="w-4 h-4 rounded-full bg-slate-700 border border-slate-900 flex items-center justify-center text-[7px] text-white uppercase font-bold">{p}</div>
+                                                        ))}
+                                                    </div>
+                                                    <span className="text-[8px] text-slate-600 font-mono">{new Date(snap.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                </div>
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        </div>
 
                         <Button variant="outline" size="sm" className="relative">
                             <Bell className="w-4 h-4" />

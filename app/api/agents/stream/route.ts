@@ -121,7 +121,9 @@ async function queryLocalMistral(
 
   const safeMessages = Array.isArray(body.messages) ? body.messages.slice(-20) : []
   const modelName = process.env.LOCAL_LLM_MODEL || body.model || 'mistral'
-  const maxNewTokens = parsePositiveInt(process.env.LOCAL_LLM_MAX_NEW_TOKENS, 48)
+  const configuredTokens = parsePositiveInt(process.env.LOCAL_LLM_MAX_NEW_TOKENS, 8)
+  // Keep local CPU generations short enough to avoid upstream fetch header timeouts.
+  const maxNewTokens = Math.max(1, Math.min(configuredTokens, 16))
   const timeoutMs = parsePositiveInt(process.env.LOCAL_LLM_TIMEOUT_MS, 600000)
   const controller = new AbortController()
   const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs)

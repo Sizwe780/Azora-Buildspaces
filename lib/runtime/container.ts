@@ -1,25 +1,25 @@
-"use client"
+"use client";
 
 /**
  * WebContainer Runtime Engine
- * 
+ *
  * Constitutional Compliance:
  * - TRUTH: Real error logs, no swallowing errors
  * - SELF-HEALING: Restart capability when things crash
  * - REAL EXECUTION: Actual Node.js runtime in the browser
- * 
+ *
  * This provides an in-browser Node.js environment using WebContainer API
  * for running and previewing applications.
  */
 
-import { fileSystem, type FileNode } from '@/lib/workspace/file-system'
+import { fileSystem, type FileNode } from "@/lib/workspace/file-system";
 
 type WebContainerLike = {
-  mount: (tree: unknown) => Promise<void>
-  spawn: (...args: any[]) => Promise<any>
-  on: (event: string, handler: (...args: any[]) => void) => void
-  teardown: () => Promise<void>
-}
+  mount: (tree: unknown) => Promise<void>;
+  spawn: (...args: any[]) => Promise<any>;
+  on: (event: string, handler: (...args: any[]) => void) => void;
+  teardown: () => Promise<void>;
+};
 
 type WebContainerProcessLike = {
   output: ReadableStream<any>
@@ -30,29 +30,29 @@ type WebContainerProcessLike = {
 function resolveOptionalModule(moduleName: string): any {
   try {
     const runtimeRequire =
-      typeof (globalThis as { require?: unknown }).require === 'function'
+      typeof (globalThis as { require?: unknown }).require === "function"
         ? (globalThis as { require: (name: string) => unknown }).require
-        : Function('return require')()
-    return runtimeRequire(moduleName)
+        : Function("return require")();
+    return runtimeRequire(moduleName);
   } catch {
-    return undefined
+    return undefined;
   }
 }
 
-export type RuntimeStatus = 'idle' | 'booting' | 'ready' | 'error' | 'running'
+export type RuntimeStatus = "idle" | "booting" | "ready" | "error" | "running";
 
 export interface RuntimeState {
-  status: RuntimeStatus
-  container: WebContainerLike | null
-  serverUrl: string | null
-  processes: Map<string, WebContainerProcessLike>
-  error: string | null
+  status: RuntimeStatus;
+  container: WebContainerLike | null;
+  serverUrl: string | null;
+  processes: Map<string, WebContainerProcessLike>;
+  error: string | null;
 }
 
 export interface ProcessOutput {
-  type: 'stdout' | 'stderr' | 'exit'
-  data: string | number
-  timestamp: number
+  type: "stdout" | "stderr" | "exit";
+  data: string | number;
+  timestamp: number;
 }
 
 /**
@@ -60,21 +60,21 @@ export interface ProcessOutput {
  * Singleton that manages the in-browser Node.js environment
  */
 export class RuntimeEngine {
-  private static instance: RuntimeEngine
-  private container: WebContainerLike | null = null
-  private status: RuntimeStatus = 'idle'
-  private serverUrl: string | null = null
-  private processes: Map<string, WebContainerProcessLike> = new Map()
-  private listeners: Map<string, (output: ProcessOutput) => void> = new Map()
-  private error: string | null = null
+  private static instance: RuntimeEngine;
+  private container: WebContainerLike | null = null;
+  private status: RuntimeStatus = "idle";
+  private serverUrl: string | null = null;
+  private processes: Map<string, WebContainerProcessLike> = new Map();
+  private listeners: Map<string, (output: ProcessOutput) => void> = new Map();
+  private error: string | null = null;
 
   private constructor() {}
 
   static getInstance(): RuntimeEngine {
     if (!RuntimeEngine.instance) {
-      RuntimeEngine.instance = new RuntimeEngine()
+      RuntimeEngine.instance = new RuntimeEngine();
     }
-    return RuntimeEngine.instance
+    return RuntimeEngine.instance;
   }
 
   /**
@@ -83,29 +83,30 @@ export class RuntimeEngine {
    */
   async boot(): Promise<void> {
     if (this.container) {
-      console.log('[Runtime] Container already booted')
-      return
+      console.log("[Runtime] Container already booted");
+      return;
     }
 
     try {
-      this.setStatus('booting')
-      console.log('[Runtime] Booting WebContainer...')
+      this.setStatus("booting");
+      console.log("[Runtime] Booting WebContainer...");
 
       // Boot WebContainer
-      const webContainerModule = resolveOptionalModule('@webcontainer/api')
-      const WebContainer = webContainerModule?.WebContainer
-      if (!WebContainer || typeof WebContainer.boot !== 'function') {
-        throw new Error('WebContainer API is unavailable in this runtime')
+      const webContainerModule = resolveOptionalModule("@webcontainer/api");
+      const WebContainer = webContainerModule?.WebContainer;
+      if (!WebContainer || typeof WebContainer.boot !== "function") {
+        throw new Error("WebContainer API is unavailable in this runtime");
       }
-      this.container = await WebContainer.boot()
-      
-      this.setStatus('ready')
-      console.log('[Runtime] ✅ WebContainer booted successfully')
+      this.container = await WebContainer.boot();
+
+      this.setStatus("ready");
+      console.log("[Runtime] ✅ WebContainer booted successfully");
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to boot container'
-      this.setError(errorMsg)
-      console.error('[Runtime] ❌ Boot failed:', error)
-      throw error
+      const errorMsg =
+        error instanceof Error ? error.message : "Failed to boot container";
+      this.setError(errorMsg);
+      console.error("[Runtime] ❌ Boot failed:", error);
+      throw error;
     }
   }
 
@@ -115,27 +116,28 @@ export class RuntimeEngine {
    */
   async mount(projectRoot: string): Promise<void> {
     if (!this.container) {
-      throw new Error('Container not booted. Call boot() first.')
+      throw new Error("Container not booted. Call boot() first.");
     }
 
     try {
-      console.log('[Runtime] Mounting files from VFS...')
+      console.log("[Runtime] Mounting files from VFS...");
 
       // Get file tree from VFS
-      const files = await fileSystem.listFiles(projectRoot)
-      
+      const files = await fileSystem.listFiles(projectRoot);
+
       // Convert to WebContainer file tree format
-      const fileTree = await this.convertToWebContainerTree(files, projectRoot)
-      
+      const fileTree = await this.convertToWebContainerTree(files, projectRoot);
+
       // Mount files
-      await this.container.mount(fileTree)
-      
-      console.log('[Runtime] ✅ Files mounted successfully')
+      await this.container.mount(fileTree);
+
+      console.log("[Runtime] ✅ Files mounted successfully");
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to mount files'
-      this.setError(errorMsg)
-      console.error('[Runtime] ❌ Mount failed:', error)
-      throw error
+      const errorMsg =
+        error instanceof Error ? error.message : "Failed to mount files";
+      this.setError(errorMsg);
+      console.error("[Runtime] ❌ Mount failed:", error);
+      throw error;
     }
   }
 
@@ -144,36 +146,39 @@ export class RuntimeEngine {
    */
   private async convertToWebContainerTree(
     nodes: FileNode[],
-    projectRoot: string
+    projectRoot: string,
   ): Promise<any> {
-    const tree: any = {}
+    const tree: any = {};
 
     for (const node of nodes) {
-      if (node.type === 'directory' && node.children) {
+      if (node.type === "directory" && node.children) {
         tree[node.name] = {
-          directory: await this.convertToWebContainerTree(node.children, projectRoot),
-        }
-      } else if (node.type === 'file') {
+          directory: await this.convertToWebContainerTree(
+            node.children,
+            projectRoot,
+          ),
+        };
+      } else if (node.type === "file") {
         try {
-          const content = await fileSystem.readFile(node.path)
+          const content = await fileSystem.readFile(node.path);
           tree[node.name] = {
             file: {
               contents: content,
             },
-          }
+          };
         } catch (error) {
-          console.warn(`[Runtime] Failed to read file ${node.path}:`, error)
+          console.warn(`[Runtime] Failed to read file ${node.path}:`, error);
         }
       }
     }
 
-    return tree
+    return tree;
   }
 
   /**
    * Spawn a process in the container
    * Constitutional Compliance: Real process execution with actual stdout/stderr
-   * 
+   *
    * @param command Command to run (e.g., 'npm', 'node')
    * @param args Command arguments (e.g., ['install'], ['dev'])
    * @param onOutput Callback for process output
@@ -184,21 +189,21 @@ export class RuntimeEngine {
     onOutput?: (output: ProcessOutput) => void
   ): Promise<WebContainerProcessLike> {
     if (!this.container) {
-      throw new Error('Container not booted. Call boot() first.')
+      throw new Error("Container not booted. Call boot() first.");
     }
 
     try {
-      this.setStatus('running')
-      const processId = `${command}_${Date.now()}`
-      
-      console.log(`[Runtime] Spawning: ${command} ${args.join(' ')}`)
+      this.setStatus("running");
+      const processId = `${command}_${Date.now()}`;
+
+      console.log(`[Runtime] Spawning: ${command} ${args.join(" ")}`);
 
       const process = await this.container.spawn(command, args)
       this.processes.set(processId, process)
 
       // Setup output listeners
       if (onOutput) {
-        this.listeners.set(processId, onOutput)
+        this.listeners.set(processId, onOutput);
       }
 
       // Stream stdout (Constitutional: Real output, not simulated)
@@ -206,40 +211,41 @@ export class RuntimeEngine {
         new WritableStream({
           write: (data) => {
             const output: ProcessOutput = {
-              type: 'stdout',
+              type: "stdout",
               data,
               timestamp: Date.now(),
-            }
-            console.log(`[Runtime stdout] ${data}`)
-            onOutput?.(output)
-            this.notifyListeners(output)
+            };
+            console.log(`[Runtime stdout] ${data}`);
+            onOutput?.(output);
+            this.notifyListeners(output);
           },
-        })
-      )
+        }),
+      );
 
       // Listen for exit
       process.exit.then((exitCode: number) => {
         const output: ProcessOutput = {
-          type: 'exit',
+          type: "exit",
           data: exitCode,
           timestamp: Date.now(),
-        }
-        console.log(`[Runtime] Process exited with code ${exitCode}`)
-        onOutput?.(output)
-        this.notifyListeners(output)
-        this.processes.delete(processId)
-        
-        if (this.processes.size === 0) {
-          this.setStatus('ready')
-        }
-      })
+        };
+        console.log(`[Runtime] Process exited with code ${exitCode}`);
+        onOutput?.(output);
+        this.notifyListeners(output);
+        this.processes.delete(processId);
 
-      return process
+        if (this.processes.size === 0) {
+          this.setStatus("ready");
+        }
+      });
+
+      return process;
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to spawn process'
-      this.setError(errorMsg)
-      console.error('[Runtime] ❌ Spawn failed:', error)
-      throw error
+      const errorMsg =
+        error instanceof Error ? error.message : "Failed to spawn process";
+      this.setError(errorMsg);
+      console.error("[Runtime] ❌ Spawn failed:", error);
+      throw error;
     }
   }
 
@@ -247,44 +253,47 @@ export class RuntimeEngine {
    * Start the dev server and return the URL
    * Constitutional Compliance: Real server, real URL
    */
-  async startDevServer(onOutput?: (output: ProcessOutput) => void): Promise<string> {
+  async startDevServer(
+    onOutput?: (output: ProcessOutput) => void,
+  ): Promise<string> {
     if (!this.container) {
-      throw new Error('Container not booted')
+      throw new Error("Container not booted");
     }
 
     try {
-      console.log('[Runtime] Starting dev server...')
+      console.log("[Runtime] Starting dev server...");
 
       // Install dependencies first
-      await this.spawn('npm', ['install'], onOutput)
+      await this.spawn("npm", ["install"], onOutput);
 
       // Wait for install to complete
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Start dev server
-      const devProcess = await this.spawn('npm', ['run', 'dev'], onOutput)
+      const devProcess = await this.spawn("npm", ["run", "dev"], onOutput);
 
       // Wait for server to be ready and get URL
-      this.container.on('server-ready', (port, url) => {
-        console.log(`[Runtime] ✅ Server ready on port ${port}: ${url}`)
-        this.serverUrl = url
-      })
+      this.container.on("server-ready", (port, url) => {
+        console.log(`[Runtime] ✅ Server ready on port ${port}: ${url}`);
+        this.serverUrl = url;
+      });
 
       // Wait a bit for server to start
-      await new Promise(resolve => setTimeout(resolve, 3000))
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       if (!this.serverUrl) {
         // Fallback: construct URL from default port
-        this.serverUrl = await (this.container as any).getServerUrl(3000)
+        this.serverUrl = await (this.container as any).getServerUrl(3000);
       }
 
-      console.log(`[Runtime] Server URL: ${this.serverUrl}`)
-      return this.serverUrl || ''
+      console.log(`[Runtime] Server URL: ${this.serverUrl}`);
+      return this.serverUrl || "";
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to start dev server'
-      this.setError(errorMsg)
-      console.error('[Runtime] ❌ Start dev server failed:', error)
-      throw error
+      const errorMsg =
+        error instanceof Error ? error.message : "Failed to start dev server";
+      this.setError(errorMsg);
+      console.error("[Runtime] ❌ Start dev server failed:", error);
+      throw error;
     }
   }
 
@@ -297,33 +306,34 @@ export class RuntimeEngine {
     onOutput?: (output: ProcessOutput) => void
   ): Promise<number> {
     if (!this.container) {
-      throw new Error('Container not booted')
+      throw new Error("Container not booted");
     }
 
     try {
       // Parse command
-      const parts = command.trim().split(' ')
-      const cmd = parts[0]
-      const args = parts.slice(1)
+      const parts = command.trim().split(" ");
+      const cmd = parts[0];
+      const args = parts.slice(1);
 
       const process = await this.spawn(cmd, args, onOutput)
       const exitCode = await process.exit
 
-      return exitCode
+      return exitCode;
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Command execution failed'
-      console.error('[Runtime] Command failed:', errorMsg)
-      
+      const errorMsg =
+        error instanceof Error ? error.message : "Command execution failed";
+      console.error("[Runtime] Command failed:", errorMsg);
+
       // Constitutional: Don't swallow errors - send them to output
       if (onOutput) {
         onOutput({
-          type: 'stderr',
+          type: "stderr",
           data: errorMsg,
           timestamp: Date.now(),
-        })
+        });
       }
-      
-      throw error
+
+      throw error;
     }
   }
 
@@ -332,37 +342,37 @@ export class RuntimeEngine {
    * Constitutional Compliance: Article I, Section 1.2.5
    */
   async restart(): Promise<void> {
-    console.log('[Runtime] 🔄 Restarting container...')
-    
+    console.log("[Runtime] 🔄 Restarting container...");
+
     try {
       // Kill all processes
       for (const [id, process] of this.processes) {
         try {
-          process.kill()
+          process.kill();
         } catch (e) {
-          console.warn(`Failed to kill process ${id}:`, e)
+          console.warn(`Failed to kill process ${id}:`, e);
         }
       }
-      this.processes.clear()
+      this.processes.clear();
 
       // Tear down container
       if (this.container) {
-        await this.container.teardown()
-        this.container = null
+        await this.container.teardown();
+        this.container = null;
       }
 
       // Clear state
-      this.serverUrl = null
-      this.error = null
-      this.setStatus('idle')
+      this.serverUrl = null;
+      this.error = null;
+      this.setStatus("idle");
 
       // Reboot
-      await this.boot()
-      
-      console.log('[Runtime] ✅ Container restarted successfully')
+      await this.boot();
+
+      console.log("[Runtime] ✅ Container restarted successfully");
     } catch (error) {
-      console.error('[Runtime] ❌ Restart failed:', error)
-      throw error
+      console.error("[Runtime] ❌ Restart failed:", error);
+      throw error;
     }
   }
 
@@ -376,47 +386,47 @@ export class RuntimeEngine {
       serverUrl: this.serverUrl,
       processes: new Map(this.processes),
       error: this.error,
-    }
+    };
   }
 
   /**
    * Subscribe to runtime output
    */
   subscribe(callback: (output: ProcessOutput) => void): () => void {
-    const id = `sub_${Date.now()}`
-    this.listeners.set(id, callback)
-    return () => this.listeners.delete(id)
+    const id = `sub_${Date.now()}`;
+    this.listeners.set(id, callback);
+    return () => this.listeners.delete(id);
   }
 
   /**
    * Check if container is ready
    */
   isReady(): boolean {
-    return this.status === 'ready' && this.container !== null
+    return this.status === "ready" && this.container !== null;
   }
 
   /**
    * Get server URL
    */
   getServerUrl(): string | null {
-    return this.serverUrl
+    return this.serverUrl;
   }
 
   // Private methods
 
   private setStatus(status: RuntimeStatus) {
-    this.status = status
-    console.log(`[Runtime] Status: ${status}`)
+    this.status = status;
+    console.log(`[Runtime] Status: ${status}`);
   }
 
   private setError(error: string) {
-    this.error = error
-    this.setStatus('error')
+    this.error = error;
+    this.setStatus("error");
   }
 
   private notifyListeners(output: ProcessOutput) {
     for (const listener of this.listeners.values()) {
-      listener(output)
+      listener(output);
     }
   }
 }
@@ -424,4 +434,4 @@ export class RuntimeEngine {
 /**
  * Export singleton instance
  */
-export const runtimeEngine = RuntimeEngine.getInstance()
+export const runtimeEngine = RuntimeEngine.getInstance();

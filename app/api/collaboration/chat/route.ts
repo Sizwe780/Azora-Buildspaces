@@ -6,9 +6,19 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
+import { MiningEngine } from '@/lib/economy/mining-engine'
 import { prisma } from '@/lib/database/client'
 
+const miningEngine = new MiningEngine()
+
 export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const { searchParams } = new URL(req.url)
   const fileId = searchParams.get('fileId')
   const roomId = searchParams.get('roomId')
@@ -58,12 +68,17 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const body = await req.json()
     const { 
       fileId, 
       roomId,
-      userId, 
+      userId: bodyUserId, 
       content, 
       type = 'text',
       line, 
@@ -77,12 +92,29 @@ export async function POST(req: NextRequest) {
       mentions = [],
     } = body
 
-    if (!userId || !content) {
-      return NextResponse.json({ error: 'userId and content are required' }, { status: 400 })
+    // Use session user ID for security, fallback to body if strictly necessary but session is preferred
+    const userId = session.user.id
+
+    if (!content) {
+      return NextResponse.json({ error: 'content is required' }, { status: 400 })
     }
 
     if (!fileId && !roomId) {
       return NextResponse.json({ error: 'Either fileId or roomId is required' }, { status: 400 })
+    }
+
+    // Reward for active collaboration (Art III)
+    // We only reward messages that have some substance (e.g. > 10 chars) to prevent spam mining
+    if (content.length > 20 || (codeSnippet && codeSnippet.length > 5)) {
+      try {
+        await miningEngine.awardByType(
+          userId, 
+          'COLLABORATION', 
+          `Workspace Chat: Contributed to ${roomId || fileId}`
+        )
+      } catch (e) {
+        console.warn('Failed to award collaboration tokens:', e)
+      }
     }
 
     // Extract @mentions from content

@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { GitBranch, AlertCircle, CheckCircle2, Bell, Wifi, WifiOff, Cpu, Bot, Sparkles, Radio } from "lucide-react"
-import { motion } from "framer-motion"
+import { GitBranch, AlertCircle, CheckCircle2, Bell, Wifi, WifiOff, Cpu, Bot, Sparkles, Radio, Wallet, RefreshCw } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 import { getLanguageByExtension } from "@/lib/languages"
 import { useWorkbench } from "@/lib/stores/workbench-store"
 
@@ -34,6 +34,8 @@ function StatusBarItem({ children, onClick, title, className = "" }: {
 export function StatusBar({ activeFile, agentCount, activeAgents }: StatusBarProps) {
   const [cpuUsage, setCpuUsage] = useState<number | null>(null)
   const [isConnected, setIsConnected] = useState(true)
+  const [azrBalance, setAzrBalance] = useState<number | null>(null)
+  const [isWalletLoading, setIsWalletLoading] = useState(false)
   const { cursorLine, cursorColumn, editorIndentation, editorEOL, currentGitBranch, diagnosticErrors, diagnosticWarnings } = useWorkbench()
 
   const detectedLang = useMemo(() => {
@@ -41,6 +43,29 @@ export function StatusBar({ activeFile, agentCount, activeAgents }: StatusBarPro
     const ext = "." + activeFile.split(".").pop()
     return getLanguageByExtension(ext)
   }, [activeFile])
+
+  // Fetch AZR Balance (SDLC Economy Part of Proof-of-Knowledge)
+  const fetchWallet = async () => {
+    setIsWalletLoading(true)
+    try {
+      const res = await fetch('/api/economy/wallet')
+      if (res.ok) {
+        const data = await res.json()
+        setAzrBalance(data.wallet.balance)
+      }
+    } catch (error) {
+      console.error('Failed to fetch AZR balance:', error)
+    } finally {
+      setIsWalletLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchWallet()
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchWallet, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Real CPU metrics from backend (disabled until implemented)
   useEffect(() => {
@@ -118,6 +143,23 @@ export function StatusBar({ activeFile, agentCount, activeAgents }: StatusBarPro
 
       {/* Right Section */}
       <div className="flex items-center h-full">
+        {/* Azora Vault Pocket (SDLC Economy) */}
+        <button
+          onClick={() => fetchWallet()}
+          disabled={isWalletLoading}
+          className="flex items-center gap-1.5 px-2 h-full hover:bg-[var(--ide-statusbar-item-hover)] group transition-all border-x border-emerald-500/10"
+          title="Azora Vault - Your Technical Contribution Reward Balance"
+        >
+          <Wallet className={`w-3 h-3 ${isWalletLoading ? "text-zinc-500" : "text-amber-500"}`} />
+          <div className="flex items-baseline gap-1">
+            <span className={`font-mono font-bold tracking-tight ${isWalletLoading ? "text-zinc-600 animate-pulse" : "text-emerald-400 group-hover:text-amber-400"}`}>
+              {azrBalance === null ? "..." : azrBalance.toLocaleString()}
+            </span>
+            <span className="text-[9px] text-zinc-500 font-bold opacity-75">AZR</span>
+          </div>
+          <RefreshCw className={`w-2.5 h-2.5 ml-0.5 text-zinc-600 group-hover:text-amber-500 transition-colors ${isWalletLoading ? "animate-spin" : ""}`} />
+        </button>
+
         {/* Cursor position */}
         <StatusBarItem title="Go to Line/Column">
           <span>Ln {cursorLine}, Col {cursorColumn}</span>

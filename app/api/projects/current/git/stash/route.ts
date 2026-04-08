@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 
@@ -11,6 +13,11 @@ const execFileAsync = promisify(execFile)
  */
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     const projectPath = process.cwd()
     const { stdout } = await execFileAsync('git', ['stash', 'list'], { cwd: projectPath })
 
@@ -27,6 +34,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     const { action, message, stashId } = await request.json()
     const projectPath = process.cwd()
 

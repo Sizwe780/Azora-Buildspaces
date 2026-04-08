@@ -193,6 +193,11 @@ export default function AIStudio() {
     window.dispatchEvent(new CustomEvent('azora:settingsChanged', { detail: updated }))
   }
   const [workflowVersions, setWorkflowVersions] = useState<any[]>([])
+  
+  /* ── Phase 2: LangGraph Reasoning ── */
+  const [isReasoning, setIsReasoning] = useState(false);
+  const [reasoningTrace, setReasoningTrace] = useState<string[]>([]);
+  const [reasoningResult, setReasoningResult] = useState<string>("");
 
   /* ── version management ── */
   const createWorkflowVersion = () => {
@@ -926,6 +931,10 @@ export default function AIStudio() {
                     <GitCompare className="w-3.5 h-3.5" />
                     Compare
                   </TabsTrigger>
+                  <TabsTrigger value="reasoning" className="gap-1 text-xs bg-purple-500/5 text-purple-400 border-purple-500/20 data-[state=active]:bg-purple-500/10">
+                    <Brain className="w-3.5 h-3.5" />
+                    LangGraph
+                  </TabsTrigger>
                 </TabsList>
 
                 {/* Workflow Canvas — DAG-style positioned cards */}
@@ -984,9 +993,17 @@ export default function AIStudio() {
                                 animate={{ opacity: 1, scale: 1 }}
                                 className="flex justify-center"
                               >
-                                <button
+                                <div
+                                  role="button"
+                                  tabIndex={0}
                                   onClick={() => setSelectedNode(node)}
-                                  className={`relative flex items-center gap-3 p-4 rounded-xl border-2 transition-all w-80 bg-zinc-900/90 backdrop-blur-sm shadow-xl ${
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      setSelectedNode(node);
+                                    }
+                                  }}
+                                  className={`relative flex items-center gap-3 p-4 rounded-xl border-2 transition-all w-80 bg-zinc-900/90 backdrop-blur-sm shadow-xl cursor-pointer ${
                                     isSelected
                                       ? "border-blue-500 shadow-blue-500/20"
                                       : "border-zinc-800 hover:border-zinc-600"
@@ -1015,7 +1032,7 @@ export default function AIStudio() {
                                       <Trash2 className="w-3 h-3" />
                                     </Button>
                                   </div>
-                                </button>
+                                </div>
                               </motion.div>
                             )
                           })}
@@ -1450,6 +1467,101 @@ export default function AIStudio() {
                           </Card>
                         )
                       })}
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="reasoning" className="flex-1 m-0 overflow-auto bg-[#0a0a0f] p-6">
+                  <div className="max-w-4xl mx-auto space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
+                          <Brain className="w-5 h-5 text-purple-400" /> LangGraph Reasoning Engine
+                        </h2>
+                        <p className="text-xs text-zinc-500">Enable autonomous multi-agent reasoning loops and self-correction.</p>
+                      </div>
+                      <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20">v2.0 Beta</Badge>
+                    </div>
+
+                    <Card className="bg-zinc-900/50 border-zinc-800 shadow-2xl">
+                      <CardHeader className="pb-3 border-b border-zinc-800/50">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <Zap className="w-4 h-4 text-amber-400" /> Reasoning Prompt
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-4 space-y-4">
+                        <div className="relative">
+                          <Input 
+                            placeholder="Describe a complex task (e.g., 'Plan and implement a secure auth middleware')..."
+                            className="bg-zinc-950/50 border-zinc-800 h-12 pr-24 focus-visible:ring-purple-500/50"
+                            value={naturalPrompt}
+                            onChange={(e) => setNaturalPrompt(e.target.value)}
+                          />
+                          <Button 
+                            className="absolute right-1 top-1 h-10 bg-purple-600 hover:bg-purple-700 text-white gap-2"
+                            disabled={isReasoning || !naturalPrompt}
+                            onClick={() => setIsReasoning(true)}
+                          >
+                            {isReasoning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                            Run Loop
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                          <Activity className="w-3.5 h-3.5" /> Agent Trace
+                        </h3>
+                        <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 min-h-[300px] flex flex-col font-mono text-[11px]">
+                          {reasoningTrace.length === 0 && !isReasoning && (
+                            <div className="flex-1 flex flex-col items-center justify-center text-zinc-700 opacity-50">
+                              <Workflow className="w-8 h-8 mb-2" />
+                              <p>No active trace</p>
+                            </div>
+                          )}
+                          <div className="space-y-3">
+                            {isReasoning && (
+                              <div className="flex items-center gap-3 text-purple-400 animate-pulse">
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                                <span>Agent [Architect] is reasoning...</span>
+                              </div>
+                            )}
+                            {reasoningTrace.map((t, i) => (
+                              <motion.div 
+                                key={i}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                className="flex gap-3 border-l border-zinc-800 pl-4 py-1"
+                              >
+                                <span className="text-zinc-600">{i + 1}.</span>
+                                <span className="text-zinc-300">{t}</span>
+                              </motion.div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                          <Terminal className="w-3.5 h-3.5" /> Final Output
+                        </h3>
+                        <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 min-h-[300px] font-mono text-xs overflow-auto">
+                          {isReasoning ? (
+                            <div className="flex items-center gap-2 text-zinc-600 italic">
+                              <RefreshCw className="w-3 h-3 animate-spin" />
+                              Constructing output...
+                            </div>
+                          ) : reasoningResult ? (
+                            <pre className="text-emerald-400 whitespace-pre-wrap">{reasoningResult}</pre>
+                          ) : (
+                            <div className="flex-1 h-full flex items-center justify-center text-zinc-700 opacity-50">
+                              <p>Waiting for loop completion</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </TabsContent>

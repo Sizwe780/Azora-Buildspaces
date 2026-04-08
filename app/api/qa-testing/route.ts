@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
 import { qaTesting } from '@/lib/services/qa-testing'
+import { MiningEngine } from '@/lib/economy/mining-engine'
+
+const miningEngine = new MiningEngine()
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -50,11 +53,25 @@ export async function POST(request: NextRequest) {
       case 'run': {
         const { config } = body
         const run = await qaTesting.runTests(config)
+        
+        // Award tokens for running tests (Truth Verification)
+        if (run.status === 'passed') {
+          await miningEngine.awardByType(session.user.id, 'TRUTH_VERIFICATION', `Successfully passed all ${run.total} tests using ${run.framework}`)
+        } else if (run.status === 'failed' && run.passed > 0) {
+          await miningEngine.awardByType(session.user.id, 'PEER_REVIEW', `Verification attempt: ${run.passed}/${run.total} tests passed.`)
+        }
+
         return NextResponse.json({ run })
       }
       case 'run-single': {
         const { runId, testId } = body
         const result = await qaTesting.runSingleTest(runId, testId)
+        
+        // Minor reward for verifying single test
+        if (result?.status === 'passed') {
+          await miningEngine.awardByType(session.user.id, 'FACT_CHECK', `Verified test: ${result.name}`)
+        }
+
         return NextResponse.json({ result })
       }
       case 'cancel': {
@@ -89,6 +106,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
     }
   } catch (error) {
+    console.error('[QA Testing API] POST Error:', error)
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
   }
 }

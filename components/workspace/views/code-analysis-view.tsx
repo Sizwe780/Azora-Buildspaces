@@ -98,6 +98,9 @@ const demoSmells: CodeSmell[] = [
   { id: "s5", file: "ai-code-service.ts", line: 320, type: "dead-code", severity: "info", message: "Function 'legacyParse' is never called", suggestion: "Remove unused function or add usage" },
   { id: "s6", file: "workspace-engine.ts", line: 175, type: "complexity", severity: "error", message: "Nested callbacks depth exceeds 4 levels", suggestion: "Refactor to async/await pattern" },
 ]
+import { LspInspector } from "@/components/code-chamber/lsp-inspector"
+import { useFileSystem } from "@/lib/stores/file-system"
+import { useWorkbench } from "@/lib/stores/workbench-store"
 
 const demoDependencies: DependencyNode[] = [
   { name: "code-chamber.tsx", type: "internal", imports: ["editor-panel", "workbench-layout", "explorer-view", "ai-assistant-sidebar"], importedBy: ["page.tsx"], size: "5.2 KB" },
@@ -107,22 +110,37 @@ const demoDependencies: DependencyNode[] = [
   { name: "react", type: "external", imports: [], importedBy: ["*"], size: "42 KB" },
 ]
 
-type AnalysisTab = "overview" | "complexity" | "smells" | "dependencies"
+type AnalysisTab = "overview" | "complexity" | "smells" | "dependencies" | "lsp"
 
 export function CodeAnalysisView() {
-  const [activeTab, setActiveTab] = useState<AnalysisTab>("overview")
+  const [activeTab, setActiveTab] = useState<AnalysisTab>("lsp")
   const [searchQuery, setSearchQuery] = useState("")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [sortBy, setSortBy] = useState<"complexity" | "loc" | "issues">("complexity")
   const [severityFilter, setSeverityFilter] = useState<"all" | "error" | "warning" | "info">("all")
 
+  const { activeFile, fileMap } = useFileSystem()
+  const { setPanelView } = useWorkbench()
+
   const tabs = [
     { id: "overview" as const, label: "Overview", icon: BarChart3 },
+    { id: "lsp" as const, label: "LSP", icon: Zap },
     { id: "complexity" as const, label: "Complexity", icon: Cpu },
-    { id: "smells" as const, label: "Code Smells", icon: AlertTriangle },
-    { id: "dependencies" as const, label: "Dependencies", icon: GitBranch },
+    { id: "smells" as const, label: "Smells", icon: AlertTriangle },
+    { id: "dependencies" as const, label: "Deps", icon: GitBranch },
   ]
+
+  const activeContent = useMemo(() => {
+    if (!activeFile) return null
+    const file = fileMap[activeFile]
+    return typeof file === 'string' ? file : file?.content || null
+  }, [activeFile, fileMap])
+
+  const handleApplyFix = (line: number, fix: string) => {
+    console.log(`Apply fix to line ${line}:`, fix)
+    setPanelView("problems")
+  }
 
   const handleAnalyze = () => {
     setIsAnalyzing(true)
@@ -226,6 +244,15 @@ export function CodeAnalysisView() {
       </div>
 
       <ScrollArea className="flex-1">
+        {/* LSP Inspector Tab */}
+        {activeTab === "lsp" && (
+          <LspInspector 
+            activeFile={activeFile} 
+            content={activeContent} 
+            onApplyFix={handleApplyFix}
+          />
+        )}
+
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="p-3 space-y-3">

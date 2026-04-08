@@ -56,6 +56,8 @@ import { cn } from "@/lib/utils"
 
 import { VisualBuilder } from "./visual-builder"
 import { ErrorBoundary } from "@/components/shared/error-boundary"
+import { Mermaid } from "@/components/shared/mermaid"
+import { LangGraphOrchestrator } from "@/lib/agents/langgraph-orchestrator"
 import yaml from "js-yaml"
 
 /* ─── types ─── */
@@ -252,44 +254,104 @@ function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: 
 
       {/* Tables (for DB specs) */}
       {spec.tables && Array.isArray(spec.tables) && (
-        <div className="space-y-2">
+        <div className="space-y-4">
           <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
-            <Database className="w-4 h-4 text-orange-400" /> Tables
+            <Database className="w-4 h-4 text-orange-400" /> Database Architecture
           </h3>
-          {spec.tables.map((table: any, i: number) => (
-            <div key={i} className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-zinc-200 mb-2">{table.name}</h4>
-              {table.columns && Array.isArray(table.columns) && (
-                <div className="space-y-1">
-                  {table.columns.map((col: any, j: number) => (
-                    <div key={j} className="flex items-center gap-3 text-xs">
-                      <code className="text-zinc-200 font-mono w-28">{col.name}</code>
-                      <span className="text-orange-400 font-mono">{col.type}</span>
-                      {col.primary && <Badge className="text-[9px] bg-yellow-600/20 text-yellow-400">PK</Badge>}
-                      {col.nullable === false && <Badge className="text-[9px] bg-blue-600/20 text-blue-400">NOT NULL</Badge>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+
+          <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 overflow-hidden shadow-2xl">
+            <Mermaid 
+              chart={`erDiagram\n${spec.tables.map((table: any) => {
+                const columns = table.columns?.map((col: any) => `    ${col.type.replace(/[{}]/g, '')} ${col.name} ${col.primary ? "PK" : ""}`).join('\n') || "";
+                return `  ${table.name.replace(/\s+/g, '_')} {\n${columns}\n  }`;
+              }).join('\n')}`}
+              className="flex justify-center"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {spec.tables.map((table: any, i: number) => (
+              <div key={i} className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:border-orange-500/30 transition-colors">
+                <h4 className="text-sm font-semibold text-zinc-200 mb-2 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-orange-500" /> {table.name}
+                </h4>
+                {table.columns && Array.isArray(table.columns) && (
+                  <div className="space-y-1.5">
+                    {table.columns.map((col: any, j: number) => (
+                      <div key={j} className="flex items-center justify-between text-[11px] group/col">
+                        <div className="flex items-center gap-2">
+                          <code className="text-zinc-200 font-mono group-hover/col:text-orange-300 transition-colors">{col.name}</code>
+                          {col.primary && <Badge className="text-[8px] h-3.5 px-1 bg-yellow-600/30 text-yellow-500 border-none">PK</Badge>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-500 font-mono">{col.type}</span>
+                          {col.nullable === false && <span className="text-[10px] text-blue-400/60 font-medium">NOT NULL</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {/* Steps (for workflow specs) */}
       {spec.steps && Array.isArray(spec.steps) && (
-        <div className="space-y-2">
+        <div className="space-y-4">
           <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
-            <Zap className="w-4 h-4 text-yellow-400" /> Workflow Steps
+            <Zap className="w-4 h-4 text-yellow-400" /> Workflow Architecture
           </h3>
-          <div className="space-y-2">
+          
+          <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-6 overflow-hidden shadow-2xl relative group">
+            <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+               <Badge variant="outline" className="bg-zinc-900/80 text-[10px] border-yellow-500/30 text-yellow-500">
+                 Auto-Synced
+               </Badge>
+            </div>
+            <Mermaid 
+              key={`workflow-${content.length}`} // Key for re-rendering on content change
+              chart={`graph TD\n${spec.steps.map((step: any, i: number) => {
+                const id = step.id || i;
+                const currentName = (step.name || step.title || `Step ${i+1}`).replace(/"/g, "'");
+                
+                // Use explicit 'next' if defined, otherwise sequential
+                const nextStepRef = step.next || (spec.steps[i+1] ? (spec.steps[i+1].id || i+1) : null);
+                
+                let line = `  ${id}["${currentName}"]`;
+                if (nextStepRef !== null && nextStepRef !== undefined) {
+                   line += ` --> ${nextStepRef}`;
+                }
+                return line;
+              }).join('\n')}`}
+              className="flex justify-center transition-all duration-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {spec.steps.map((step: any, i: number) => (
-              <div key={i} className="flex items-start gap-3 bg-zinc-900/50 border border-zinc-800 rounded-lg p-3">
-                <div className="w-6 h-6 rounded-full bg-yellow-500/20 text-yellow-400 text-xs flex items-center justify-center font-bold shrink-0">{i + 1}</div>
-                <div>
-                  <div className="text-sm font-medium text-zinc-200">{step.name || step.title || `Step ${i + 1}`}</div>
-                  {step.description && <p className="text-xs text-zinc-500 mt-0.5">{step.description}</p>}
+              <div key={i} className="flex flex-col gap-2 bg-zinc-900/40 border border-zinc-800/60 rounded-xl p-4 hover:border-yellow-500/40 transition-all hover:shadow-lg group/step">
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-yellow-500/10 text-yellow-500 text-xs flex items-center justify-center font-bold shrink-0 border border-yellow-500/20 group-hover/step:bg-yellow-500 group-hover/step:text-zinc-950 transition-colors">
+                    {i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-zinc-100 truncate">{step.name || step.title || `Step ${i + 1}`}</div>
+                    <div className="text-[10px] text-zinc-500 font-mono uppercase">{step.id || `step_${i}`}</div>
+                  </div>
                 </div>
+                {step.description && <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">{step.description}</p>}
+                
+                {step.conditions && (
+                   <div className="mt-2 pt-2 border-t border-zinc-800/50 flex flex-wrap gap-1.5">
+                     {Object.entries(step.conditions).map(([key, val]: [string, any]) => (
+                        <Badge key={key} variant="outline" className="text-[9px] bg-zinc-800/30 border-zinc-700 text-zinc-400">
+                          {key}: {String(val)}
+                        </Badge>
+                     ))}
+                   </div>
+                )}
               </div>
             ))}
           </div>
@@ -810,73 +872,159 @@ export function SpecChamber() {
 
   const handleValidate = useCallback(async () => {
     setIsValidating(true)
+    setValidationResult(null)
+    setSpecDiagnostics([])
+    
     try {
-      // Local validation
+      // 1. Local base validation
       const result = await SpecValidator.validate(content, activeType)
 
-      // Also run server-side AJV schema validation
+      // 2. Real-time AJV Server Validation (Schema Enforcement)
       try {
         const resp = await fetch("/api/specs/validate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content, type: activeType }),
+          body: JSON.stringify({ 
+            content, 
+            type: activeType,
+            options: { strict: true }
+          }),
         })
+        
         if (resp.ok) {
           const serverResult = await resp.json()
-          if (serverResult.diagnostics?.length > 0) {
-            const serverErrors = serverResult.diagnostics.map((d: { path: string; message: string }) => ({
-              message: `[Schema] ${d.path}: ${d.message}`,
+          
+          // Map schema diagnostics to UI
+          if (serverResult.diagnostics && Array.isArray(serverResult.diagnostics)) {
+            const formattedDiagnostics = serverResult.diagnostics.map((d: any) => ({
+              id: `schema-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              message: `${d.path !== '/' ? `[${d.path}] ` : ''}${d.message}`,
+              severity: d.severity || 'error',
+              source: 'ajv-schema',
+              timestamp: new Date().toISOString()
             }))
-            result.errors = [...(result.errors || []), ...serverErrors]
-            result.valid = result.valid && serverResult.valid
+            
+            setSpecDiagnostics(prev => [...prev, ...formattedDiagnostics])
+            
+            // Sync result object
+            if (!serverResult.valid) {
+              result.valid = false
+              result.errors = [
+                ...(result.errors || []),
+                ...serverResult.diagnostics.map((d: any) => ({ message: d.message }))
+              ]
+            }
           }
-          if (serverResult.completeness?.score != null) {
+          
+          // Update completeness score
+          if (serverResult.completeness?.score !== undefined) {
             setCompletenessScore(serverResult.completeness.score)
+            
+            // High completeness bonus info
+            if (serverResult.completeness.score >= 90) {
+               setSpecDiagnostics(prev => [...prev, {
+                 id: 'completeness-90',
+                 message: 'Spec reached 90%+ completeness. Metadata targets met.',
+                 severity: 'info',
+                 source: 'architect',
+                 timestamp: new Date().toISOString()
+               }])
+            }
           }
         }
-      } catch {
-        // Server validation is supplementary — continue with local-only results
+      } catch (serverErr) {
+        console.warn("Server validation unreachable, using local shim.", serverErr)
       }
 
       setValidationResult(result)
+      
+      if (result.valid) {
+        showToast('Specification validated successfully', 'success')
+      } else {
+        showToast('Validation failed — check diagnostics', 'error')
+      }
     } catch (error) {
       setValidationResult({
         valid: false,
         errors: [{ message: error instanceof Error ? error.message : String(error) }],
       })
+      showToast('Validation process encountered an error', 'error')
     } finally {
       setIsValidating(false)
     }
-  }, [content, activeType])
+  }, [content, activeType, setSpecDiagnostics, showToast])
 
   const handleGenerateCode = useCallback(async () => {
     setIsGenerating(true)
+    setGeneratedCode("")
+    
     try {
-      const resp = await fetch("/api/specs/generate", {
+      showToast('Engaging Architect Phase Reasoning...', 'success')
+      
+      // Integrate with the real Orchestrator API endpoint
+      const resp = await fetch("/api/agents/orchestrator", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, type: activeType }),
+        body: JSON.stringify({ 
+          content,
+          type: activeType,
+          phase: 'architect',
+          engine: 'gpt-4o', // Production reasoning model
+          options: {
+            deepReasoning: true,
+            scaffoldStructure: true
+          }
+        }),
       })
 
       if (resp.ok) {
         const data = await resp.json()
-        setGeneratedCode(data.result || data.code || "// Generation completed but no output returned")
-        setActiveTab("generated")
+        
+        // Handle LangGraph trace if returned
+        if (data.trace) {
+          console.log('[LangGraph Trace] Spec Chamber Evolution:', data.trace)
+        }
+        
+        const finalCode = data.result || data.code || data.output
+        if (finalCode) {
+          setGeneratedCode(finalCode)
+          setActiveTab("generated")
+          showToast('Code generated with LangGraph Architect', 'success')
+        } else {
+          throw new Error('No code output returned from orchestrator')
+        }
       } else {
-        const generated = generateFromSpec(content, activeType)
-        setGeneratedCode(generated)
-        setActiveTab("generated")
-        showToast('AI unavailable — used local code scaffold', 'error')
+        // Fallback to simpler generate endpoint if orchestrator route is busy
+        const fallbackResp = await fetch("/api/specs/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            content, 
+            type: activeType,
+            prompt: `Convert this ${activeType} spec to clean, production-ready code`
+          }),
+        })
+        
+        if (fallbackResp.ok) {
+          const fallbackData = await fallbackResp.json()
+          setGeneratedCode(fallbackData.result || fallbackData.code || "// Scaffolded output")
+          setActiveTab("generated")
+          showToast('Generated via Standard AI Engine', 'success')
+        } else {
+          throw new Error('All generation services unavailable')
+        }
       }
-    } catch {
-      const generated = generateFromSpec(content, activeType)
-      setGeneratedCode(generated)
+    } catch (error) {
+      console.error('Generation Error:', error)
+      // Final fallback to naive template system
+      const localScaffold = `// Local scaffold for ${activeType} at ${new Date().toISOString()}\n` + content;
+      setGeneratedCode(localScaffold)
       setActiveTab("generated")
-      showToast('AI unavailable — used local code scaffold', 'error')
+      showToast('Generation failed — using local fallback', 'error')
     } finally {
       setIsGenerating(false)
     }
-  }, [content, activeType, setGeneratedCode])
+  }, [content, activeType, setGeneratedCode, showToast])
 
   
   const handleScaffoldProject = useCallback(async () => {
@@ -891,6 +1039,8 @@ export function SpecChamber() {
       const fileName = activeType === 'api' ? 'api-spec-endpoint.ts' : 
                        activeType === 'component' ? 'UiComponent.tsx' : 
                        activeType === 'database' ? 'schema.prisma' : 'workflow.ts';
+      
+      showToast(`Scaffolding ${activeType} architecture...`, 'success')
                        
       // Try to generate
       let scaffoldCode = "";
@@ -898,7 +1048,7 @@ export function SpecChamber() {
         const resp = await fetch("/api/specs/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content, type: activeType }),
+          body: JSON.stringify({ content, type: activeType, context: 'scaffold' }),
         })
         if (resp.ok) {
           const data = await resp.json()
@@ -913,42 +1063,44 @@ export function SpecChamber() {
       // We create it in root for this demo
       await fsStore.createFile(fsStore.rootId, fileName, scaffoldCode);
       
-      // Also scaffold a basic package.json if it doesn't exist, to trigger dependency resolution
+      // Handoff Synergy: Notify Code Chamber and Design Studio
+      emit(ROOM_EVENTS.SPEC_GENERATE_CODE, { 
+        fileName, 
+        specType: activeType,
+        source: 'spec-chamber',
+        target: 'code-chamber',
+        timestamp: new Date().toISOString()
+      });
+      
+      // Scaffold a basic package.json if it doesn't exist
       const pkgJson = JSON.stringify({
         "name": "azora-scaffolded-app",
         "version": "1.0.0",
         "private": true,
-        "scripts": {
-          "dev": "next dev",
-          "build": "next build",
-          "start": "next start"
-        },
         "dependencies": {
           "react": "^18.2.0",
           "react-dom": "^18.2.0",
           "framer-motion": "^10.0.0",
-          "lucide-react": "^0.292.0",
-          "tailwind-merge": "^2.0.0",
-          "clsx": "^2.0.0"
+          "lucide-react": "^0.292.0"
         }
       }, null, 2);
       
-      // Provide generic dependencies required for the scaffolded components
-      await fsStore.createFile(fsStore.rootId, "package.json", pkgJson);
+      try {
+        await fsStore.createFile(fsStore.rootId, "package.json", pkgJson);
+      } catch { /* file might exist */ }
       
-      showToast(`Scaffolded ${fileName} and package.json successfully to Code Chamber!`, 'success')
+      showToast(`Scaffolded ${fileName} to Code Chamber!`, 'success')
       
-      // Emit event for terminal/runtime to install
-      if (typeof window !== 'undefined') {
-         window.dispatchEvent(new CustomEvent('azora:run-command', { detail: { command: 'npm install' } }));
-      }
+      // Trigger Code Chamber refresh and dependency install
+      window.dispatchEvent(new CustomEvent('azora:file-created', { detail: { path: fileName } }));
+      window.dispatchEvent(new CustomEvent('azora:run-command', { detail: { command: 'pnpm install' } }));
       
     } catch (error) {
       showToast('Scaffolding failed: ' + error, 'error')
     } finally {
       setIsGenerating(false)
     }
-  }, [content, activeType, showToast]);
+  }, [content, activeType, showToast, emit, ROOM_EVENTS]);
 
     const handleSave = useCallback(async () => {
     try {

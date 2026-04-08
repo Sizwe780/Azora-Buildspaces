@@ -1,9 +1,17 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth/config"
+import { MiningEngine } from "@/lib/economy/mining-engine"
 import { generateText } from "ai"
 import { openai } from "@ai-sdk/openai"
 import { executeTool, getTool } from "@/lib/agents/tools"
 import { runCommand } from "@/lib/runtime/command-runner"
 import { fileSystem } from "@/lib/workspace/file-system"
+
+// Move miningEngine instantiation into the route handler or a getter to facilitate testing
+function getMiningEngine() {
+  return new MiningEngine()
+}
 
 // The AI Studio "run" endpoint used to contain a bunch of hard-coded
 // behaviour (previously mocked tool execution/transform logic).  It's now
@@ -16,7 +24,12 @@ import { fileSystem } from "@/lib/workspace/file-system"
 // side effects (running commands, writing files, etc.) rather than fake
 // responses.
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
   try {
     const body = await req.json()
     const { workflowName, nodes } = body
@@ -27,6 +40,7 @@ export async function POST(req: Request) {
 
     const runId = `run-${Date.now()}`
     const startedAt = new Date().toISOString()
+    const userId = session.user.id
     
     // Server-Sent Events (SSE) stream for Real-Time Execution
     const customReadable = new ReadableStream({
@@ -39,6 +53,7 @@ export async function POST(req: Request) {
 
         const nodeResults: Record<string, { status: string; output?: string }> = {}
         let currentInput = ""
+        let successCount = 0
 
         for (const node of nodes) {
           nodeResults[node.id] = { status: "running" }
@@ -48,6 +63,7 @@ export async function POST(req: Request) {
             if (node.type === "input") {
               currentInput = node.config.prompt || "Hello"
               nodeResults[node.id] = { status: "success", output: currentInput }
+              successCount++
             } else if (node.type === "llm") {
               const modelName = node.config.model || "gpt-4o-mini"
               const systemPrompt = node.config.system || "You are a helpful assistant."
@@ -139,13 +155,29 @@ export async function POST(req: Request) {
 
         const duration = (Date.now() - new Date(startedAt).getTime()) / 1000
         const stepsCompleted = Object.values(nodeResults).filter((r) => r.status === "success").length
+        const runStatus = stepsCompleted === nodes.length ? "completed" : "failed"
+        
         const run = {
           id: runId,
-          status: stepsCompleted === nodes.length ? "completed" : "failed",
+          status: runStatus,
           startedAt,
           duration,
           steps: nodes.length,
           stepsCompleted,
+        }
+
+        // Award tokens for successful workflow completion (Proof-of-Knowledge)
+        if (runStatus === "completed" && nodes.length > 1) {
+          try {
+            const miningEngine = getMiningEngine()
+            await miningEngine.awardByType(
+              userId, 
+              'FEATURE_COMPLETE', 
+              `AI Studio: Successfully completed multi-node workflow "${workflowName || 'Untitled'}" (${nodes.length} steps)`
+            )
+          } catch (rewardError) {
+            console.warn("[AI Studio] Token award failed:", rewardError)
+          }
         }
 
         sendEvent({ type: 'complete', run, nodeResults });

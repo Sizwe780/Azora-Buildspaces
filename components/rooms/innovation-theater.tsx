@@ -779,10 +779,18 @@ export default function InnovationTheater() {
                     </div>
                   ) : (
                     slides.map((slide, idx) => (
-                      <button
+                      <div
                         key={slide.id}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setCurrentSlide(idx)}
-                        className={`w-full group relative rounded-lg border p-3 text-left transition-all ${
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setCurrentSlide(idx);
+                          }
+                        }}
+                        className={`w-full group relative rounded-lg border p-3 text-left transition-all cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-blue-500 ${
                           idx === currentSlide
                             ? "border-blue-500/50 bg-blue-500/10"
                             : "border-zinc-800 hover:border-zinc-700 bg-zinc-900/40"
@@ -806,7 +814,7 @@ export default function InnovationTheater() {
                         >
                           <Trash2 className="w-3 h-3" />
                         </Button>
-                      </button>
+                      </div>
                     ))
                   )}
                 </div>

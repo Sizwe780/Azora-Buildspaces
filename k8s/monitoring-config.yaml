@@ -1,0 +1,78 @@
+# Monitoring and Alerting Configuration for Azora Buildspaces
+# Constitutional Compliance: Article VII (Observability)
+
+---
+# Prometheus ServiceMonitor
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: buildspaces-monitor
+  namespace: buildspaces
+  labels:
+    release: prometheus-stack
+    app: buildspaces
+spec:
+  selector:
+    matchLabels:
+      app: buildspaces
+  endpoints:
+  - port: http
+    path: /api/metrics
+    interval: 15s
+    scrapeTimeout: 10s
+
+---
+# Grafana Dashboard ConfigMap (Economy Focus)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: buildspaces-dashboards
+  namespace: buildspaces
+  labels:
+    grafana_dashboard: "1"
+data:
+  economy-overview.json: |
+    {
+      "title": "Azora Economy & SDLC Health",
+      "panels": [
+        {
+          "title": "AZR Total Circulation",
+          "type": "stat",
+          "targets": [{"expr": "azora_economy_total_circulation"}]
+        },
+        {
+          "title": "Proof-of-Knowledge (PoK) Velocity",
+          "type": "timeseries",
+          "targets": [{"expr": "rate(azora_economy_rewards_total[5m])"}]
+        }
+      ]
+    }
+
+---
+# Alerting Rules (Article VII §7.2)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: buildspaces-alerts
+  namespace: buildspaces
+  labels:
+    release: prometheus-stack
+spec:
+  groups:
+  - name: buildspaces-economy.rules
+    rules:
+    - alert: EconomyTransactionFailure
+      expr: rate(azora_economy_transaction_errors_total[2m]) > 0.1
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High error rate in AZR transactions"
+        description: "The MiningEngine is failing to process rewards (>10% failure rate)."
+    - alert: HighCPUUsage
+      expr: pod_cpu_usage_ratio{namespace="buildspaces"} > 0.8
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod CPU usage over 80%"

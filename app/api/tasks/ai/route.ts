@@ -8,13 +8,24 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
+import { MiningEngine } from '@/lib/economy/mining-engine'
 import { generateObject, generateText } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
 
+const miningEngine = new MiningEngine()
+
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const { action, tasks, context } = await request.json()
+    const userId = session.user.id
 
     if (action === 'prioritize') {
       const result = await generateObject({
@@ -54,6 +65,9 @@ Consider:
 
 Provide actionable, specific recommendations with clear reasoning.`,
       })
+
+      // Reward for team coordination/planning
+      await miningEngine.awardByType(userId, 'COLLABORATION', `Task Prioritization: Optimized ${tasks.length} tasks in ${context || 'workspace'}`)
 
       return NextResponse.json(result.object)
     }

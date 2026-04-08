@@ -1,0 +1,51 @@
+{
+  "workflows": [
+    {
+      "id": "wf-1",
+      "name": "Test Workflow",
+      "version": 1,
+      "nodes": [
+        {
+          "id": "n1",
+          "name": "Start",
+          "type": "input",
+          "status": "idle",
+          "config": {}
+        },
+        {
+          "id": "n2",
+          "name": "End",
+          "type": "output",
+          "status": "idle",
+          "config": {}
+        }
+      ],
+      "createdAt": "2026-03-18T05:45:31.534Z",
+      "updatedAt": "2026-03-18T05:45:31.534Z"
+    },
+    {
+      "id": "wf-version-1773812731622",
+      "name": "Versioned WF v2",
+      "version": 2,
+      "nodes": [
+        {
+          "id": "n1",
+          "name": "Start",
+          "type": "input",
+          "status": "idle",
+          "config": {}
+        },
+        {
+          "id": "n2",
+          "name": "End",
+          "type": "output",
+          "status": "idle",
+          "config": {}
+        }
+      ],
+      "createdAt": "2026-03-18T05:45:31.642Z",
+      "updatedAt": "2026-03-18T05:45:31.726Z"
+    }
+  ],
+  "runs": []
+}

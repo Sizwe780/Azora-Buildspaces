@@ -80,6 +80,9 @@ kubectl wait --for=condition=complete --timeout=300s job/db-migration-${IMAGE_TA
 print_status "Deploying Buildspaces application..."
 kubectl apply -f k8s/buildspaces-deployment.yaml
 
+print_status "Applying monitoring configurations (Article VII)..."
+kubectl apply -f k8s/monitoring-config.yaml
+
 print_status "Waiting for application to be ready..."
 kubectl wait --for=condition=available --timeout=600s deployment/buildspaces-app -n ${NAMESPACE}
 

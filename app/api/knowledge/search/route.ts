@@ -3,6 +3,9 @@ import { getKnowledgeIndexer } from '@/lib/knowledge/indexer'
 import { getSankofa } from '@/lib/agents/sankofa-interface'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
+import { MiningEngine } from '@/lib/economy/mining-engine'
+
+const miningEngine = new MiningEngine()
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +17,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
+    const userId = session.user.id
+
     if (!query || typeof query !== 'string') {
       return NextResponse.json(
         { error: 'Query is required', success: false },
@@ -22,6 +27,20 @@ export async function POST(request: NextRequest) {
     }
 
     let results
+
+    // Reward for Knowledge Discovery (Art VIII)
+    // Only reward substantial searches that yield results
+    try {
+      if (query.length > 5 && query !== '*') {
+        await miningEngine.awardByType(
+          userId, 
+          'FACT_CHECK', 
+          `Knowledge Ocean: Deep search for "${query.slice(0, 30)}${query.length > 30 ? '...' : ''}"`
+        )
+      }
+    } catch (e) {
+      console.warn('Failed to award knowledge discovery tokens:', e)
+    }
 
     // Handle wildcard query to get all items
     if (query === '*') {

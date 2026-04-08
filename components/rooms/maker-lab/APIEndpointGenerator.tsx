@@ -4,33 +4,33 @@ import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Server, Trash2, Code, Copy, Check, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { 
+    Plus, 
+    Server, 
+    Trash2, 
+    Code, 
+    Copy, 
+    Check, 
+    Loader2, 
+    ChevronDown, 
+    ChevronUp, 
+    Save, 
+    Terminal, 
+    FileJson, 
+    Zap,
+    ExternalLink,
+    Play
+} from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Endpoint {
     id: string;
     method: 'GET' | 'POST' | 'PUT' | 'DELETE';
     path: string;
     description: string;
-}
-
-function generateRouteCode(endpoints: Endpoint[], projectName: string): string {
-    const imports = `import { NextRequest, NextResponse } from 'next/server';\n\n`;
-    const routes = endpoints.map(ep => {
-        const fnName = ep.path.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
-        const resourceName = ep.path.split('/').filter(Boolean).pop() || 'resource';
-        if (ep.method === 'GET') {
-            return `// ${ep.description}\nexport async function GET(request: NextRequest) {\n  try {\n    // TODO: Replace with actual database query\n    const ${resourceName} = await fetch(process.env.API_URL + '${ep.path}');\n    const data = await ${resourceName}.json();\n    return NextResponse.json({ data, success: true });\n  } catch (error) {\n    return NextResponse.json({ error: 'Failed to fetch ${resourceName}' }, { status: 500 });\n  }\n}\n`;
-        } else if (ep.method === 'POST') {
-            return `// ${ep.description}\nexport async function POST(request: NextRequest) {\n  try {\n    const body = await request.json();\n    // TODO: Validate body with zod schema\n    // TODO: Replace with actual database insert\n    const result = await fetch(process.env.API_URL + '${ep.path}', {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify(body),\n    });\n    const data = await result.json();\n    return NextResponse.json({ data, success: true }, { status: 201 });\n  } catch (error) {\n    return NextResponse.json({ error: 'Failed to create ${resourceName}' }, { status: 500 });\n  }\n}\n`;
-        } else if (ep.method === 'PUT') {
-            return `// ${ep.description}\nexport async function PUT(request: NextRequest) {\n  try {\n    const body = await request.json();\n    const { searchParams } = new URL(request.url);\n    const id = searchParams.get('id');\n    if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });\n    // TODO: Replace with actual database update\n    return NextResponse.json({ success: true, updated: id });\n  } catch (error) {\n    return NextResponse.json({ error: 'Failed to update ${resourceName}' }, { status: 500 });\n  }\n}\n`;
-        } else {
-            return `// ${ep.description}\nexport async function DELETE(request: NextRequest) {\n  try {\n    const { searchParams } = new URL(request.url);\n    const id = searchParams.get('id');\n    if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });\n    // TODO: Replace with actual database delete\n    return NextResponse.json({ success: true, deleted: id });\n  } catch (error) {\n    return NextResponse.json({ error: 'Failed to delete ${resourceName}' }, { status: 500 });\n  }\n}\n`;
-        }
-    });
-    return `// Auto-generated API routes for ${projectName}\n// Generated at ${new Date().toISOString()}\n\n${imports}${routes.join('\n')}`;
 }
 
 export default function APIEndpointGenerator({ projectName }: { projectName: string }) {
@@ -40,6 +40,7 @@ export default function APIEndpointGenerator({ projectName }: { projectName: str
     ]);
     const [generatedCode, setGeneratedCode] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [copied, setCopied] = useState(false);
     const [showCode, setShowCode] = useState(false);
 
@@ -65,31 +66,68 @@ export default function APIEndpointGenerator({ projectName }: { projectName: str
         if (endpoints.length === 0) return;
         setIsGenerating(true);
         try {
-            // Try AI-powered generation first
             const res = await fetch('/api/code-chamber/ai', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    prompt: `Generate Next.js App Router API route handlers for these endpoints:\n${endpoints.map(e => `${e.method} ${e.path} - ${e.description}`).join('\n')}\n\nUse NextRequest/NextResponse, include error handling, TypeScript types, and TODO comments for database integration.`,
+                    prompt: `Generate a single Next.js App Router route.ts file that handles these endpoints:\n${endpoints.map(e => `${e.method} ${e.path} - ${e.description}`).join('\n')}\n\nRequirements:\n- Use NextRequest and NextResponse\n- Standardize on a single file structure (use switch/case on URL patterns or exported methods if common path)\n- Include Zod validation schemas for POST/PUT\n- Use a mock database pattern for now.`,
                     language: 'typescript',
                 }),
             });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.code || data.result) {
-                    setGeneratedCode(data.code || data.result);
-                    setShowCode(true);
-                    setIsGenerating(false);
-                    return;
-                }
+            
+            const data = await res.json();
+            if (res.ok && (data.code || data.result)) {
+                setGeneratedCode(data.code || data.result);
+                setShowCode(true);
+                toast({ title: "API Routes Generated", description: "Standardized Next.js handlers created." });
+            } else {
+                throw new Error("AI Generation failed");
             }
-        } catch { /* fallback below */ }
-        // Fallback: local template generation
-        const code = generateRouteCode(endpoints, projectName);
-        setGeneratedCode(code);
-        setShowCode(true);
-        setIsGenerating(false);
+        } catch (err) {
+            toast({ title: "Generation Error", description: "Falling back to local template.", variant: "destructive" });
+            // Fallback to basic template logic (original code had generateRouteCode)
+            const fallbackCode = `// Fallback generated routes for ${projectName}\nimport { NextRequest, NextResponse } from 'next/server';\n\n// TODO: Implement endpoints\n`;
+            setGeneratedCode(fallbackCode);
+            setShowCode(true);
+        } finally {
+            setIsGenerating(false);
+        }
     }, [endpoints, projectName]);
+
+    const handleSaveToWorkspace = async () => {
+        if (!generatedCode) return;
+        setIsSaving(true);
+        try {
+            // Default path for generated API
+            const targetPath = endpoints.length > 0 ? `app${endpoints[0].path}/route.ts` : 'app/api/generated/route.ts';
+            
+            const res = await fetch('/api/fs/write', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    path: targetPath,
+                    content: generatedCode
+                })
+            });
+
+            if (res.ok) {
+                toast({
+                    title: "Saved to Workspace",
+                    description: `File created at ${targetPath}`,
+                });
+            } else {
+                throw new Error("Failed to write file");
+            }
+        } catch (error) {
+            toast({
+                title: "Save Failed",
+                description: "Environment permissions or path error.",
+                variant: "destructive"
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     const handleCopy = () => {
         navigator.clipboard.writeText(generatedCode).then(() => {
@@ -101,94 +139,124 @@ export default function APIEndpointGenerator({ projectName }: { projectName: str
     const METHODS: Endpoint['method'][] = ['GET', 'POST', 'PUT', 'DELETE'];
 
     return (
-        <div className="h-full flex flex-col p-4 space-y-4 overflow-y-auto">
+        <div className="h-full flex flex-col gap-6 p-6 bg-background">
             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Server className="w-4 h-4 text-blue-500" />
-                    <h3 className="text-lg font-semibold">API Endpoints</h3>
-                    <Badge variant="outline" className="text-xs">{endpoints.length} routes</Badge>
+                <div>
+                    <h2 className="text-2xl font-bold tracking-tight">API Scaffolding</h2>
+                    <p className="text-sm text-muted-foreground">Rapidly generate backend routes and type-safe schemas.</p>
                 </div>
-                <Button size="sm" onClick={addEndpoint}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Endpoint
-                </Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={addEndpoint}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Endpoint
+                    </Button>
+                    <Button 
+                        size="sm" 
+                        onClick={handleGenerate} 
+                        disabled={isGenerating || endpoints.length === 0}
+                        className="bg-blue-600 hover:bg-blue-700"
+                    >
+                        {isGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />}
+                        Generate Routes
+                    </Button>
+                </div>
             </div>
 
-            <div className="grid gap-4">
-                {endpoints.map((endpoint) => (
-                    <Card key={endpoint.id}>
-                        <CardContent className="p-4 flex items-center gap-4">
-                            <button
-                                onClick={() => {
-                                    const idx = METHODS.indexOf(endpoint.method);
-                                    updateMethod(endpoint.id, METHODS[(idx + 1) % METHODS.length]);
-                                }}
-                                className="cursor-pointer"
-                            >
-                                <Badge className={
-                                    endpoint.method === 'GET' ? 'bg-green-500' :
-                                    endpoint.method === 'POST' ? 'bg-blue-500' :
-                                    endpoint.method === 'PUT' ? 'bg-yellow-500' : 'bg-red-500'
-                                }>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 overflow-hidden">
+                {/* Endpoints List */}
+                <div className="space-y-4 overflow-y-auto pr-2">
+                    {endpoints.map((endpoint) => (
+                        <Card key={endpoint.id} className="border-border shadow-none hover:border-blue-500/50 transition-colors">
+                            <CardContent className="p-4 flex items-center gap-3">
+                                <div 
+                                    onClick={() => {
+                                        const idx = METHODS.indexOf(endpoint.method);
+                                        updateMethod(endpoint.id, METHODS[(idx + 1) % METHODS.length]);
+                                    }}
+                                    className={`w-16 flex items-center justify-center py-1 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                        endpoint.method === 'GET' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
+                                        endpoint.method === 'POST' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' :
+                                        endpoint.method === 'PUT' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 
+                                        'bg-destructive/10 text-destructive border border-destructive/20'
+                                    }`}
+                                >
                                     {endpoint.method}
-                                </Badge>
-                            </button>
-                            <div className="flex-1">
-                                <Input 
-                                    value={endpoint.path} 
-                                    onChange={(e) => {
-                                        const newEndpoints = [...endpoints];
-                                        const index = newEndpoints.findIndex(en => en.id === endpoint.id);
-                                        newEndpoints[index].path = e.target.value;
-                                        setEndpoints(newEndpoints);
-                                    }}
-                                    className="font-mono text-sm"
-                                />
-                            </div>
-                            <div className="flex-1">
-                                <Input 
-                                    value={endpoint.description} 
-                                    onChange={(e) => {
-                                        const newEndpoints = [...endpoints];
-                                        const index = newEndpoints.findIndex(en => en.id === endpoint.id);
-                                        newEndpoints[index].description = e.target.value;
-                                        setEndpoints(newEndpoints);
-                                    }}
-                                    placeholder="Description"
-                                />
-                            </div>
-                            <Button variant="ghost" size="icon" onClick={() => removeEndpoint(endpoint.id)}>
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                            </Button>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
-
-            {showCode && generatedCode && (
-                <Card className="border-blue-500/30 bg-blue-500/5">
-                    <CardHeader className="py-2 px-4 flex flex-row items-center justify-between">
-                        <CardTitle className="text-sm">Generated Code</CardTitle>
-                        <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="sm" onClick={handleCopy}>
-                                {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => setShowCode(false)}>
-                                <ChevronUp className="w-3.5 h-3.5" />
-                            </Button>
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                    <Input 
+                                        value={endpoint.path} 
+                                        variant="ghost"
+                                        onChange={(e) => {
+                                            const newEndpoints = [...endpoints];
+                                            const index = newEndpoints.findIndex(en => en.id === endpoint.id);
+                                            newEndpoints[index].path = e.target.value;
+                                            setEndpoints(newEndpoints);
+                                        }}
+                                        className="h-7 text-xs font-mono px-0 focus-visible:ring-0"
+                                    />
+                                    <Input 
+                                        value={endpoint.description} 
+                                        variant="ghost"
+                                        onChange={(e) => {
+                                            const newEndpoints = [...endpoints];
+                                            const index = newEndpoints.findIndex(en => en.id === endpoint.id);
+                                            newEndpoints[index].description = e.target.value;
+                                            setEndpoints(newEndpoints);
+                                        }}
+                                        placeholder="Description..."
+                                        className="h-6 text-[11px] text-muted-foreground px-0 focus-visible:ring-0"
+                                    />
+                                </div>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeEndpoint(endpoint.id)}>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    ))}
+                    {endpoints.length === 0 && (
+                        <div className="h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-muted-foreground p-6 text-center">
+                            <Server className="w-8 h-8 mb-2 opacity-20" />
+                            <p className="text-sm">No endpoints defined yet.</p>
+                            <Button variant="link" size="sm" onClick={addEndpoint}>Add your first route</Button>
                         </div>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <pre className="px-4 pb-4 text-xs font-mono overflow-auto max-h-64 text-muted-foreground whitespace-pre-wrap">{generatedCode}</pre>
-                    </CardContent>
-                </Card>
-            )}
+                    )}
+                </div>
 
-            <div className="mt-auto pt-4 border-t">
-                <Button className="w-full gap-2" onClick={handleGenerate} disabled={isGenerating || endpoints.length === 0}>
-                    {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Code className="w-4 h-4" />}
-                    {isGenerating ? 'Generating...' : 'Generate API Routes'}
-                </Button>
+                {/* Preview & Output */}
+                <div className="flex flex-col gap-4 overflow-hidden">
+                    {showCode ? (
+                        <Card className="flex-1 flex flex-col overflow-hidden border-border bg-slate-950">
+                            <CardHeader className="py-2 px-4 flex flex-row items-center justify-between border-b border-slate-800">
+                                <div className="flex items-center gap-2">
+                                    <FileJson className="w-3.5 h-3.5 text-blue-400" />
+                                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">route.ts</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-white" onClick={handleCopy}>
+                                        {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                                    </Button>
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-7 w-7 text-slate-400 hover:text-emerald-500" 
+                                        onClick={handleSaveToWorkspace}
+                                        disabled={isSaving}
+                                    >
+                                        {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                                    </Button>
+                                </div>
+                            </CardHeader>
+                            <ScrollArea className="flex-1">
+                                <pre className="p-4 text-[11px] font-mono text-slate-300 whitespace-pre-wrap">{generatedCode}</pre>
+                            </ScrollArea>
+                        </Card>
+                    ) : (
+                        <Card className="flex-1 flex flex-col items-center justify-center border-dashed border-2 bg-muted/5">
+                            <Code className="w-12 h-12 text-muted-foreground/20 mb-4" />
+                            <p className="text-sm text-muted-foreground">Define endpoints and click generate to see code.</p>
+                        </Card>
+                    )}
+                </div>
             </div>
         </div>
     );

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/config';
 import { constitutionalAI, UserActionType } from '@/lib/services/constitutional-ai'
 import { WorkspaceManager } from '@/lib/services/workspace-manager'
 import { auditLogger } from '@/lib/services/centralized-audit-logger'
+import { miningEngine } from '@/lib/economy/mining-engine'
 
 /**
  * Allowed deployment environments and build types.
@@ -254,6 +255,13 @@ export async function POST(request: NextRequest) {
 
       throw error
     }
+
+    // Award tokens for successful deployment (SDLC: Proof-of-Knowledge)
+    await miningEngine.awardByType(
+      userId,
+      'PROJECT_COMPLETE',
+      `Deployed ${projectName || 'workspace'} to ${environment}`
+    ).catch(err => console.error('[MINING] Deploy reward failed:', err))
 
     return NextResponse.json({
       success: true,

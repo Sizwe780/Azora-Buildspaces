@@ -98,6 +98,12 @@ export interface FileSystemAPI {
   initProject: (projectName: string) => Promise<void>
   getGitStatus: () => Promise<any[]>
   gitCommit: (message: string) => Promise<string>
+  gitBranch: (name: string) => Promise<void>
+  gitMerge: (branch: string) => Promise<void>
+  gitPush: (remote: string, branch: string) => Promise<void>
+  gitPull: (remote: string, branch: string) => Promise<void>
+  gitClone: (url: string, dir: string|undefined) => Promise<void>
+  gitLog: () => Promise<any[]>
   watchFiles: (dir: string, callback: (event: FileWatchEvent) => void) => () => void
 }
 
@@ -484,6 +490,108 @@ async function gitCommit(message: string): Promise<string> {
 }
 
 /**
+ * Create a new branch
+ */
+async function gitBranch(name: string): Promise<void> {
+  try {
+    const root = pathJoin('/')
+    const dirs = await pfs.readdir(root)
+    for (const dir of dirs) {
+      if (await exists(`${root}/${dir}/.git`)) {
+        await git.branch({ fs, dir: pathJoin(`/${dir}`), ref: name })
+        return
+      }
+    }
+  } catch (error) {
+    throw new Error(`Failed to create branch: ${error}`)
+  }
+}
+
+/**
+ * Merge a branch
+ */
+async function gitMerge(branch: string): Promise<void> {
+  try {
+    const root = pathJoin('/')
+    const dirs = await pfs.readdir(root)
+    for (const dir of dirs) {
+      if (await exists(`${root}/${dir}/.git`)) {
+        await git.merge({ fs, dir: pathJoin(`/${dir}`), ours: 'main', theirs: branch })
+        return
+      }
+    }
+  } catch (error) {
+    throw new Error(`Failed to merge branch: ${error}`)
+  }
+}
+
+/**
+ * Push to remote
+ */
+async function gitPush(remote: string, branch: string): Promise<void> {
+  try {
+    const root = pathJoin('/')
+    const dirs = await pfs.readdir(root)
+    for (const dir of dirs) {
+      if (await exists(`${root}/${dir}/.git`)) {
+        await git.push({ fs, dir: pathJoin(`/${dir}`), remote, ref: branch })
+        return
+      }
+    }
+  } catch (error) {
+    throw new Error(`Failed to push: ${error}`)
+  }
+}
+
+/**
+ * Pull from remote
+ */
+async function gitPull(remote: string, branch: string): Promise<void> {
+  try {
+    const root = pathJoin('/')
+    const dirs = await pfs.readdir(root)
+    for (const dir of dirs) {
+      if (await exists(`${root}/${dir}/.git`)) {
+        await git.pull({ fs, dir: pathJoin(`/${dir}`), remote, ref: branch, author: { name: 'User', email: 'user@azora' } })
+        return
+      }
+    }
+  } catch (error) {
+    throw new Error(`Failed to pull: ${error}`)
+  }
+}
+
+/**
+ * Clone a repository
+ */
+async function gitClone(url: string, dir?: string): Promise<void> {
+  try {
+    const targetDir = dir || `/${url.split('/').pop()?.replace('.git', '')}`
+    await git.clone({ fs, dir: pathJoin(targetDir), url, singleBranch: true, depth: 1 })
+  } catch (error) {
+    throw new Error(`Failed to clone: ${error}`)
+  }
+}
+
+/**
+ * Get git log
+ */
+async function gitLog(): Promise<any[]> {
+  try {
+    const root = pathJoin('/')
+    const dirs = await pfs.readdir(root)
+    for (const dir of dirs) {
+      if (await exists(`${root}/${dir}/.git`)) {
+        return await git.log({ fs, dir: pathJoin(`/${dir}`), depth: 50 })
+      }
+    }
+    return []
+  } catch (error) {
+    throw new Error(`Failed to get log: ${error}`)
+  }
+}
+
+/**
  * Watch files in a directory for changes (polling-based for browser environment)
  */
 function watchFiles(dir: string, callback: (event: FileWatchEvent) => void): () => void {
@@ -589,6 +697,12 @@ export const fileSystem: FileSystemAPI = {
   initProject,
   getGitStatus,
   gitCommit,
+  gitBranch,
+  gitMerge,
+  gitPush,
+  gitPull,
+  gitClone,
+  gitLog,
   watchFiles,
 }
 

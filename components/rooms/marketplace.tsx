@@ -137,8 +137,16 @@ function TemplateCard({ template, onInstall, onSelect, onAddToCart, inCart }: { 
         body: JSON.stringify({ templateId: template.id }),
       })
       if (res.ok) {
+        const data = await res.json()
         onInstall(template.id)
         setInstalled(true)
+        if (data.newBalance !== undefined) {
+          // If we had a global context for balance, we'd update it here.
+          // For now, reload vault if visible
+        }
+      } else {
+        const error = await res.json()
+        alert(error.error || "Installation failed")
       }
     } catch {
       // If API not available, still proceed with client-side install
@@ -303,6 +311,29 @@ export default function Marketplace() {
   const [newReview, setNewReview] = useState({ rating: 5, comment: "" })
   const [isSubmittingReview, setIsSubmittingReview] = useState(false)
   
+  // Wallet state (Hardening Integration)
+  const [balance, setBalance] = useState<number>(0)
+  const [isWalletLoading, setIsWalletLoading] = useState(false)
+
+  const fetchWallet = async () => {
+    setIsWalletLoading(true)
+    try {
+      const res = await fetch("/api/economy/wallet")
+      if (res.ok) {
+        const data = await res.json()
+        setBalance(data.wallet?.balance || 0)
+      }
+    } catch (err) {
+      console.error("Failed to fetch wallet:", err)
+    } finally {
+      setIsWalletLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchWallet()
+  }, [])
+  
   const handlePublish = async () => {
     setIsPublishing(true)
     try {
@@ -422,7 +453,7 @@ export default function Marketplace() {
                 <p className="text-xs text-zinc-500">Discover templates, agents, and components</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <Button 
                 onClick={() => setShowCart(!showCart)}
                 className="relative gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200" 
@@ -436,6 +467,30 @@ export default function Marketplace() {
                   </Badge>
                 )}
               </Button>
+
+              {/* Azora Vault Wallet Integration (SDLC Hardening) */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700/50 shadow-inner group transition-all hover:border-amber-500/30">
+                <div className={`w-2 h-2 rounded-full ${isWalletLoading ? "bg-zinc-600 animate-pulse" : "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]"}`} />
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none mb-0.5">Azora Vault</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xs font-mono font-bold text-amber-500">
+                      {isWalletLoading ? "---" : balance.toLocaleString()}
+                    </span>
+                    <span className="text-[9px] text-zinc-600 font-bold tracking-tighter uppercase">AZR</span>
+                  </div>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={fetchWallet} 
+                  disabled={isWalletLoading}
+                  className="h-6 w-6 p-0 ml-1 hover:bg-zinc-800 text-zinc-500 hover:text-amber-500"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isWalletLoading ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+
               <Button className="gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200" size="sm" onClick={() => setShowPublishDialog(true)}>
                 <ExternalLink className="w-3.5 h-3.5" />
                 Publish

@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
+import { miningEngine } from '@/lib/economy/mining-engine'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -72,6 +75,22 @@ export async function POST(request: NextRequest) {
 
     // Get file stats for response
     const stats = await fs.stat(normalizedPath)
+
+    // Award tokens for code contribution (SDLC: Proof-of-Knowledge)
+    // Only award if it's a code file (js, ts, py, etc.)
+    const codeExts = ['.ts', '.tsx', '.js', '.jsx', '.py', '.rs', '.go', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.html', '.css', '.scss', '.json', '.yaml', '.yml'];
+    if (codeExts.includes(path.extname(normalizedPath))) {
+      const session = await getServerSession(authOptions)
+      if (session?.user?.id) {
+        // Debounce reward or award on every save? 
+        // SDLC says "Commit quality code: +1 AZR". We'll treat 'save' as a micro-contribution.
+        await miningEngine.awardByType(
+          session.user.id,
+          'CODE_COMMIT',
+          `Saved ${path.basename(normalizedPath)}`
+        ).catch(e => console.error('[MINING] Save reward failed:', e))
+      }
+    }
 
     return NextResponse.json({
       success: true,

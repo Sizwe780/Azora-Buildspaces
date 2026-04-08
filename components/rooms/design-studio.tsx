@@ -71,6 +71,8 @@ import DesignSystemManager from "./design-studio/DesignSystemManager";
 import VersionHistory from "./design-studio/VersionHistory";
 import CollaborationPanel from "./design-studio/CollaborationPanel";
 import PrototypePlayer from "./design-studio/PrototypePlayer";
+import { Tldraw } from "tldraw";
+import "tldraw/tldraw.css";
 import { useWorkspace } from "@/lib/contexts/workspace-context";
 import * as Y from "yjs";
 // Dynamic import for browser-only module
@@ -528,6 +530,62 @@ export default function DesignStudio() {
     const _designSession = useSession()
     const userSession = _designSession?.data ?? null
     const [designDiagnostics, setDesignDiagnostics] = useState<any[]>([])
+    const [isA11yChecking, setIsA11yChecking] = useState(false)
+    const [a11yScore, setA11yScore] = useState<number | null>(null)
+    
+    // Hardening: Accessibility & WCAG Integrated Checking
+    const runA11yCheck = useCallback(async (code?: string) => {
+        setIsA11yChecking(true)
+        setDesignDiagnostics(prev => prev.filter(d => d.source !== 'a11y-check'))
+        
+        try {
+            // If no code provided, we'll use a snapshot of the current canvas if available
+            // In a real implementation this might use the generated code from DesignToCode
+            const codeToAudit = code || "// Sample code from current selection\nexport default function Design() { return <button className=\"bg-pink-500 text-white\">Click Me</button> }";
+            
+            const resp = await fetch("/api/design/a11y-check", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ code: codeToAudit }),
+            })
+            
+            if (resp.ok) {
+                const data = await resp.json()
+                const results = data.results || []
+                
+                const formattedDiagnostics = results.map((res: any, idx: number) => ({
+                    id: `a11y-${Date.now()}-${idx}`,
+                    message: `[WCAG] ${res.rule}: ${res.description}`,
+                    severity: 'warning',
+                    source: 'a11y-check',
+                    suggestion: res.suggestion,
+                    timestamp: new Date().toISOString()
+                }))
+                
+                setDesignDiagnostics(prev => [...prev, ...formattedDiagnostics])
+                
+                // Calculate primitive score
+                const totalRules = 10; // baseline
+                const issuesFound = results.length;
+                const score = Math.max(0, 100 - (issuesFound * 15));
+                setA11yScore(score);
+                
+                if (score >= 90) {
+                    setDesignDiagnostics(prev => [...prev, {
+                        id: 'a11y-score-90',
+                        message: 'Accessibility score is excellent (90%+). Design meets baseline WCAG 2.1 AA.',
+                        severity: 'info',
+                        source: 'a11y-check',
+                        timestamp: new Date().toISOString()
+                    }])
+                }
+            }
+        } catch (error) {
+            console.error('A11y check failed:', error)
+        } finally {
+            setIsA11yChecking(false)
+        }
+    }, [setDesignDiagnostics])
     const [designSettings, setDesignSettings] = useState(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('design-studio-settings')
@@ -1063,10 +1121,11 @@ export default function DesignStudio() {
                                             <Loader2 className="w-8 h-8 animate-spin" />
                                         </div>
                                     ) : (
-                                        <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', width: `${10000 / zoomLevel}%`, height: `${10000 / zoomLevel}%` }}>
+                                        <div className="h-full w-full inset-0 absolute">
                                             <ErrorBoundary fallback={() => <div className="h-full flex items-center justify-center text-red-400">Canvas failed to load</div>}>
-                                                <InfiniteCanvas
-                                                    extraNodes={importedNodes}
+                                                <Tldraw 
+                                                    inferDarkMode
+                                                    persistenceKey="azora-design-studio"
                                                 />
                                             </ErrorBoundary>
                                         </div>

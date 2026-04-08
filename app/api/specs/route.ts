@@ -1,6 +1,13 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
+import { MiningEngine } from '@/lib/economy/mining-engine'
 import fs from 'fs/promises'
 import path from 'path'
+
+function getMiningEngine() {
+  return new MiningEngine()
+}
 
 // File-based persistence for specs (survives restarts, no DB required)
 const SPECS_FILE = path.join(process.cwd(), '.data', 'specs.json')
@@ -31,7 +38,12 @@ export async function GET() {
   return NextResponse.json({ specs })
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const spec = await req.json()
 
@@ -39,12 +51,15 @@ export async function POST(req: Request) {
       id: `spec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       ...spec,
       lastModified: new Date().toISOString(),
-      author: spec.author || 'Anonymous',
+      author: session.user.name || session.user.email || 'Anonymous',
     }
 
     const specs = await readSpecs()
     specs.unshift(newSpec)
     await writeSpecs(specs)
+
+    // Reward for documenting a new spec (Knowledge Creation)
+    await getMiningEngine().awardByType(session.user.id, 'DOCUMENTATION', `Drafted technical specification: ${newSpec.title || newSpec.id}`)
 
     return NextResponse.json({ success: true, spec: newSpec })
   } catch (error: any) {
@@ -52,7 +67,45 @@ export async function POST(req: Request) {
   }
 }
 
-export async function DELETE(req: Request) {
+export async function PUT(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const { id, ...updates } = await req.json()
+    if (!id) {
+      return NextResponse.json({ error: 'Missing spec id' }, { status: 400 })
+    }
+
+    const specs = await readSpecs()
+    const idx = specs.findIndex((s: any) => s.id === id)
+    if (idx === -1) {
+      return NextResponse.json({ error: 'Spec not found' }, { status: 404 })
+    }
+
+    const oldStatus = specs[idx].status
+    specs[idx] = { ...specs[idx], ...updates, lastModified: new Date().toISOString() }
+    await writeSpecs(specs)
+
+    // Reward for ratifying/completing a spec
+    if (updates.status === 'Approved' && oldStatus !== 'Approved') {
+      await getMiningEngine().awardByType(session.user.id, 'KNOWLEDGE_SHARE', `Ratified technical specification: ${specs[idx].title || id}`)
+    }
+
+    return NextResponse.json({ success: true, spec: specs[idx] })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Failed to update spec' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const { id } = await req.json()
     if (!id) {
@@ -73,24 +126,3 @@ export async function DELETE(req: Request) {
   }
 }
 
-export async function PUT(req: Request) {
-  try {
-    const { id, ...updates } = await req.json()
-    if (!id) {
-      return NextResponse.json({ error: 'Missing spec id' }, { status: 400 })
-    }
-
-    const specs = await readSpecs()
-    const idx = specs.findIndex((s: any) => s.id === id)
-    if (idx === -1) {
-      return NextResponse.json({ error: 'Spec not found' }, { status: 404 })
-    }
-
-    specs[idx] = { ...specs[idx], ...updates, lastModified: new Date().toISOString() }
-    await writeSpecs(specs)
-
-    return NextResponse.json({ success: true, spec: specs[idx] })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Failed to update spec' }, { status: 500 })
-  }
-}

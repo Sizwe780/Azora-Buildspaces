@@ -296,13 +296,15 @@ export function DiffEditorView({
       }
 
       const decorations = lines.map((_: string, idx: number) => {
-        const annotation = blameData?.[idx] || 'blame unavailable'
+        // blameData is an array of objects: { author, date, commit, message }
+        const info = blameData?.[idx] as any
+        const annotation = info ? `${info.author || 'Unknown'}, ${info.date || ''} • ${info.commit || ''}` : 'blame unavailable'
         return {
           range: { startLineNumber: idx + 1, startColumn: 1, endLineNumber: idx + 1, endColumn: 1 },
           options: {
             after: {
               content: ` // ${annotation}`,
-              inlineClassName: 'blame-annotation',
+              inlineClassName: 'blame-annotation opacity-40 text-[10px] italic',
             },
           },
         }
@@ -319,8 +321,8 @@ export function DiffEditorView({
       const modDec = await applyBlameDecorations(modifiedEditor, modifiedFile)
       if (cancelled) { modDec.clear(); origDec.clear(); return }
       // Store cleanup refs
-      ;(cleanup as any).origDec = origDec
-      ;(cleanup as any).modDec = modDec
+      ; (cleanup as any).origDec = origDec
+        ; (cleanup as any).modDec = modDec
     }
     const cleanup: any = () => {
       cancelled = true
@@ -468,47 +470,47 @@ export function DiffEditorView({
       {/* Diff Editor */}
       <div className="flex-1 min-h-0">
         <ErrorBoundary componentName="Diff Editor (Monaco)">
-        <MonacoDiffEditor
-          height="100%"
-          language={resolvedLanguage}
-          original={original}
-          modified={modified}
-          theme="vs-dark"
-          onMount={(editor) => {
-            diffEditorRef.current = editor
-            setTimeout(() => {
-              const changes = refreshLineChanges()
-              if (changes.length > 0) {
-                focusChange(changes[0])
-              }
-            }, 0)
-          }}
-          options={{
-            readOnly: false,
-            renderSideBySide: viewMode === "side-by-side",
-            enableSplitViewResizing: true,
-            ignoreTrimWhitespace: ignoreWhitespace,
-            hideUnchangedRegions: showUnchanged
-              ? { enabled: false }
-              : { enabled: true, contextLineCount: 3, minimumLineCount: 3, revealLineCount: 20 },
-            renderIndicators: true,
-            renderOverviewRuler: true,
-            originalEditable: false,
-            diffWordWrap: wordWrap ? "on" : "off",
-            scrollBeyondLastLine: false,
-            fontSize: 13,
-            lineHeight: 20,
-            fontFamily:
-              "'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace",
-            fontLigatures: true,
-            minimap: { enabled: false },
-            padding: { top: 8 },
-            smoothScrolling: true,
-            renderLineHighlight: "all",
-            bracketPairColorization: { enabled: true },
-            automaticLayout: true,
-          }}
-        />
+          <MonacoDiffEditor
+            height="100%"
+            language={resolvedLanguage}
+            original={original}
+            modified={modified}
+            theme="vs-dark"
+            onMount={(editor) => {
+              diffEditorRef.current = editor
+              setTimeout(() => {
+                const changes = refreshLineChanges()
+                if (changes.length > 0) {
+                  focusChange(changes[0])
+                }
+              }, 0)
+            }}
+            options={{
+              readOnly: false,
+              renderSideBySide: viewMode === "side-by-side",
+              enableSplitViewResizing: true,
+              ignoreTrimWhitespace: ignoreWhitespace,
+              hideUnchangedRegions: showUnchanged
+                ? { enabled: false }
+                : { enabled: true, contextLineCount: 3, minimumLineCount: 3, revealLineCount: 20 },
+              renderIndicators: true,
+              renderOverviewRuler: true,
+              originalEditable: false,
+              diffWordWrap: wordWrap ? "on" : "off",
+              scrollBeyondLastLine: false,
+              fontSize: 13,
+              lineHeight: 20,
+              fontFamily:
+                "'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace",
+              fontLigatures: true,
+              minimap: { enabled: false },
+              padding: { top: 8 },
+              smoothScrolling: true,
+              renderLineHighlight: "all",
+              bracketPairColorization: { enabled: true },
+              automaticLayout: true,
+            }}
+          />
         </ErrorBoundary>
       </div>
 

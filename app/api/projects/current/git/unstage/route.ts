@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
 import { gitIntegrationService } from '@/lib/services/git-integration'
 
 /**
@@ -8,6 +10,11 @@ import { gitIntegrationService } from '@/lib/services/git-integration'
  */
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     const { files } = await request.json()
     if (!files || !Array.isArray(files)) {
       return NextResponse.json({ error: 'files array required' }, { status: 400 })

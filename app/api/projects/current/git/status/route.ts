@@ -1,14 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { gitIntegrationService, GitFileStatus } from '@/lib/services/git-integration'
 
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+
 /**
  * Git Status API
  * GET /api/projects/current/git/status
  */
 export async function GET() {
   try {
-    const repoPath = process.cwd()
-    const status = await gitIntegrationService.getStatus(repoPath)
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const repoPath = process.cwd();
+    const status = await gitIntegrationService.getStatus(repoPath);
 
     // Map to the format expected by SourceControlView
     return NextResponse.json({
@@ -24,11 +35,11 @@ export async function GET() {
       ahead: status.ahead,
       behind: status.behind,
       isClean: status.isClean,
-    })
+    });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || 'Failed to get Git status' },
-      { status: 500 }
-    )
+      { error: error.message || "Failed to get Git status" },
+      { status: 500 },
+    );
   }
 }

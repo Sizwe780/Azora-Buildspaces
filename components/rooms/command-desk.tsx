@@ -135,6 +135,24 @@ interface SlashCommand {
 
 const SLASH_COMMANDS: SlashCommand[] = [
   {
+    name: "/room",
+    description: "Jump to a specific room",
+    icon: Globe,
+    handler: (args) => `@room-jump ${args}`,
+  },
+  {
+    name: "/handoff",
+    description: "Handoff context to another room",
+    icon: GitBranch,
+    handler: (args) => `@handoff ${args}`,
+  },
+  {
+    name: "/infra",
+    description: "Check infrastructure health",
+    icon: Zap,
+    handler: (args) => "Show me a detailed status report of all Docker containers and K8s pods in the workspace.",
+  },
+  {
     name: "/generate-component",
     description: "Generate a React component",
     icon: Code2,
@@ -187,11 +205,11 @@ const SLASH_COMMANDS: SlashCommand[] = [
 function parseSlashCommand(input: string): { isSlash: boolean; command?: SlashCommand; args: string } {
   const trimmed = input.trim()
   if (!trimmed.startsWith("/")) return { isSlash: false, args: trimmed }
-  
+
   const firstSpace = trimmed.indexOf(" ")
   const cmdName = firstSpace === -1 ? trimmed : trimmed.substring(0, firstSpace)
   const args = firstSpace === -1 ? "" : trimmed.substring(firstSpace + 1).trim()
-  
+
   const command = SLASH_COMMANDS.find((c) => c.name === cmdName)
   if (command) {
     return { isSlash: true, command, args }
@@ -258,26 +276,116 @@ function ThinkingIndicator({ agent }: { agent?: string }) {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex items-start gap-3 px-6 py-3"
+      className="flex flex-col gap-3 px-6 py-6 border-b border-zinc-800/30 bg-purple-500/[0.02]"
     >
-      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-500/30 flex items-center justify-center flex-shrink-0">
-        <Bot className="w-4 h-4 text-purple-400" />
+      <div className="flex items-start gap-4">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500/30 to-blue-500/30 border border-purple-500/40 flex items-center justify-center flex-shrink-0 shadow-[0_0_15px_rgba(168,85,247,0.15)]">
+          <Bot className="w-5 h-5 text-zinc-100" />
+        </div>
+        <div className="flex flex-col gap-2 pt-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-zinc-200 font-bold tracking-tight">{agent || "Elara"} is thinking…</span>
+            <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-purple-500/40 bg-purple-500/10 text-purple-400 font-bold uppercase tracking-widest animate-pulse">Mission Control</Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            {[0, 1, 2].map((i) => (
+              <motion.div
+                key={i}
+                className="w-2.5 h-2.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]"
+                animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.1, 0.9] }}
+                transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+              />
+            ))}
+          </div>
+        </div>
       </div>
-      <div className="flex flex-col gap-1.5 pt-1">
-        <span className="text-xs text-purple-400 font-medium">{agent || "Elara"} is thinking…</span>
-        <div className="flex items-center gap-1.5">
-          {[0, 1, 2].map((i) => (
-            <motion.div
-              key={i}
-              className="w-2 h-2 rounded-full bg-purple-400"
-              animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1, 0.8] }}
-              transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.2 }}
-            />
+
+      {/* Real-time reasoning trace injection (new Feature 1) */}
+      <motion.div
+        initial={{ opacity: 0, x: -10 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.3 }}
+        className="ml-13 mt-2 rounded-2xl border border-zinc-800/60 bg-zinc-950/80 backdrop-blur-md overflow-hidden max-w-lg shadow-2xl"
+      >
+        <div className="px-4 py-2 border-b border-zinc-800/80 bg-zinc-900/40 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Brain className="w-4 h-4 text-purple-400" />
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em]">Agent Reasoning Trace</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[9px] text-zinc-500 font-mono tracking-tighter">LIVE STREAM</span>
+          </div>
+        </div>
+        <div className="max-h-[300px] overflow-hidden">
+          <ReasoningTrace skeleton="message" />
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+/* ───────── devops navigator panel ───────── */
+function DevOpsNavigator() {
+  const [health, setHealth] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchHealth = async () => {
+      try {
+        const res = await fetch('/api/observability?action=health');
+        if (res.ok) {
+          const data = await res.json();
+          setHealth(data);
+        }
+      } catch (err) {
+        console.error("Health fetch failed", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchHealth();
+    const interval = setInterval(fetchHealth, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) return <div className="p-4 text-xs text-zinc-500 animate-pulse font-mono">Scanning Infrastructure...</div>;
+
+  return (
+    <div className="p-4 space-y-6">
+      <div className="space-y-3">
+        <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+          <Globe className="w-3 h-3" /> Runtime Nodes
+        </h3>
+        <div className="grid gap-2">
+          {health?.services?.map((svc: any) => (
+            <div key={svc.name} className="p-2.5 rounded-lg border border-zinc-800 bg-zinc-900/40 flex items-center justify-between group hover:border-zinc-700 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className={`w-2 h-2 rounded-full ${svc.status === 'healthy' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-amber-500 animate-pulse'}`} />
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-zinc-200">{svc.name}</span>
+                  <span className="text-[9px] text-zinc-500 font-mono uppercase tracking-tighter">{svc.type || 'container'}</span>
+                </div>
+              </div>
+              <Badge variant="outline" className="text-[9px] border-zinc-700 text-zinc-500 group-hover:text-zinc-300">
+                {svc.latency ? `${svc.latency}ms` : 'stable'}
+              </Badge>
+            </div>
           ))}
         </div>
       </div>
-    </motion.div>
-  )
+
+      <div className="space-y-3 pt-2">
+        <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+          <Zap className="w-3 h-3 text-amber-500" /> Active Handoffs
+        </h3>
+        <div className="p-3 rounded-lg border border-dashed border-zinc-800 bg-zinc-950 flex flex-col items-center justify-center text-center">
+          <Rocket className="w-6 h-6 text-zinc-800 mb-2" />
+          <span className="text-[10px] text-zinc-600">No active cross-room transfers</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ───────── output line syntax highlighting ───────── */
@@ -447,13 +555,15 @@ export function CommandDesk() {
   // Command history (upgrade 2)
   const [commandHistory, setCommandHistory] = useState<CommandHistoryItem[]>([])
   const [historySearch, setHistorySearch] = useState("")
-  const [sidebarTab, setSidebarTab] = useState<'chats' | 'history'>('chats')
+  const [sidebarTab, setSidebarTab] = useState<'chats' | 'history' | 'infra'>('chats')
   // Deploy button (upgrade 5)
   const [isDeploying, setIsDeploying] = useState(false)
   const [deployToast, setDeployToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  const { addStep } = useCitadelStore()
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -472,7 +582,8 @@ export function CommandDesk() {
   useEffect(() => {
     async function initSession() {
       try {
-        const res = await fetch("/api/chat/sessions", { method: "POST",
+        const res = await fetch("/api/chat/sessions", {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ aiPersona: "elara" }),
         })
@@ -762,10 +873,10 @@ export function CommandDesk() {
             prev.map((m) =>
               m.id === assistantId
                 ? {
-                    ...m,
-                    content: data.assistantMessage?.content || data.content || "Processing your request…",
-                    tokens: data.usage,
-                  }
+                  ...m,
+                  content: data.assistantMessage?.content || data.content || "Processing your request…",
+                  tokens: data.usage,
+                }
                 : m
             )
           )
@@ -935,11 +1046,10 @@ export function CommandDesk() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-lg text-sm font-medium shadow-lg ${
-              deployToast.type === "success"
-                ? "bg-emerald-900/90 border border-emerald-700 text-emerald-200"
-                : "bg-red-900/90 border border-red-700 text-red-200"
-            }`}
+            className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-lg text-sm font-medium shadow-lg ${deployToast.type === "success"
+              ? "bg-emerald-900/90 border border-emerald-700 text-emerald-200"
+              : "bg-red-900/90 border border-red-700 text-red-200"
+              }`}
           >
             {deployToast.message}
           </motion.div>
@@ -961,18 +1071,24 @@ export function CommandDesk() {
                 New Chat
               </Button>
               {/* Sidebar tabs (upgrade 2) */}
-              <div className="flex gap-1">
+              <div className="flex gap-1 px-1">
                 <button
                   onClick={() => setSidebarTab("chats")}
-                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${sidebarTab === "chats" ? "bg-zinc-700 text-zinc-200" : "text-zinc-500 hover:text-zinc-300"}`}
+                  className={`flex-1 text-[10px] font-bold uppercase tracking-wider py-2 rounded-md transition-all ${sidebarTab === "chats" ? "bg-zinc-800 text-purple-400 border border-zinc-700 shadow-inner" : "text-zinc-500 hover:text-zinc-300"}`}
                 >
                   Chats
                 </button>
                 <button
                   onClick={() => setSidebarTab("history")}
-                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${sidebarTab === "history" ? "bg-zinc-700 text-zinc-200" : "text-zinc-500 hover:text-zinc-300"}`}
+                  className={`flex-1 text-[10px] font-bold uppercase tracking-wider py-2 rounded-md transition-all ${sidebarTab === "history" ? "bg-zinc-800 text-purple-400 border border-zinc-700 shadow-inner" : "text-zinc-500 hover:text-zinc-300"}`}
                 >
                   History
+                </button>
+                <button
+                  onClick={() => setSidebarTab("infra")}
+                  className={`flex-1 text-[10px] font-bold uppercase tracking-wider py-2 rounded-md transition-all ${sidebarTab === "infra" ? "bg-zinc-800 text-emerald-400 border border-zinc-700 shadow-inner" : "text-zinc-500 hover:text-zinc-300"}`}
+                >
+                  Infra
                 </button>
               </div>
             </div>
@@ -986,11 +1102,10 @@ export function CommandDesk() {
                       key={session.id}
                       onClick={() => {
                         setSessionId(session.id)
-                        setShowHistory(false)
+                        // Removed auto-close history to keep sidebar open if needed
                       }}
-                      className={`w-full text-left p-3 rounded-lg text-sm transition-colors hover:bg-zinc-800/50 ${
-                        sessionId === session.id ? "bg-zinc-800/70 text-white" : "text-zinc-400"
-                      }`}
+                      className={`w-full text-left p-3 rounded-lg text-sm transition-colors hover:bg-zinc-800/50 ${sessionId === session.id ? "bg-zinc-800/70 text-white" : "text-zinc-400"
+                        }`}
                     >
                       <div className="font-medium truncate text-zinc-300">{session.title || "Untitled Chat"}</div>
                       <div className="text-[11px] text-zinc-600 mt-1 truncate">{session.lastMessage}</div>
@@ -998,44 +1113,46 @@ export function CommandDesk() {
                     </button>
                   ))}
                   {sessions.length === 0 && (
-                    <div className="text-center py-8 text-zinc-600 text-sm">No chat history yet</div>
+                    <div className="text-center py-8 text-zinc-600 text-sm font-mono tracking-tighter uppercase opacity-50">Null Session Buffer</div>
                   )}
 
-                  <div className="pt-4">
-                    <div className="text-[11px] uppercase tracking-wider text-zinc-600 font-medium mb-2">Recent Sessions</div>
-                    <div className="space-y-2">
+                  <div className="pt-4 px-2">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-600 font-bold mb-3">Live Mission Streams</div>
+                    <div className="grid gap-2">
                       {recentSessions.map((execution) => (
-                        <div key={execution.id} className="rounded-lg border border-zinc-800/60 bg-zinc-900/60 p-2">
+                        <div key={execution.id} className="rounded-xl border border-zinc-800/60 bg-zinc-900/60 p-3 hover:border-zinc-700 transition-colors cursor-default group">
                           <div className="flex items-center justify-between">
-                            <div className="min-w-0">
-                              <div className="text-xs text-zinc-300 truncate">
-                                {execution.lastStep || 'Session activity'}
+                            <div className="min-w-0 pr-2">
+                              <div className="text-[11px] font-bold text-zinc-300 truncate group-hover:text-white transition-colors">
+                                {execution.lastStep || 'Monitoring session...'}
                               </div>
-                              <div className="text-[10px] text-zinc-600 mt-1">
-                                {execution.projectId || 'default'} • {execution.status || 'running'}
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <span className={`w-1.5 h-1.5 rounded-full ${execution.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-600'}`} />
+                                <span className="text-[9px] text-zinc-500 font-mono uppercase tracking-tighter font-bold">
+                                  {execution.status || 'idle'} • {execution.projectId || 'root_fs'}
+                                </span>
                               </div>
                             </div>
                             <Button
                               size="sm"
-                              className="h-7 px-2 text-[11px] bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30"
+                              className="h-7 w-7 p-0 flex-shrink-0 bg-transparent hover:bg-emerald-500/20 text-emerald-400 border border-zinc-800 hover:border-emerald-500/40"
                               onClick={() => handleResumeExecution(execution)}
                             >
-                              Resume
+                              <ExternalLink className="w-3 h-3" />
                             </Button>
                           </div>
-                          {execution.updatedAt && (
-                            <div className="text-[10px] text-zinc-700 mt-1">
-                              {new Date(execution.updatedAt).toLocaleString()}
-                            </div>
-                          )}
                         </div>
                       ))}
-                      {recentSessions.length === 0 && (
-                        <div className="text-center py-4 text-zinc-600 text-xs">No recent sessions yet</div>
-                      )}
                     </div>
                   </div>
                 </div>
+              </ScrollArea>
+            )}
+
+            {/* Infra Monitor Tab (SDLC: DevOps Navigator) */}
+            {sidebarTab === "infra" && (
+              <ScrollArea className="flex-1">
+                <DevOpsNavigator />
               </ScrollArea>
             )}
 
@@ -1151,9 +1268,8 @@ export function CommandDesk() {
                       <button
                         key={model.id}
                         onClick={() => { setSelectedModel(model); setShowModelPicker(false) }}
-                        className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${
-                          selectedModel.id === model.id ? "bg-zinc-800 text-white" : "hover:bg-zinc-800/50 text-zinc-400"
-                        }`}
+                        className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${selectedModel.id === model.id ? "bg-zinc-800 text-white" : "hover:bg-zinc-800/50 text-zinc-400"
+                          }`}
                       >
                         <span className="text-xl">{model.icon}</span>
                         <div className="flex-1 min-w-0">
@@ -1297,10 +1413,10 @@ export function CommandDesk() {
                           <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-purple-400 font-medium">Pinned</div>
                           {pinned.map((cmd) => (
                             <div key={`pinned-${cmd.name}`} className="flex items-center group/cmd rounded-lg hover:bg-zinc-800/50">
-                  {/* ── Reasoning Trace Panel ── */}
-                  <div className="w-80 border-l border-zinc-800">
-                    <ReasoningTrace skeleton="message" />
-                  </div>
+                              {/* ── Reasoning Trace Panel ── */}
+                              <div className="w-80 border-l border-zinc-800">
+                                <ReasoningTrace skeleton="message" />
+                              </div>
                               <button
                                 onClick={() => setInput(cmd.name + " ")}
                                 className="flex-1 flex items-center gap-3 p-2.5 text-left text-zinc-400"

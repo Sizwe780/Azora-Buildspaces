@@ -49,7 +49,9 @@ export function IntegratedExplorer({ activeFile, onNavigateToLine }: IntegratedE
 
       {/* Tab content */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === "files" && <ExplorerView />}
+        {activeTab === "files" && (
+          <ExplorerView />
+        )}
         {activeTab === "outline" && (
           <OutlineView
             activeFile={currentFile}

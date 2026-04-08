@@ -18,6 +18,8 @@ import { promises as fs } from "fs"
 import path from "path"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/config"
+import { miningEngine } from "@/lib/economy/mining-engine"
+import { prisma } from "@/lib/database/client"
 
 interface InstallRecord {
   id: string
@@ -35,7 +37,8 @@ const INSTALLS_PATH = path.join(process.cwd(), "data", "marketplace", "installs.
 async function readJson<T>(filePath: string, fallback: T): Promise<T> {
   try {
     const raw = await fs.readFile(filePath, "utf-8")
-    return JSON.parse(raw)
+    const data = JSON.parse(raw)
+    return Array.isArray(data) ? data as any : (data.templates || fallback)
   } catch {
     return fallback
   }
@@ -58,29 +61,65 @@ export async function POST(request: NextRequest) {
     }
 
     // Load catalog
-    const templates: any[] = await readJson(TEMPLATES_PATH, [])
+    let templates: any[] = await readJson(TEMPLATES_PATH, [])
     const template = templates.find((t: any) => t.id === templateId)
 
     if (!template) {
       return NextResponse.json({ error: "Template not found" }, { status: 404 })
     }
 
-    // Paid templates require authentication
-    if (template.price !== "Free" && (!session || !session.user)) {
-      return NextResponse.json(
-        { error: "Authentication required to install paid templates" },
-        { status: 401 },
-      )
-    }
+    const userId = session?.user?.id
 
-    const userId = (session?.user as any)?.id ?? (session?.user as any)?.email ?? "anonymous"
+    // Check payment for paid templates
+    if (template.price !== "Free") {
+      if (!userId) {
+        return NextResponse.json(
+          { error: "Authentication required to install paid templates" },
+          { status: 401 },
+        )
+      }
+
+      const priceMatch = template.price.match(/(\d+)/)
+      const price = priceMatch ? parseInt(priceMatch[1]) : 0
+
+      if (price > 0) {
+        // Constitutional: Verify balance via Mining Engine / Prisma
+        const balance = await miningEngine.getBalance(userId)
+        if (balance < price) {
+          return NextResponse.json(
+            { error: `Insufficient AZR balance. Required: ${price}, Hot: ${balance}` },
+            { status: 402 }
+          )
+        }
+
+        // Deduct flow
+        await prisma.wallet.update({
+          where: { userId_currency: { userId, currency: 'AZR' } },
+          data: { balance: { decrement: price } }
+        })
+
+        // Record purchase transaction
+        await prisma.transaction.create({
+          data: {
+            walletId: (await prisma.wallet.findUnique({ where: { userId_currency: { userId, currency: 'AZR' } } }))?.id || '',
+            amount: -price,
+            type: 'TRANSFER',
+            currency: 'AZR',
+            status: 'COMPLETED',
+            description: `Purchased template: ${template.name}`,
+            metadata: { templateId: template.id, action: 'PURCHASE' }
+          }
+        })
+      }
+    }
 
     // Record install
     const installs: InstallRecord[] = await readJson(INSTALLS_PATH, [])
+    const finalUserId = userId || "anonymous"
 
     // Idempotent: skip duplicate installs for the same user
     const alreadyInstalled = installs.some(
-      (i) => i.templateId === templateId && i.userId === userId,
+      (i) => i.templateId === templateId && i.userId === finalUserId,
     )
 
     if (!alreadyInstalled) {
@@ -88,7 +127,7 @@ export async function POST(request: NextRequest) {
         id: `install_${Date.now()}`,
         templateId,
         templateName: template.name,
-        userId,
+        userId: finalUserId,
         installedAt: new Date().toISOString(),
         version: template.version ?? "1.0.0",
         price: template.price,
@@ -101,28 +140,17 @@ export async function POST(request: NextRequest) {
       await writeJson(TEMPLATES_PATH, templates)
     }
 
-    return NextResponse.json({
-      success: true,
-      alreadyInstalled,
-      template: {
-        id: template.id,
-        name: template.name,
-        description: template.description,
-        category: template.category,
-        tags: template.tags,
-        content: template.content ?? null,
-        scaffoldCommands: [
-          `npx create-azora-app ${template.id}`,
-          "npm install",
-          "npm run dev",
-        ],
-      },
+    return NextResponse.json({ 
+      success: true, 
+      message: "Template installed successfully",
+      newBalance: userId ? await miningEngine.getBalance(userId) : undefined
     })
+
   } catch (error: any) {
-    console.error("[marketplace/install]", error)
+    console.error("[marketplace/install] Install route error:", error)
     return NextResponse.json(
-      { error: error.message || "Installation failed" },
-      { status: 500 },
+      { error: error?.message || "Internal server error during installation" },
+      { status: 500 }
     )
   }
 }

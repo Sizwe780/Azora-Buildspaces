@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 
@@ -10,6 +12,11 @@ const execFileAsync = promisify(execFile)
  */
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     const { branch, create } = await request.json()
 
     if (!branch || typeof branch !== 'string') {
