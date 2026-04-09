@@ -227,19 +227,19 @@ export function AgentRail() {
           </div>
           <div className="space-y-1 text-xs">
             <div className="flex items-center justify-between">
-              <span className="text-gray-400">File:</span>
+              <span className="text-muted-foreground">File:</span>
               <span className="text-white truncate ml-2 flex-1 text-right">
                 {activeFilePath ? activeFilePath.split('/').pop() : 'None'}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-gray-400">Lines:</span>
+              <span className="text-muted-foreground">Lines:</span>
               <span className="text-white">
                 {activeFileContent ? activeFileContent.split('\n').length : 0}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-gray-400">Room:</span>
+              <span className="text-muted-foreground">Room:</span>
               <span className="text-white">{currentRoom}</span>
             </div>
           </div>
@@ -254,7 +254,7 @@ export function AgentRail() {
         
         {/* Loading indicator */}
         {isLoading && (
-          <div className="flex items-center gap-2 text-gray-400">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
             <span className="text-sm">Elara is thinking...</span>
           </div>
@@ -288,7 +288,7 @@ export function AgentRail() {
             )}
           </Button>
         </div>
-        <p className="text-xs text-gray-500 mt-2">
+        <p className="text-xs text-muted-foreground mt-2">
           Elara can see your active file and suggest improvements
         </p>
       </div>
@@ -313,7 +313,7 @@ function MessageBubble({ message, onToolApproval }: MessageBubbleProps) {
   if (isSystem) {
     return (
       <div className="flex justify-center">
-        <div className="bg-[var(--ide-input-bg)] border border-[var(--ide-border)] rounded px-3 py-1 text-xs text-gray-400">
+        <div className="bg-[var(--ide-input-bg)] border border-[var(--ide-border)] rounded px-3 py-1 text-xs text-muted-foreground">
           {message.content}
         </div>
       </div>
@@ -364,7 +364,7 @@ function MessageBubble({ message, onToolApproval }: MessageBubbleProps) {
               </div>
             )}
 
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {new Date(message.timestamp).toLocaleTimeString()}
             </p>
           </div>
@@ -432,7 +432,7 @@ function ToolApprovalCard({ request, onApproval }: ToolApprovalCardProps) {
         {getToolIcon()}
         <div className="flex-1">
           <p className="text-sm font-medium text-yellow-400">Action Requires Approval</p>
-          <p className="text-xs text-gray-400 mt-1">{tool?.description}</p>
+          <p className="text-xs text-muted-foreground mt-1">{tool?.description}</p>
         </div>
       </div>
 
@@ -440,7 +440,7 @@ function ToolApprovalCard({ request, onApproval }: ToolApprovalCardProps) {
       <div className="bg-black/20 rounded p-2 mb-3 text-xs font-mono">
         {Object.entries(request.params).map(([key, value]) => (
           <div key={key} className="flex gap-2">
-            <span className="text-gray-500">{key}:</span>
+            <span className="text-muted-foreground">{key}:</span>
             <span className="text-gray-300 truncate">{String(value)}</span>
           </div>
         ))}

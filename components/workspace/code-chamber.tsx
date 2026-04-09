@@ -154,7 +154,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
                         )
                         : []
 
-                    validOpenFiles.forEach((filePath) => {
+                    validOpenFiles.forEach((filePath: string) => {
                         openFile(filePath)
                         setWorkbenchActiveFile(filePath)
                         restoredAnyFile = true
@@ -249,6 +249,23 @@ export function CodeChamber({ id }: CodeChamberProps) {
         }
     }, [projectId, activeFileId, activeGroupId, editorGroups, splitDirection])
 
+    // Handle stale tabs when files are deleted
+    useEffect(() => {
+        const availableFilePaths = new Set(
+            Object.values(fileMap)
+                .filter((node) => node.type === 'file')
+                .map((node) => node.path)
+        )
+        editorGroups.forEach(group => {
+            group.openFiles.forEach(fileId => {
+                if (!availableFilePaths.has(fileId)) {
+                    closeFileSystemFile(fileId)
+                    closeWorkbenchFile(fileId, group.id)
+                }
+            })
+        })
+    }, [fileMap, editorGroups, closeFileSystemFile, closeWorkbenchFile])
+
     const handleFileSelect = (fileId: string, groupId?: string) => {
         if (groupId) {
             setActiveGroup(groupId)
@@ -287,7 +304,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
                             currentUserName={userName}
                             currentUserColor="#6366f1"
                             activeFile={activeFileId || undefined}
-                            onNavigateToFile={(filePath) => handleNavigateToFile(filePath)}
+                            onNavigateToFile={(filePath: string) => handleNavigateToFile(filePath)}
                         />
                     )
                 case 'ai-assistant':
@@ -308,7 +325,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
                     )
                 case 'timeline':
                     return (
-                        <div className="flex flex-col items-center justify-center h-full text-zinc-500 p-4">
+                        <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4">
                             <svg className="w-8 h-8 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             <span className="text-sm font-medium">Timeline</span>
                             <span className="text-xs text-zinc-600 mt-1">File history coming soon</span>

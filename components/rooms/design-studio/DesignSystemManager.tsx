@@ -45,14 +45,14 @@ export default function DesignSystemManager() {
           <Layers className="w-4 h-4 text-purple-400" />
           Design System
         </h3>
-        <Button size="sm" variant="ghost" className="text-gray-400 hover:text-white h-7 text-xs">
+        <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-white h-7 text-xs">
           <Plus className="w-3 h-3 mr-1" /> Add Token
         </Button>
       </div>
 
       {categories.map((category) => (
         <div key={category} className="space-y-2">
-          <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {category}
           </h4>
           {tokens
@@ -72,7 +72,7 @@ export default function DesignSystemManager() {
                   <span className="text-xs text-gray-300 font-mono">{token.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 font-mono">{token.value}</span>
+                  <span className="text-xs text-muted-foreground font-mono">{token.value}</span>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -82,7 +82,7 @@ export default function DesignSystemManager() {
                     {copiedId === token.id ? (
                       <Check className="w-3 h-3 text-emerald-400" />
                     ) : (
-                      <Copy className="w-3 h-3 text-gray-400" />
+                      <Copy className="w-3 h-3 text-muted-foreground" />
                     )}
                   </Button>
                 </div>

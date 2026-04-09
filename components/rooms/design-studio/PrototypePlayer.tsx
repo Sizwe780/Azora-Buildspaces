@@ -173,7 +173,7 @@ export default function PrototypePlayer() {
             Prototype
           </Badge>
           {totalScreens > 0 && (
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-muted-foreground">
               Screen {currentScreen + 1} of {totalScreens}
             </span>
           )}
@@ -186,7 +186,7 @@ export default function PrototypePlayer() {
         <div className="flex items-center gap-1">
           <Button
             size="sm" variant="ghost"
-            className="h-7 w-7 p-0 text-gray-400 hover:text-white"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-white"
             onClick={goBack}
             disabled={navigationHistory.length <= 1}
             title="Back"
@@ -195,7 +195,7 @@ export default function PrototypePlayer() {
           </Button>
           <Button
             size="sm" variant="ghost"
-            className="h-7 w-7 p-0 text-gray-400 hover:text-white"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-white"
             onClick={() => navigateTo(currentScreen - 1)}
             disabled={currentScreen <= 0}
           >
@@ -204,7 +204,7 @@ export default function PrototypePlayer() {
           <Button
             size="sm"
             variant={isPlaying ? "destructive" : "ghost"}
-            className={`h-7 w-7 p-0 ${isPlaying ? '' : 'text-gray-400 hover:text-white'}`}
+            className={`h-7 w-7 p-0 ${isPlaying ? '' : 'text-muted-foreground hover:text-white'}`}
             onClick={() => setIsPlaying(!isPlaying)}
             disabled={totalScreens <= 1}
           >
@@ -212,7 +212,7 @@ export default function PrototypePlayer() {
           </Button>
           <Button
             size="sm" variant="ghost"
-            className="h-7 w-7 p-0 text-gray-400 hover:text-white"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-white"
             onClick={() => navigateTo(currentScreen + 1)}
             disabled={currentScreen >= totalScreens - 1}
           >
@@ -232,7 +232,7 @@ export default function PrototypePlayer() {
                 key={id}
                 size="sm"
                 variant="ghost"
-                className={`h-6 px-2 gap-1 ${device === id ? "text-white bg-white/10" : "text-gray-500"}`}
+                className={`h-6 px-2 gap-1 ${device === id ? "text-white bg-white/10" : "text-muted-foreground"}`}
                 onClick={() => setDevice(id)}
               >
                 <Icon className="w-3 h-3" />
@@ -250,8 +250,8 @@ export default function PrototypePlayer() {
         {totalScreens > 0 && (
           <div className="w-44 border-r border-white/[0.06] bg-white/[0.01] flex flex-col">
             <div className="px-3 py-2 border-b border-white/[0.06] flex items-center gap-2">
-              <Layers className="w-3 h-3 text-gray-500" />
-              <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Screens</span>
+              <Layers className="w-3 h-3 text-muted-foreground" />
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Screens</span>
             </div>
             <ScrollArea className="flex-1">
               <div className="p-2 space-y-1">

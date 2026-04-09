@@ -701,14 +701,14 @@ export default function AIStudio() {
       case "error":
         return <XCircle className="w-3 h-3 text-red-400" />
       default:
-        return <div className="w-3 h-3 rounded-full border border-zinc-700" />
+        return <div className="w-3 h-3 rounded-full border border-border" />
     }
   }
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950 text-zinc-100">
+    <div className="h-full flex flex-col bg-background text-foreground">
       {/* ── Toolbar ── */}
-      <div className="h-14 border-b border-zinc-800 flex items-center justify-between px-5 bg-zinc-900/40">
+      <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-background">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20">
             <Brain className="w-4 h-4 text-purple-400" />
@@ -735,7 +735,7 @@ export default function AIStudio() {
             Save
           </Button>
 
-          <div className="w-px h-6 bg-zinc-800 mx-1" />
+          <div className="w-px h-6 bg-muted mx-1" />
 
           {isRunning ? (
             <Button size="sm" className="gap-2 bg-red-600 hover:bg-red-700 text-white" onClick={stopWorkflow}>
@@ -795,14 +795,14 @@ export default function AIStudio() {
       </div>
 
       {/* ── AI Workflow Builder ── */}
-      <div className="px-5 py-2 border-b border-zinc-800 bg-zinc-900/20 flex items-center gap-2">
+      <div className="px-5 py-2 border-b border-border bg-muted/20 flex items-center gap-2">
         <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0" />
         <Input
           value={naturalPrompt}
           onChange={(e) => setNaturalPrompt(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && buildFromPrompt()}
           placeholder="Describe your agent pipeline in natural language, e.g. 'Fetch user data, analyze sentiment, route to support or marketing'"
-          className="flex-1 h-7 text-xs bg-transparent border-zinc-800 focus-visible:ring-purple-500/30 text-zinc-300 placeholder:text-zinc-600"
+          className="flex-1 h-7 text-xs bg-transparent border-border focus-visible:ring-purple-500/30 text-zinc-300 placeholder:text-zinc-600"
           disabled={isBuildingFromPrompt}
         />
         <Button
@@ -821,9 +821,9 @@ export default function AIStudio() {
         <ResizablePanelGroup direction="horizontal">
           {/* ── Left: Node Palette ── */}
           <ResizablePanel defaultSize={16} minSize={12} maxSize={22}>
-            <div className="h-full border-r border-zinc-800 flex flex-col bg-zinc-900/20">
-              <div className="px-4 py-3 border-b border-zinc-800">
-                <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Node Palette</span>
+            <div className="h-full border-r border-border flex flex-col bg-muted/20">
+              <div className="px-4 py-3 border-b border-border">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Node Palette</span>
               </div>
               <ScrollArea className="flex-1 p-3">
                 <div className="space-y-2">
@@ -843,7 +843,7 @@ export default function AIStudio() {
                   })}
                 </div>
 
-                <div className="mt-6 border-t border-zinc-800 pt-4">
+                <div className="mt-6 border-t border-border pt-4">
                   <span className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Templates</span>
                   <div className="mt-2 space-y-2">
                     {[
@@ -883,7 +883,7 @@ export default function AIStudio() {
                           setNodes(newNodes);
                           setSelectedNode(newNodes[0]);
                         }}
-                        className="w-full text-left p-2.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900/40 transition-all hover:bg-zinc-800/50"
+                        className="w-full text-left p-2.5 rounded-lg border border-border hover:border-border bg-muted/40 transition-all hover:bg-muted/50"
                       >
                         <p className="text-xs font-medium text-zinc-300">{tpl.name}</p>
                         <p className="text-[10px] text-zinc-600">{tpl.desc}</p>
@@ -901,7 +901,7 @@ export default function AIStudio() {
           <ResizablePanel defaultSize={52} minSize={35}>
             <div className="h-full flex flex-col">
               <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-                <TabsList className="grid w-full grid-cols-8 h-10 rounded-none border-b border-zinc-800 bg-zinc-900/30" role="tablist" aria-label="AI Studio workflow panels">
+                <TabsList className="grid w-full grid-cols-8 h-10 rounded-none border-b border-border bg-muted/30" role="tablist" aria-label="AI Studio workflow panels">
                   <TabsTrigger value="workflow" className="gap-1 text-xs">
                     <Workflow className="w-3.5 h-3.5" />
                     Workflow
@@ -951,9 +951,9 @@ export default function AIStudio() {
                     ) : nodes.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-64">
                         <Workflow className="w-14 h-14 text-zinc-800 mb-4" />
-                        <p className="text-sm text-zinc-500 mb-1">No nodes in workflow</p>
+                        <p className="text-sm text-muted-foreground mb-1">No nodes in workflow</p>
                         <p className="text-xs text-zinc-700 mb-4">Click a node type in the palette to add it</p>
-                        <Button variant="outline" size="sm" className="gap-1.5 text-xs border-zinc-700 text-zinc-400" onClick={() => addNode("input")}>
+                        <Button variant="outline" size="sm" className="gap-1.5 text-xs border-border text-muted-foreground" onClick={() => addNode("input")}>
                           <Plus className="w-3 h-3" />
                           Add Input Node
                         </Button>
@@ -1006,10 +1006,10 @@ export default function AIStudio() {
                                       setSelectedNode(node);
                                     }
                                   }}
-                                  className={`relative flex items-center gap-3 p-4 rounded-xl border-2 transition-all w-80 bg-zinc-900/90 backdrop-blur-sm shadow-xl cursor-pointer ${
+                                  className={`relative flex items-center gap-3 p-4 rounded-xl border-2 transition-all w-80 bg-muted/90 backdrop-blur-sm shadow-xl cursor-pointer ${
                                     isSelected
                                       ? "border-blue-500 shadow-blue-500/20"
-                                      : "border-zinc-800 hover:border-zinc-600"
+                                      : "border-border hover:border-zinc-600"
                                   }`}
                                 >
                                   {/* Input port */}
@@ -1017,12 +1017,12 @@ export default function AIStudio() {
                                   {/* Output port */}
                                   <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-zinc-700 border-2 border-zinc-600" />
 
-                                  <div className={`p-2 rounded-lg ${nodeConfig?.color || "text-zinc-400"}`}>
+                                  <div className={`p-2 rounded-lg ${nodeConfig?.color || "text-muted-foreground"}`}>
                                     <Icon className="w-4 h-4" />
                                   </div>
                                   <div className="flex-1 text-left">
                                     <p className="text-sm font-semibold text-zinc-200">{node.name}</p>
-                                    <p className="text-[10px] text-zinc-500">{nodeConfig?.label}</p>
+                                    <p className="text-[10px] text-muted-foreground">{nodeConfig?.label}</p>
                                   </div>
                                   <div className="flex items-center gap-1.5">
                                     {getStatusIcon(node.status)}
@@ -1060,7 +1060,7 @@ export default function AIStudio() {
                         <CardContent className="p-3">
                           <div className="flex items-center gap-2 mb-2">
                             <Database className="w-3.5 h-3.5 text-purple-400" />
-                            <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Workspace Context</span>
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Workspace Context</span>
                           </div>
                           <div className="grid grid-cols-3 gap-2 text-[10px]">
                             <div><span className="text-zinc-600">Project:</span> <span className="text-zinc-300">{workspaceContext.projectName}</span></div>
@@ -1085,7 +1085,7 @@ export default function AIStudio() {
                         <div>
                           <label className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Model</label>
                           <select
-                            className="w-full h-8 text-xs bg-zinc-900 border border-zinc-700/50 rounded-md px-2 mt-1 text-zinc-300"
+                            className="w-full h-8 text-xs bg-muted border border-border/50 rounded-md px-2 mt-1 text-zinc-300"
                             value={codeGenModel}
                             onChange={(e) => setCodeGenModel(e.target.value)}
                           >
@@ -1098,7 +1098,7 @@ export default function AIStudio() {
                         <div>
                           <label className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Language</label>
                           <select
-                            className="w-full h-8 text-xs bg-zinc-900 border border-zinc-700/50 rounded-md px-2 mt-1 text-zinc-300"
+                            className="w-full h-8 text-xs bg-muted border border-border/50 rounded-md px-2 mt-1 text-zinc-300"
                             value={codeGenLanguage}
                             onChange={(e) => setCodeGenLanguage(e.target.value)}
                           >
@@ -1113,7 +1113,7 @@ export default function AIStudio() {
                       <div>
                         <label className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Prompt</label>
                         <textarea
-                          className="w-full h-28 text-xs bg-zinc-900/60 border border-zinc-700/50 rounded-md p-3 mt-1 text-zinc-300 resize-none placeholder:text-zinc-700 font-mono"
+                          className="w-full h-28 text-xs bg-muted/60 border border-border/50 rounded-md p-3 mt-1 text-zinc-300 resize-none placeholder:text-zinc-700 font-mono"
                           placeholder="Describe what you want to generate, e.g.:\n• A React hook for debounced search with TypeScript generics\n• An Express middleware for rate limiting with Redis\n• A Prisma schema for a multi-tenant SaaS app"
                           value={codeGenPrompt}
                           onChange={(e) => setCodeGenPrompt(e.target.value)}
@@ -1135,7 +1135,7 @@ export default function AIStudio() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="gap-1.5 text-xs border-zinc-700"
+                            className="gap-1.5 text-xs border-border"
                             onClick={() => { navigator.clipboard.writeText(codeGenResult); setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Code copied to clipboard`]) }}
                           >
                             <Copy className="w-3 h-3" />
@@ -1146,12 +1146,12 @@ export default function AIStudio() {
 
                       {/* Code output */}
                       {codeGenResult && (
-                        <Card className="bg-zinc-900/80 border-zinc-700/50">
+                        <Card className="bg-muted/80 border-border/50">
                           <CardContent className="p-0">
-                            <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800 bg-zinc-900/60">
+                            <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/60">
                               <div className="flex items-center gap-2">
                                 <Code2 className="w-3 h-3 text-purple-400" />
-                                <span className="text-[10px] font-semibold text-zinc-500 uppercase">{codeGenLanguage}</span>
+                                <span className="text-[10px] font-semibold text-muted-foreground uppercase">{codeGenLanguage}</span>
                               </div>
                               <Badge variant="outline" className="text-[9px] border-purple-500/30 text-purple-400">{codeGenModel}</Badge>
                             </div>
@@ -1181,7 +1181,7 @@ export default function AIStudio() {
 
                       <div className="space-y-3">
                         {CHAIN_PRESETS.map((chain) => (
-                          <Card key={chain.id} className={`border-zinc-800 ${activeChain === chain.id ? 'border-purple-500/30 bg-purple-500/5' : 'bg-zinc-900/40'}`}>
+                          <Card key={chain.id} className={`border-border ${activeChain === chain.id ? 'border-purple-500/30 bg-purple-500/5' : 'bg-muted/40'}`}>
                             <CardContent className="p-4">
                               <div className="flex items-center justify-between mb-2">
                                 <div>
@@ -1206,11 +1206,11 @@ export default function AIStudio() {
                                   return (
                                     <div key={i} className="flex items-center gap-1 flex-1">
                                       <div className={`flex-1 h-1.5 rounded-full transition-colors ${
-                                        !isActive ? 'bg-zinc-800' :
+                                        !isActive ? 'bg-muted' :
                                         chainResult?.status === 'done' ? 'bg-emerald-500' :
                                         chainResult?.status === 'running' ? 'bg-blue-500 animate-pulse' :
                                         chainResult?.status === 'error' ? 'bg-red-500' :
-                                        'bg-zinc-800'
+                                        'bg-muted'
                                       }`} title={step} />
                                     </div>
                                   )
@@ -1218,7 +1218,7 @@ export default function AIStudio() {
                               </div>
                               <div className="flex flex-wrap gap-1 mt-2">
                                 {chain.steps.map((step, i) => (
-                                  <Badge key={i} variant="outline" className="text-[9px] border-zinc-800 text-zinc-600">{step}</Badge>
+                                  <Badge key={i} variant="outline" className="text-[9px] border-border text-zinc-600">{step}</Badge>
                                 ))}
                               </div>
                             </CardContent>
@@ -1229,15 +1229,15 @@ export default function AIStudio() {
                       {/* Chain results */}
                       {chainResults.length > 0 && chainResults.some(r => r.result) && (
                         <div className="space-y-3">
-                          <h4 className="text-xs font-semibold text-zinc-400">Chain Results</h4>
+                          <h4 className="text-xs font-semibold text-muted-foreground">Chain Results</h4>
                           {chainResults.filter(r => r.result).map((result, i) => (
-                            <Card key={i} className={`border ${result.status === 'done' ? 'border-emerald-500/20 bg-emerald-500/5' : result.status === 'error' ? 'border-red-500/20 bg-red-500/5' : 'border-zinc-800'}`}>
+                            <Card key={i} className={`border ${result.status === 'done' ? 'border-emerald-500/20 bg-emerald-500/5' : result.status === 'error' ? 'border-red-500/20 bg-red-500/5' : 'border-border'}`}>
                               <CardContent className="p-3">
                                 <div className="flex items-center gap-2 mb-1">
                                   {result.status === 'done' ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <XCircle className="w-3 h-3 text-red-400" />}
                                   <span className="text-xs font-medium text-zinc-200">{result.step}</span>
                                 </div>
-                                <pre className="text-[10px] font-mono text-zinc-400 max-h-32 overflow-auto whitespace-pre-wrap">{result.result}</pre>
+                                <pre className="text-[10px] font-mono text-muted-foreground max-h-32 overflow-auto whitespace-pre-wrap">{result.result}</pre>
                               </CardContent>
                             </Card>
                           ))}
@@ -1245,11 +1245,11 @@ export default function AIStudio() {
                       )}
 
                       {/* Chain input */}
-                      <Card className="bg-zinc-900/40 border-zinc-800">
+                      <Card className="bg-muted/40 border-border">
                         <CardContent className="p-3">
                           <label className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Chain Input</label>
                           <textarea
-                            className="w-full h-20 text-xs bg-zinc-950/50 border border-zinc-700/50 rounded-md p-2 mt-1 text-zinc-300 resize-none font-mono placeholder:text-zinc-700"
+                            className="w-full h-20 text-xs bg-background/50 border border-border/50 rounded-md p-2 mt-1 text-zinc-300 resize-none font-mono placeholder:text-zinc-700"
                             placeholder="Paste code or describe what to process through the chain…"
                             value={templateInput}
                             onChange={(e) => setTemplateInput(e.target.value)}
@@ -1267,7 +1267,7 @@ export default function AIStudio() {
                   ) : (
                     <div className="space-y-3">
                       {runs.map((run) => (
-                        <Card key={run.id} className="bg-zinc-900/50 border-zinc-800">
+                        <Card key={run.id} className="bg-muted/50 border-border">
                           <CardContent className="p-4">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
@@ -1283,11 +1283,11 @@ export default function AIStudio() {
                                 >
                                   {run.status}
                                 </Badge>
-                                <span className="text-xs text-zinc-500 font-mono">{run.id.slice(0, 8)}</span>
+                                <span className="text-xs text-muted-foreground font-mono">{run.id.slice(0, 8)}</span>
                               </div>
                               <span className="text-[10px] text-zinc-600">{run.startedAt}</span>
                             </div>
-                            <div className="flex items-center gap-3 text-xs text-zinc-500">
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
                               <span>{run.stepsCompleted}/{run.steps} steps</span>
                               {run.duration && <span>{run.duration}ms</span>}
                             </div>
@@ -1303,7 +1303,7 @@ export default function AIStudio() {
 
                 {/* Logs */}
                 <TabsContent value="logs" className="flex-1 m-0 flex flex-col overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 bg-zinc-900/30">
+                  <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/30">
                     <span className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">{logs.length} entries</span>
                     <Button
                       variant="ghost"
@@ -1332,7 +1332,7 @@ export default function AIStudio() {
                               <span className={`${
                                 level === "ERROR" ? "text-red-400" :
                                 level === "WARN"  ? "text-amber-400" :
-                                "text-zinc-400"
+                                "text-muted-foreground"
                               }`}>{log}</span>
                             </div>
                           )
@@ -1352,16 +1352,16 @@ export default function AIStudio() {
                   <div className="max-w-4xl mx-auto space-y-6">
                     <div className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
+                        <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
                           <Brain className="w-5 h-5 text-purple-400" /> LangGraph Reasoning Engine
                         </h2>
-                        <p className="text-xs text-zinc-500">Enable autonomous multi-agent reasoning loops and self-correction.</p>
+                        <p className="text-xs text-muted-foreground">Enable autonomous multi-agent reasoning loops and self-correction.</p>
                       </div>
                       <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20">v2.0 Beta</Badge>
                     </div>
 
-                    <Card className="bg-zinc-900/50 border-zinc-800 shadow-2xl">
-                      <CardHeader className="pb-3 border-b border-zinc-800/50">
+                    <Card className="bg-muted/50 border-border shadow-2xl">
+                      <CardHeader className="pb-3 border-b border-border/50">
                         <CardTitle className="text-sm font-medium flex items-center gap-2">
                           <Zap className="w-4 h-4 text-amber-400" /> Reasoning Prompt
                         </CardTitle>
@@ -1370,7 +1370,7 @@ export default function AIStudio() {
                         <div className="relative">
                           <Input 
                             placeholder="Describe a complex task (e.g., 'Plan and implement a secure auth middleware')..."
-                            className="bg-zinc-950/50 border-zinc-800 h-12 pr-24 focus-visible:ring-purple-500/50"
+                            className="bg-background/50 border-border h-12 pr-24 focus-visible:ring-purple-500/50"
                             value={naturalPrompt}
                             onChange={(e) => setNaturalPrompt(e.target.value)}
                           />
@@ -1388,10 +1388,10 @@ export default function AIStudio() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-4">
-                        <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
                           <Activity className="w-3.5 h-3.5" /> Agent Trace
                         </h3>
-                        <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 min-h-[300px] flex flex-col font-mono text-[11px]">
+                        <div className="bg-background border border-border rounded-xl p-4 min-h-[300px] flex flex-col font-mono text-[11px]">
                           {reasoningTrace.length === 0 && !isReasoning && (
                             <div className="flex-1 flex flex-col items-center justify-center text-zinc-700 opacity-50">
                               <Workflow className="w-8 h-8 mb-2" />
@@ -1410,7 +1410,7 @@ export default function AIStudio() {
                                 key={i}
                                 initial={{ opacity: 0, x: -10 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                className="flex gap-3 border-l border-zinc-800 pl-4 py-1"
+                                className="flex gap-3 border-l border-border pl-4 py-1"
                               >
                                 <span className="text-zinc-600">{i + 1}.</span>
                                 <span className="text-zinc-300">{t}</span>
@@ -1421,10 +1421,10 @@ export default function AIStudio() {
                       </div>
 
                       <div className="space-y-4">
-                        <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
                           <Terminal className="w-3.5 h-3.5" /> Final Output
                         </h3>
-                        <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 min-h-[300px] font-mono text-xs overflow-auto">
+                        <div className="bg-background border border-border rounded-xl p-4 min-h-[300px] font-mono text-xs overflow-auto">
                           {isReasoning ? (
                             <div className="flex items-center gap-2 text-zinc-600 italic">
                               <RefreshCw className="w-3 h-3 animate-spin" />
@@ -1450,9 +1450,9 @@ export default function AIStudio() {
 
           {/* ── Right: Properties & Metrics ── */}
           <ResizablePanel defaultSize={32} minSize={22}>
-            <div className="h-full flex flex-col border-l border-zinc-800">
+            <div className="h-full flex flex-col border-l border-border">
               <Tabs value={rightTab} onValueChange={setRightTab} className="h-full flex flex-col">
-                <TabsList className="grid w-full grid-cols-6 h-10 rounded-none border-b border-zinc-800 bg-zinc-900/30" role="tablist" aria-label="AI Studio configuration panels">
+                <TabsList className="grid w-full grid-cols-6 h-10 rounded-none border-b border-border bg-muted/30" role="tablist" aria-label="AI Studio configuration panels">
                   <TabsTrigger value="properties" className="gap-1 text-xs">
                     <Settings className="w-3 h-3" />
                     Config
@@ -1494,13 +1494,13 @@ export default function AIStudio() {
                                   prev.map((n) => (n.id === selectedNode.id ? { ...n, name: e.target.value } : n))
                                 )
                               }
-                              className="h-8 text-xs bg-zinc-900/60 border-zinc-700/50 mt-1"
+                              className="h-8 text-xs bg-muted/60 border-border/50 mt-1"
                             />
                           </div>
 
                           <div>
                             <label className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Type</label>
-                            <p className="text-xs text-zinc-400 mt-1 capitalize">{selectedNode.type}</p>
+                            <p className="text-xs text-muted-foreground mt-1 capitalize">{selectedNode.type}</p>
                           </div>
 
                           {selectedNode.type === "llm" && (
@@ -1508,7 +1508,7 @@ export default function AIStudio() {
                               <div>
                                 <label className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Model</label>
                                 <select
-                                  className="w-full h-8 text-xs bg-zinc-900 border border-zinc-700/50 rounded-md px-2 mt-1 text-zinc-300"
+                                  className="w-full h-8 text-xs bg-muted border border-border/50 rounded-md px-2 mt-1 text-zinc-300"
                                   value={selectedNode.config.model || ""}
                                   onChange={(e) => updateNodeConfig(selectedNode.id, "model", e.target.value)}
                                 >
@@ -1522,7 +1522,7 @@ export default function AIStudio() {
                               <div>
                                 <label className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">System Prompt</label>
                                 <textarea
-                                  className="w-full h-24 text-xs bg-zinc-900/60 border border-zinc-700/50 rounded-md p-2 mt-1 text-zinc-300 resize-none"
+                                  className="w-full h-24 text-xs bg-muted/60 border border-border/50 rounded-md p-2 mt-1 text-zinc-300 resize-none"
                                   placeholder="Enter system prompt…"
                                   value={selectedNode.config.systemPrompt || ""}
                                   onChange={(e) => updateNodeConfig(selectedNode.id, "systemPrompt", e.target.value)}
@@ -1535,7 +1535,7 @@ export default function AIStudio() {
                                   min="0"
                                   max="2"
                                   step="0.1"
-                                  className="h-8 text-xs bg-zinc-900/60 border-zinc-700/50 mt-1"
+                                  className="h-8 text-xs bg-muted/60 border-border/50 mt-1"
                                   value={selectedNode.config.temperature || "0.7"}
                                   onChange={(e) => updateNodeConfig(selectedNode.id, "temperature", e.target.value)}
                                 />
@@ -1548,7 +1548,7 @@ export default function AIStudio() {
                               <label className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Tool Name</label>
                               {availableTools.length > 0 ? (
                                 <select
-                                  className="w-full h-8 text-xs bg-zinc-900 border border-zinc-700/50 rounded-md px-2 mt-1 text-zinc-300"
+                                  className="w-full h-8 text-xs bg-muted border border-border/50 rounded-md px-2 mt-1 text-zinc-300"
                                   value={selectedNode.config.toolName || ""}
                                   onChange={(e) => updateNodeConfig(selectedNode.id, "toolName", e.target.value)}
                                 >
@@ -1561,7 +1561,7 @@ export default function AIStudio() {
                                 </select>
                               ) : (
                                 <Input
-                                  className="h-8 text-xs bg-zinc-900/60 border-zinc-700/50 mt-1"
+                                  className="h-8 text-xs bg-muted/60 border-border/50 mt-1"
                                   placeholder="e.g. web_search, code_interpreter"
                                   value={selectedNode.config.toolName || ""}
                                   onChange={(e) => updateNodeConfig(selectedNode.id, "toolName", e.target.value)}
@@ -1574,7 +1574,7 @@ export default function AIStudio() {
                             <div>
                               <label className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Condition Expression</label>
                               <Input
-                                className="h-8 text-xs bg-zinc-900/60 border-zinc-700/50 mt-1"
+                                className="h-8 text-xs bg-muted/60 border-border/50 mt-1"
                                 placeholder="e.g. output.confidence > 0.8"
                                 value={selectedNode.config.expression || ""}
                                 onChange={(e) => updateNodeConfig(selectedNode.id, "expression", e.target.value)}
@@ -1586,7 +1586,7 @@ export default function AIStudio() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="flex-1 text-xs text-zinc-400 border-zinc-700 hover:bg-zinc-800"
+                              className="flex-1 text-xs text-muted-foreground border-border hover:bg-muted"
                               onClick={() => duplicateNode(selectedNode)}
                             >
                               <Copy className="w-3 h-3 mr-1.5" />
@@ -1643,7 +1643,7 @@ export default function AIStudio() {
                                     <div className={`w-2 h-2 rounded-full mt-1 ${diag.severity === 'error' ? 'bg-red-400' : diag.severity === 'warning' ? 'bg-amber-400' : 'bg-blue-400'}`} />
                                     <div className="flex-1">
                                       <p className="text-xs font-semibold text-zinc-200">{diag.message}</p>
-                                      <p className="text-[10px] text-zinc-500">{diag.source} • Line {diag.line}</p>
+                                      <p className="text-[10px] text-muted-foreground">{diag.source} • Line {diag.line}</p>
                                     </div>
                                   </div>
                                 </CardContent>
@@ -1673,12 +1673,12 @@ export default function AIStudio() {
                             <p className="text-xs text-zinc-600">No versions yet. Save the workflow to create versions.</p>
                           ) : (
                             workflowVersions.map((version) => (
-                              <Card key={version.id} className="bg-zinc-900/50 border-zinc-800">
+                              <Card key={version.id} className="bg-muted/50 border-border">
                                 <CardContent className="p-3">
                                   <div className="flex items-center justify-between">
                                     <div>
                                       <p className="text-xs font-semibold text-zinc-200">{version.name}</p>
-                                      <p className="text-[10px] text-zinc-500">{version.author} • {new Date(version.timestamp).toLocaleString()}</p>
+                                      <p className="text-[10px] text-muted-foreground">{version.author} • {new Date(version.timestamp).toLocaleString()}</p>
                                     </div>
                                     <Button
                                       size="sm"
@@ -1708,7 +1708,7 @@ export default function AIStudio() {
                           <h3 className="text-sm font-semibold text-zinc-200 mb-3">AI Studio Settings</h3>
                           <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                              <label className="text-xs text-zinc-400">Auto-save workflows</label>
+                              <label className="text-xs text-muted-foreground">Auto-save workflows</label>
                               <input
                                 type="checkbox"
                                 checked={settings.autoSave}
@@ -1717,7 +1717,7 @@ export default function AIStudio() {
                               />
                             </div>
                             <div className="flex items-center justify-between">
-                              <label className="text-xs text-zinc-400">Show live metrics</label>
+                              <label className="text-xs text-muted-foreground">Show live metrics</label>
                               <input
                                 type="checkbox"
                                 checked={settings.showMetrics}
@@ -1790,7 +1790,7 @@ export default function AIStudio() {
       </div>
 
       {/* ── Status Bar ── */}
-      <div className="h-7 border-t border-zinc-800 flex items-center justify-between px-5 bg-zinc-900/20 text-[11px] text-zinc-600">
+      <div className="h-7 border-t border-border flex items-center justify-between px-5 bg-muted/20 text-[11px] text-zinc-600">
         <div className="flex items-center gap-4">
           <span>{nodes.length} nodes</span>
           <span>{runs.length} runs</span>

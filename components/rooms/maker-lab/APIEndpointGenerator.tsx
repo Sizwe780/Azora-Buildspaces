@@ -185,7 +185,7 @@ export default function APIEndpointGenerator({ projectName }: { projectName: str
                                 <div className="flex-1 space-y-1">
                                     <Input 
                                         value={endpoint.path} 
-                                        variant="ghost"
+                                        
                                         onChange={(e) => {
                                             const newEndpoints = [...endpoints];
                                             const index = newEndpoints.findIndex(en => en.id === endpoint.id);
@@ -196,7 +196,7 @@ export default function APIEndpointGenerator({ projectName }: { projectName: str
                                     />
                                     <Input 
                                         value={endpoint.description} 
-                                        variant="ghost"
+                                        
                                         onChange={(e) => {
                                             const newEndpoints = [...endpoints];
                                             const index = newEndpoints.findIndex(en => en.id === endpoint.id);
@@ -207,7 +207,7 @@ export default function APIEndpointGenerator({ projectName }: { projectName: str
                                         className="h-6 text-[11px] text-muted-foreground px-0 focus-visible:ring-0"
                                     />
                                 </div>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeEndpoint(endpoint.id)}>
+                                <Button  size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeEndpoint(endpoint.id)}>
                                     <Trash2 className="w-3.5 h-3.5" />
                                 </Button>
                             </CardContent>
@@ -232,11 +232,11 @@ export default function APIEndpointGenerator({ projectName }: { projectName: str
                                     <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">route.ts</span>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-white" onClick={handleCopy}>
+                                    <Button  size="icon" className="h-7 w-7 text-slate-400 hover:text-white" onClick={handleCopy}>
                                         {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                                     </Button>
                                     <Button 
-                                        variant="ghost" 
+                                         
                                         size="icon" 
                                         className="h-7 w-7 text-slate-400 hover:text-emerald-500" 
                                         onClick={handleSaveToWorkspace}
@@ -261,3 +261,4 @@ export default function APIEndpointGenerator({ projectName }: { projectName: str
         </div>
     );
 }
+

@@ -210,7 +210,7 @@ function IDEActivityBar({
     ];
 
   return (
-    <div className="w-12 flex flex-col items-center py-1 bg-[#0d1117] border-r border-[#1b1f27] shrink-0 select-none">
+    <div className="w-12 flex flex-col items-center py-1 bg-background border-r border-[#1b1f27] shrink-0 select-none">
       {items.map((item) => {
         const Icon = item.icon;
         const isActive = activeView === item.view && sidebarVisible;
@@ -370,7 +370,7 @@ function ExplorerSidebar() {
             "flex items-center gap-1 px-1 py-[3px] cursor-pointer text-[13px] leading-[22px] group select-none",
             isActive
               ? "bg-[#1f6feb26] text-white"
-              : "text-[#c9d1d9] hover:bg-[#1f1f1f]",
+              : "text-foreground hover:bg-[#1f1f1f]",
           )}
           style={{ paddingLeft: `${depth * 16 + 4}px` }}
           onClick={() => (isDir ? toggle(nodeId) : openFile(nodeId))}
@@ -419,7 +419,7 @@ function ExplorerSidebar() {
               }}
               onBlur={() => handleRename(nodeId)}
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
-              className="flex-1 bg-[#0d1117] border border-[#1f6feb] rounded px-1.5 py-0 text-[13px] text-white outline-none ml-1 min-w-0"
+              className="flex-1 bg-background border border-[#1f6feb] rounded px-1.5 py-0 text-[13px] text-white outline-none ml-1 min-w-0"
             />
           ) : (
             <span className="truncate ml-1 flex-1">{node.name}</span>
@@ -482,7 +482,7 @@ function ExplorerSidebar() {
             </button>
             <button
               onClick={() => setDeleteConfirm(null)}
-              className="px-2 py-0.5 text-[11px] rounded bg-[#30363d] text-[#c9d1d9] hover:bg-[#484f58]"
+              className="px-2 py-0.5 text-[11px] rounded bg-[#30363d] text-foreground hover:bg-[#484f58]"
             >
               No
             </button>
@@ -509,7 +509,7 @@ function ExplorerSidebar() {
                 }
               }}
               onBlur={() => handleCreate(nodeId)}
-              className="flex-1 bg-[#0d1117] border border-[#1f6feb] rounded px-1.5 py-0.5 text-[13px] text-white outline-none"
+              className="flex-1 bg-background border border-[#1f6feb] rounded px-1.5 py-0.5 text-[13px] text-white outline-none"
               placeholder="filename (end with / for folder)"
             />
           </div>
@@ -523,7 +523,7 @@ function ExplorerSidebar() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#0d1117] text-[#c9d1d9]">
+    <div className="h-full flex flex-col bg-background text-foreground">
       <div className="h-9 flex items-center justify-between px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">
         <span>Explorer</span>
         <div className="flex items-center gap-1">
@@ -582,7 +582,7 @@ function ExplorerSidebar() {
           {fileMap[contextMenu.nodeId]?.type === "directory" && (
             <>
               <button
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#c9d1d9] hover:bg-[#1f6feb33] transition-colors text-left"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-foreground hover:bg-[#1f6feb33] transition-colors text-left"
                 onClick={() => {
                   setCreatingIn(contextMenu.nodeId);
                   setExpanded((prev: Set<string>) =>
@@ -595,7 +595,7 @@ function ExplorerSidebar() {
                 New File
               </button>
               <button
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#c9d1d9] hover:bg-[#1f6feb33] transition-colors text-left"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-foreground hover:bg-[#1f6feb33] transition-colors text-left"
                 onClick={() => {
                   setCreatingIn(contextMenu.nodeId);
                   setNewFileName("folder-name/");
@@ -612,7 +612,7 @@ function ExplorerSidebar() {
             </>
           )}
           <button
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#c9d1d9] hover:bg-[#1f6feb33] transition-colors text-left"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-foreground hover:bg-[#1f6feb33] transition-colors text-left"
             onClick={() => {
               setRenamingId(contextMenu.nodeId);
               setRenameValue(fileMap[contextMenu.nodeId]?.name || "");
@@ -636,14 +636,14 @@ function ExplorerSidebar() {
           </button>
           <div className="my-1 border-t border-[#30363d]" />
           <button
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#c9d1d9] hover:bg-[#1f6feb33] transition-colors text-left"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-foreground hover:bg-[#1f6feb33] transition-colors text-left"
             onClick={() => copyPath(contextMenu.nodeId)}
           >
             <Copy className="w-3.5 h-3.5 text-[#8b949e]" />
             Copy Path
           </button>
           <button
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#c9d1d9] hover:bg-[#1f6feb33] transition-colors text-left"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-foreground hover:bg-[#1f6feb33] transition-colors text-left"
             onClick={() => {
               navigator.clipboard.writeText(
                 fileMap[contextMenu.nodeId]?.name || "",
@@ -688,7 +688,7 @@ function SearchSidebar() {
   }, [query, fileMap]);
 
   return (
-    <div className="h-full flex flex-col bg-[#0d1117]">
+    <div className="h-full flex flex-col bg-background">
       <div className="h-9 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">
         Search
       </div>
@@ -712,7 +712,7 @@ function SearchSidebar() {
             className="w-full text-left px-2 py-1.5 text-[13px] hover:bg-[#1f1f1f] rounded transition-colors"
             onClick={() => openFile(r.fileId)}
           >
-            <div className="text-[#c9d1d9] truncate">{r.text}</div>
+            <div className="text-foreground truncate">{r.text}</div>
             <div className="text-[11px] text-[#484f58]">
               {fileMap[r.fileId]?.name}:{r.line}
             </div>
@@ -973,7 +973,7 @@ function GitSidebar() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#0d1117]">
+    <div className="h-full flex flex-col bg-background">
       <div className="h-9 flex items-center justify-between px-4 shrink-0">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-[#8b949e]">
           Source Control
@@ -1050,7 +1050,7 @@ function GitSidebar() {
                       {f.status}
                     </span>
                     {getFileIcon(f.name)}
-                    <span className="text-[13px] text-[#c9d1d9] truncate flex-1 text-left">
+                    <span className="text-[13px] text-foreground truncate flex-1 text-left">
                       {f.name}
                     </span>
                   </button>
@@ -1126,7 +1126,7 @@ function GitSidebar() {
                   </span>
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[12px] text-[#c9d1d9] truncate">
+                  <div className="text-[12px] text-foreground truncate">
                     {c.message}
                   </div>
                   <div className="text-[10px] text-[#484f58]">
@@ -1288,7 +1288,7 @@ function ExtensionsSidebar() {
   const displayList = tab === "installed" ? installed : extensions;
 
   return (
-    <div className="h-full flex flex-col bg-[#0d1117]">
+    <div className="h-full flex flex-col bg-background">
       <div className="h-9 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">
         Extensions
       </div>
@@ -1460,7 +1460,7 @@ function AISidebar() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#0d1117]">
+    <div className="h-full flex flex-col bg-background">
       <div className="h-9 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">
         <Sparkles className="w-3.5 h-3.5 mr-2 text-emerald-400" />
         Elara AI
@@ -1471,7 +1471,7 @@ function AISidebar() {
             key={i}
             className={cn(
               "text-[13px] leading-relaxed",
-              msg.role === "user" ? "text-white" : "text-[#c9d1d9]",
+              msg.role === "user" ? "text-white" : "text-foreground",
             )}
           >
             <div className="flex items-center gap-2 mb-1">
@@ -1547,7 +1547,7 @@ function PanelTabs({
     { view: "terminal", label: "TERMINAL" },
   ];
   return (
-    <div className="flex items-center justify-between h-9 border-t border-[#1b1f27] bg-[#0d1117] px-2 select-none shrink-0">
+    <div className="flex items-center justify-between h-9 border-t border-[#1b1f27] bg-background px-2 select-none shrink-0">
       <div className="flex items-center">
         {tabs.map((tab) => (
           <button
@@ -1604,7 +1604,7 @@ function BreadcrumbBar({ fileName }: { fileName: string }) {
           <span
             className={cn(
               "hover:text-[#8b949e] cursor-pointer",
-              i === parts.length - 1 && "text-[#c9d1d9]",
+              i === parts.length - 1 && "text-foreground",
             )}
           >
             {part}
@@ -1759,7 +1759,7 @@ function WelcomeTab({
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-[#0d1117]">
+    <div className="h-full overflow-y-auto bg-background">
       <div className="max-w-3xl mx-auto py-16 px-8">
         <div className="flex items-center gap-4 mb-12">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
@@ -1830,7 +1830,7 @@ function WelcomeTab({
                 setCloneUrl(e.target.value)
               }
               placeholder="https://github.com/user/repo.git"
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
+              className="w-full bg-background border border-[#30363d] rounded-md px-3 py-2 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
               onKeyDown={(e: React.KeyboardEvent) =>
                 e.key === "Enter" && handleClone()
               }
@@ -1841,7 +1841,7 @@ function WelcomeTab({
                 setCloneName(e.target.value)
               }
               placeholder="Workspace name (optional, derived from URL)"
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
+              className="w-full bg-background border border-[#30363d] rounded-md px-3 py-2 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
             />
             {cloneError && (
               <div className="text-[12px] text-red-400">{cloneError}</div>
@@ -1874,7 +1874,7 @@ function WelcomeTab({
                 setNewName(e.target.value)
               }
               placeholder="my-awesome-project"
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
+              className="w-full bg-background border border-[#30363d] rounded-md px-3 py-2 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
               onKeyDown={(e: React.KeyboardEvent) =>
                 e.key === "Enter" && handleNewEmpty()
               }
@@ -1902,7 +1902,7 @@ function WelcomeTab({
                   className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[#161b22] transition-colors text-left group"
                 >
                   <FolderOpen className="w-4 h-4 text-[#8b949e] group-hover:text-[#58a6ff] shrink-0" />
-                  <span className="text-[13px] text-[#c9d1d9] group-hover:text-white truncate">
+                  <span className="text-[13px] text-foreground group-hover:text-white truncate">
                     {name}
                   </span>
                 </button>
@@ -1957,7 +1957,7 @@ function WelcomeTab({
                 key={key}
                 className="flex items-center justify-between py-1.5"
               >
-                <span className="text-[#c9d1d9]">{label}</span>
+                <span className="text-foreground">{label}</span>
                 <kbd className="px-2 py-0.5 rounded bg-[#161b22] border border-[#30363d] text-[11px] text-[#8b949e] font-mono">
                   {key}
                 </kbd>
@@ -2601,13 +2601,13 @@ export function CodeChamber({ id }: CodeChamberProps) {
     switch (panelView) {
       case "terminal":
         return (
-          <div className="h-full bg-[#0d1117]">
+          <div className="h-full bg-background">
             <XTerminal />
           </div>
         );
       case "problems":
         return (
-          <div className="h-full bg-[#0d1117] overflow-y-auto">
+          <div className="h-full bg-background overflow-y-auto">
             {diagnostics.length === 0 ? (
               <div className="text-[13px] text-[#484f58] text-center py-8">
                 <CheckCircle className="w-8 h-8 mx-auto mb-2 text-emerald-500/40" />
@@ -2649,7 +2649,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
                           : "Γä╣"}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-[13px] text-[#c9d1d9]">
+                      <div className="text-[13px] text-foreground">
                         {d.message}
                       </div>
                       <div className="text-[11px] text-[#484f58] mt-0.5">
@@ -2670,13 +2670,13 @@ export function CodeChamber({ id }: CodeChamberProps) {
         );
       case "output":
         return (
-          <div className="h-full bg-[#0d1117] p-4 font-mono text-[13px] text-[#c9d1d9]">
+          <div className="h-full bg-background p-4 font-mono text-[13px] text-foreground">
             <div className="text-[#8b949e]">[Output] Ready.</div>
           </div>
         );
       case "debug":
         return (
-          <div className="h-full bg-[#0d1117] p-4">
+          <div className="h-full bg-background p-4">
             <div className="text-[13px] text-[#484f58] text-center py-8">
               <Bug className="w-8 h-8 mx-auto mb-2 opacity-40" />
               <p>No debug session active</p>
@@ -2686,7 +2686,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
         );
       case "diagnostics":
         return (
-          <div className="h-full bg-[#0d1117] overflow-y-auto">
+          <div className="h-full bg-background overflow-y-auto">
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-[13px] font-medium text-white">
@@ -2737,7 +2737,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
                             : "Γä╣"}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-[13px] text-[#c9d1d9]">
+                        <div className="text-[13px] text-foreground">
                           {diag.message}
                         </div>
                         <div className="text-[11px] text-[#484f58] mt-0.5">
@@ -2756,7 +2756,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
         );
       case "history":
         return (
-          <div className="h-full bg-[#0d1117] overflow-y-auto">
+          <div className="h-full bg-background overflow-y-auto">
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-[13px] font-medium text-white">
@@ -2787,7 +2787,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
                     >
                       <Star className="w-4 h-4 text-amber-400 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-[13px] text-[#c9d1d9] font-medium">
+                        <div className="text-[13px] text-foreground font-medium">
                           {version.description}
                         </div>
                         <div className="text-[11px] text-[#484f58]">
@@ -2813,7 +2813,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
         );
       case "ai-actions":
         return (
-          <div className="h-full bg-[#0d1117] overflow-y-auto">
+          <div className="h-full bg-background overflow-y-auto">
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-[13px] font-medium text-white flex items-center gap-2">
@@ -2894,7 +2894,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
                       <Copy className="w-3 h-3" /> Copy
                     </button>
                   </div>
-                  <pre className="p-3 text-[13px] text-[#c9d1d9] font-mono whitespace-pre-wrap overflow-x-auto max-h-[300px]">
+                  <pre className="p-3 text-[13px] text-foreground font-mono whitespace-pre-wrap overflow-x-auto max-h-[300px]">
                     {aiActionResult}
                   </pre>
                 </div>
@@ -2918,11 +2918,11 @@ export function CodeChamber({ id }: CodeChamberProps) {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="h-full w-full flex flex-col bg-[#0d1117] overflow-hidden">
+      <div className="h-full w-full flex flex-col bg-background overflow-hidden">
         {/* Title Bar */}
         <div className="h-9 flex items-center justify-between px-3 bg-[#010409] border-b border-[#1b1f27] shrink-0 select-none">
           <div className="flex items-center gap-3 text-[13px]">
-            <div className="flex items-center gap-2 text-[#c9d1d9]">
+            <div className="flex items-center gap-2 text-foreground">
               <Code className="w-4 h-4 text-emerald-400" />
               <span className="font-medium">Code Chamber</span>
             </div>
@@ -3048,7 +3048,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
                     defaultSize={panelVisible ? 65 : 100}
                     minSize={30}
                   >
-                    <div className="h-full flex flex-col bg-[#0d1117]">
+                    <div className="h-full flex flex-col bg-background">
                       {/* Editor Tabs */}
                       <div
                         role="tablist"
@@ -3069,8 +3069,8 @@ export function CodeChamber({ id }: CodeChamberProps) {
                               className={cn(
                                 "group flex items-center gap-2 h-[35px] px-3 text-[13px] border-r border-[#1b1f27] transition-colors shrink-0",
                                 isActive
-                                  ? "bg-[#0d1117] text-white border-t-2 border-t-[#1f6feb]"
-                                  : "bg-[#010409] text-[#8b949e] hover:text-[#c9d1d9] border-t-2 border-t-transparent",
+                                  ? "bg-background text-white border-t-2 border-t-[#1f6feb]"
+                                  : "bg-[#010409] text-[#8b949e] hover:text-foreground border-t-2 border-t-transparent",
                               )}
                             >
                               {getFileIcon(file.name)}
@@ -3295,7 +3295,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
                 .map((n: any) => (
                   <button
                     key={n.id}
-                    className="w-full flex items-center gap-3 px-4 py-2 text-[13px] text-[#c9d1d9] hover:bg-[#1f6feb33] transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-2 text-[13px] text-foreground hover:bg-[#1f6feb33] transition-colors text-left"
                     onClick={() => {
                       openFile(n.id);
                       setQuickOpenOpen(false);

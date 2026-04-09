@@ -66,7 +66,7 @@ export function IntegratedExplorer({ activeFile, onNavigateToLine }: IntegratedE
 
 function TimelinePlaceholder() {
   return (
-    <div className="flex flex-col items-center justify-center h-full text-zinc-500 p-4 gap-2">
+    <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4 gap-2">
       <Clock className="w-8 h-8 text-zinc-600" />
       <span className="text-sm font-medium">Timeline</span>
       <span className="text-xs text-zinc-600 text-center leading-relaxed">

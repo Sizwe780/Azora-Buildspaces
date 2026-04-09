@@ -164,7 +164,7 @@ function TemplateCard({ template, onInstall, onSelect, onAddToCart, inCart }: { 
       whileHover={{ y: -2 }}
       className="group"
     >
-      <Card className="bg-zinc-900/50 border-zinc-800/60 hover:border-zinc-700 transition-all h-full flex flex-col overflow-hidden cursor-pointer" onClick={() => onSelect(template)}>
+      <Card className="bg-muted/50 border-border/60 hover:border-border transition-all h-full flex flex-col overflow-hidden cursor-pointer" onClick={() => onSelect(template)}>
         {template.featured && (
           <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-b border-amber-500/20 px-4 py-1.5 flex items-center gap-1.5">
             <Crown className="w-3 h-3 text-amber-400" />
@@ -174,12 +174,12 @@ function TemplateCard({ template, onInstall, onSelect, onAddToCart, inCart }: { 
 
         <CardHeader className="pb-3 pt-4">
           <div className="flex items-start gap-3">
-            <div className={`p-2.5 rounded-xl bg-zinc-800/80 border border-zinc-700/50 ${template.color || "text-zinc-400"}`}>
+            <div className={`p-2.5 rounded-xl bg-muted/80 border border-border/50 ${template.color || "text-muted-foreground"}`}>
               <Icon className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <CardTitle className="text-sm font-semibold text-zinc-100 truncate">
+                <CardTitle className="text-sm font-semibold text-foreground truncate">
                   {template.name}
                 </CardTitle>
                 {template.verified && (
@@ -188,7 +188,7 @@ function TemplateCard({ template, onInstall, onSelect, onAddToCart, inCart }: { 
                   </div>
                 )}
               </div>
-              <p className="text-[11px] text-zinc-500 mt-0.5">
+              <p className="text-[11px] text-muted-foreground mt-0.5">
                 by {template.author}
                 {template.version && <span className="text-zinc-600"> • v{template.version}</span>}
               </p>
@@ -197,24 +197,24 @@ function TemplateCard({ template, onInstall, onSelect, onAddToCart, inCart }: { 
         </CardHeader>
 
         <CardContent className="pb-3 flex-1">
-          <p className="text-xs text-zinc-400 mb-3 line-clamp-2 leading-relaxed">
+          <p className="text-xs text-muted-foreground mb-3 line-clamp-2 leading-relaxed">
             {template.description}
           </p>
 
           <div className="flex flex-wrap gap-1 mb-3">
             {template.tags.slice(0, 3).map((tag) => (
-              <Badge key={tag} variant="outline" className="text-[9px] h-4 px-1.5 border-zinc-800 text-zinc-500">
+              <Badge key={tag} variant="outline" className="text-[9px] h-4 px-1.5 border-border text-muted-foreground">
                 {tag}
               </Badge>
             ))}
             {template.tags.length > 3 && (
-              <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-zinc-800 text-zinc-600">
+              <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-border text-zinc-600">
                 +{template.tags.length - 3}
               </Badge>
             )}
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-zinc-500">
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1">
                 <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
@@ -236,7 +236,7 @@ function TemplateCard({ template, onInstall, onSelect, onAddToCart, inCart }: { 
             className={`flex-1 h-8 text-xs ${
               installed
                 ? "bg-emerald-600/20 text-emerald-400 border border-emerald-600/30"
-                : "bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700"
+                : "bg-muted hover:bg-zinc-700 text-zinc-200 border border-border"
             }`}
             variant="outline"
           >
@@ -265,7 +265,7 @@ function TemplateCard({ template, onInstall, onSelect, onAddToCart, inCart }: { 
               className={`h-8 px-2.5 text-xs transition-all ${
                 inCart
                   ? "bg-blue-600/20 text-blue-400 border-blue-500/30"
-                  : "bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border-zinc-700"
+                  : "bg-muted hover:bg-zinc-700 text-zinc-200 border-border"
               }`}
             >
               <ShoppingCart className="w-3 h-3" />
@@ -439,9 +439,9 @@ export default function Marketplace() {
   const regularTemplates = templates.filter((t) => !t.featured)
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950 text-zinc-100 relative overflow-hidden">
+    <div className="h-full flex flex-col bg-background text-foreground relative overflow-hidden">
       {/* ── Header ── */}
-      <div className="border-b border-zinc-800 bg-zinc-900/30">
+      <div className="border-b border-border bg-muted/30">
         <div className="px-6 py-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -449,14 +449,14 @@ export default function Marketplace() {
                 <ShoppingBag className="w-5 h-5 text-blue-400" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-zinc-100">Marketplace</h1>
-                <p className="text-xs text-zinc-500">Discover templates, agents, and components</p>
+                <h1 className="text-lg font-bold text-foreground">Marketplace</h1>
+                <p className="text-xs text-muted-foreground">Discover templates, agents, and components</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <Button 
                 onClick={() => setShowCart(!showCart)}
-                className="relative gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200" 
+                className="relative gap-2 bg-muted hover:bg-zinc-700 border border-border text-zinc-200" 
                 size="sm"
               >
                 <ShoppingCart className="w-3.5 h-3.5" />
@@ -469,10 +469,10 @@ export default function Marketplace() {
               </Button>
 
               {/* Azora Vault Wallet Integration (SDLC Hardening) */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700/50 shadow-inner group transition-all hover:border-amber-500/30">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted border border-border/50 shadow-inner group transition-all hover:border-amber-500/30">
                 <div className={`w-2 h-2 rounded-full ${isWalletLoading ? "bg-zinc-600 animate-pulse" : "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]"}`} />
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none mb-0.5">Azora Vault</span>
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest leading-none mb-0.5">Azora Vault</span>
                   <div className="flex items-baseline gap-1">
                     <span className="text-xs font-mono font-bold text-amber-500">
                       {isWalletLoading ? "---" : balance.toLocaleString()}
@@ -485,13 +485,13 @@ export default function Marketplace() {
                   size="sm" 
                   onClick={fetchWallet} 
                   disabled={isWalletLoading}
-                  className="h-6 w-6 p-0 ml-1 hover:bg-zinc-800 text-zinc-500 hover:text-amber-500"
+                  className="h-6 w-6 p-0 ml-1 hover:bg-muted text-muted-foreground hover:text-amber-500"
                 >
                   <RefreshCw className={`w-3 h-3 ${isWalletLoading ? "animate-spin" : ""}`} />
                 </Button>
               </div>
 
-              <Button className="gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200" size="sm" onClick={() => setShowPublishDialog(true)}>
+              <Button className="gap-2 bg-muted hover:bg-zinc-700 border border-border text-zinc-200" size="sm" onClick={() => setShowPublishDialog(true)}>
                 <ExternalLink className="w-3.5 h-3.5" />
                 Publish
               </Button>
@@ -501,10 +501,10 @@ export default function Marketplace() {
           {/* Search */}
           <div className="flex items-center gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Search templates, agents, components..."
-                className="pl-10 h-9 bg-zinc-900/60 border-zinc-700/50 text-sm text-zinc-200 placeholder:text-zinc-600"
+                className="pl-10 h-9 bg-muted/60 border-border/50 text-sm text-zinc-200 placeholder:text-zinc-600"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -513,7 +513,7 @@ export default function Marketplace() {
                   variant="ghost"
                   size="sm"
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0 text-zinc-500"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0 text-muted-foreground"
                 >
                   <X className="w-3.5 h-3.5" />
                 </Button>
@@ -524,7 +524,7 @@ export default function Marketplace() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              className="bg-zinc-900 border border-zinc-700/50 rounded-lg px-3 py-2 text-xs text-zinc-300 h-9"
+              className="bg-muted border border-border/50 rounded-lg px-3 py-2 text-xs text-zinc-300 h-9"
             >
               <option value="trending">🔥 Trending</option>
               <option value="newest">🆕 Newest</option>
@@ -546,7 +546,7 @@ export default function Marketplace() {
                   className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap transition-all border-b-2 ${
                     activeCategory === cat.id
                       ? "border-blue-500 text-blue-400"
-                      : "border-transparent text-zinc-500 hover:text-zinc-300"
+                      : "border-transparent text-muted-foreground hover:text-zinc-300"
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
@@ -564,7 +564,7 @@ export default function Marketplace() {
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-16">
               <RefreshCw className="w-8 h-8 animate-spin text-zinc-600 mb-4" />
-              <p className="text-sm text-zinc-500">Loading marketplace…</p>
+              <p className="text-sm text-muted-foreground">Loading marketplace…</p>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-16">
@@ -577,7 +577,7 @@ export default function Marketplace() {
           ) : templates.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <ShoppingBag className="w-14 h-14 text-zinc-800 mb-4" />
-              <h3 className="text-base font-medium text-zinc-400 mb-1">No templates found</h3>
+              <h3 className="text-base font-medium text-muted-foreground mb-1">No templates found</h3>
               <p className="text-xs text-zinc-600 mb-4">
                 {searchQuery ? "Try different search terms" : "Be the first to publish!"}
               </p>
@@ -607,11 +607,11 @@ export default function Marketplace() {
               <div>
                 {featuredTemplates.length > 0 && (
                   <div className="flex items-center gap-2 mb-4">
-                    <Package className="w-4 h-4 text-zinc-500" />
+                    <Package className="w-4 h-4 text-muted-foreground" />
                     <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">
                       {activeCategory === "all" ? "All" : CATEGORIES.find((c) => c.id === activeCategory)?.label}
                     </h2>
-                    <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-zinc-800 text-zinc-600">
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-border text-zinc-600">
                       {regularTemplates.length}
                     </Badge>
                   </div>
@@ -637,12 +637,12 @@ export default function Marketplace() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="absolute inset-y-0 right-0 w-[420px] bg-zinc-900/95 backdrop-blur-xl border-l border-zinc-800 z-50 flex flex-col shadow-2xl"
+              className="absolute inset-y-0 right-0 w-[420px] bg-muted/95 backdrop-blur-xl border-l border-border z-50 flex flex-col shadow-2xl"
             >
               {/* Header */}
-              <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+              <div className="flex items-center justify-between p-4 border-b border-border">
                 <h2 className="text-sm font-semibold text-zinc-200">Template Details</h2>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedTemplate(null)} className="h-7 w-7 p-0 text-zinc-500">
+                <Button variant="ghost" size="sm" onClick={() => setSelectedTemplate(null)} className="h-7 w-7 p-0 text-muted-foreground">
                   <X className="w-4 h-4" />
                 </Button>
               </div>
@@ -652,12 +652,12 @@ export default function Marketplace() {
                 <div className="p-5 space-y-6">
                   {/* Hero */}
                   <div className="flex items-start gap-4">
-                    <div className={`p-3 rounded-xl bg-zinc-800/80 border border-zinc-700/50 ${selectedTemplate.color || "text-zinc-400"}`}>
+                    <div className={`p-3 rounded-xl bg-muted/80 border border-border/50 ${selectedTemplate.color || "text-muted-foreground"}`}>
                       <Icon className="w-7 h-7" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-zinc-100">{selectedTemplate.name}</h3>
-                      <p className="text-xs text-zinc-500 mt-0.5">
+                      <h3 className="text-lg font-bold text-foreground">{selectedTemplate.name}</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         by {selectedTemplate.author}
                         {selectedTemplate.version && <span> • v{selectedTemplate.version}</span>}
                       </p>
@@ -670,7 +670,7 @@ export default function Marketplace() {
                   </div>
 
                   {/* Tab Navigation */}
-                  <div className="flex border-b border-zinc-800">
+                  <div className="flex border-b border-border">
                     {["overview", "reviews"].map((tab) => (
                       <button
                         key={tab}
@@ -678,7 +678,7 @@ export default function Marketplace() {
                         className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors ${
                           detailTab === tab
                             ? "border-blue-500 text-blue-400"
-                            : "border-transparent text-zinc-500 hover:text-zinc-300"
+                            : "border-transparent text-muted-foreground hover:text-zinc-300"
                         }`}
                       >
                         {tab === "overview" ? "Overview" : `Reviews (${selectedTemplate.reviews?.length || 0})`}
@@ -690,37 +690,37 @@ export default function Marketplace() {
                     <>
                       {/* Description */}
                       <div>
-                        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Description</h4>
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Description</h4>
                         <p className="text-sm text-zinc-300 leading-relaxed">{selectedTemplate.description}</p>
                       </div>
 
                       {/* Stats */}
                       <div className="grid grid-cols-3 gap-3">
-                        <div className="bg-zinc-800/60 rounded-lg p-3 text-center border border-zinc-800/60">
+                        <div className="bg-muted/60 rounded-lg p-3 text-center border border-border/60">
                           <div className="flex items-center justify-center gap-1 text-amber-400 mb-1">
                             <Star className="w-3.5 h-3.5 fill-amber-400" />
                             <span className="text-sm font-bold">{selectedTemplate.rating}</span>
                           </div>
-                          <span className="text-[10px] text-zinc-500">Rating</span>
+                          <span className="text-[10px] text-muted-foreground">Rating</span>
                         </div>
-                        <div className="bg-zinc-800/60 rounded-lg p-3 text-center border border-zinc-800/60">
+                        <div className="bg-muted/60 rounded-lg p-3 text-center border border-border/60">
                           <div className="text-sm font-bold text-zinc-200 mb-1">
                             {selectedTemplate.downloads >= 1000 ? `${(selectedTemplate.downloads / 1000).toFixed(1)}k` : selectedTemplate.downloads}
                           </div>
-                          <span className="text-[10px] text-zinc-500">Downloads</span>
+                          <span className="text-[10px] text-muted-foreground">Downloads</span>
                         </div>
-                        <div className="bg-zinc-800/60 rounded-lg p-3 text-center border border-zinc-800/60">
+                        <div className="bg-muted/60 rounded-lg p-3 text-center border border-border/60">
                           <div className="text-sm font-bold text-zinc-200 mb-1">{selectedTemplate.price}</div>
-                          <span className="text-[10px] text-zinc-500">Price</span>
+                          <span className="text-[10px] text-muted-foreground">Price</span>
                         </div>
                       </div>
 
                       {/* Tags */}
                       <div>
-                        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Tags</h4>
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tags</h4>
                         <div className="flex flex-wrap gap-1.5">
                           {selectedTemplate.tags.map((tag) => (
-                            <Badge key={tag} variant="outline" className="text-[10px] px-2 py-0.5 border-zinc-700 text-zinc-400">
+                            <Badge key={tag} variant="outline" className="text-[10px] px-2 py-0.5 border-border text-muted-foreground">
                               {tag}
                             </Badge>
                           ))}
@@ -729,23 +729,23 @@ export default function Marketplace() {
 
                       {/* Meta */}
                       <div className="space-y-2 text-xs">
-                        <div className="flex justify-between text-zinc-500">
+                        <div className="flex justify-between text-muted-foreground">
                           <span>Category</span>
                           <span className="text-zinc-300 capitalize">{selectedTemplate.category}</span>
                         </div>
                         {selectedTemplate.version && (
-                          <div className="flex justify-between text-zinc-500">
+                          <div className="flex justify-between text-muted-foreground">
                             <span>Version</span>
                             <span className="text-zinc-300">{selectedTemplate.version}</span>
                           </div>
                         )}
                         {selectedTemplate.lastUpdated && (
-                          <div className="flex justify-between text-zinc-500">
+                          <div className="flex justify-between text-muted-foreground">
                             <span>Last Updated</span>
                             <span className="text-zinc-300">{selectedTemplate.lastUpdated}</span>
                           </div>
                         )}
-                        <div className="flex justify-between text-zinc-500">
+                        <div className="flex justify-between text-muted-foreground">
                           <span>Verified</span>
                           <span className={selectedTemplate.verified ? "text-blue-400" : "text-zinc-600"}>
                             {selectedTemplate.verified ? '✓ Verified' : 'Unverified'}
@@ -758,7 +758,7 @@ export default function Marketplace() {
                       {/* Reviews Tab */}
                       <div className="space-y-4">
                         {/* Submit Review */}
-                        <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700/50">
+                        <div className="bg-muted/50 rounded-lg p-4 border border-border/50">
                           <h4 className="text-sm font-medium text-zinc-300 mb-3">Write a Review</h4>
                           <div className="space-y-3">
                             <div className="flex items-center gap-1">
@@ -777,13 +777,13 @@ export default function Marketplace() {
                                   />
                                 </button>
                               ))}
-                              <span className="ml-2 text-xs text-zinc-500">{newReview.rating}/5</span>
+                              <span className="ml-2 text-xs text-muted-foreground">{newReview.rating}/5</span>
                             </div>
                             <Textarea
                               placeholder="Share your experience with this template..."
                               value={newReview.comment}
                               onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
-                              className="bg-zinc-900 border-zinc-700 text-zinc-200 min-h-[60px] text-sm"
+                              className="bg-muted border-border text-zinc-200 min-h-[60px] text-sm"
                             />
                             <Button
                               onClick={handleSubmitReview}
@@ -805,7 +805,7 @@ export default function Marketplace() {
                         {selectedTemplate.reviews && selectedTemplate.reviews.length > 0 ? (
                           <div className="space-y-3">
                             {selectedTemplate.reviews.map((review) => (
-                              <div key={review.id} className="bg-zinc-800/30 rounded-lg p-3 border border-zinc-800">
+                              <div key={review.id} className="bg-muted/30 rounded-lg p-3 border border-border">
                                 <div className="flex items-start justify-between mb-2">
                                   <div>
                                     <span className="text-sm font-medium text-zinc-300">{review.userName}</span>
@@ -822,8 +822,8 @@ export default function Marketplace() {
                                   </div>
                                   <span className="text-[10px] text-zinc-600">{review.date}</span>
                                 </div>
-                                <p className="text-xs text-zinc-400 leading-relaxed">{review.comment}</p>
-                                <button className="flex items-center gap-1 mt-2 text-[10px] text-zinc-500 hover:text-zinc-300">
+                                <p className="text-xs text-muted-foreground leading-relaxed">{review.comment}</p>
+                                <button className="flex items-center gap-1 mt-2 text-[10px] text-muted-foreground hover:text-zinc-300">
                                   <ThumbsUp className="w-3 h-3" />
                                   Helpful ({review.helpful})
                                 </button>
@@ -833,7 +833,7 @@ export default function Marketplace() {
                         ) : (
                           <div className="text-center py-8">
                             <MessageSquare className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
-                            <p className="text-sm text-zinc-500">No reviews yet</p>
+                            <p className="text-sm text-muted-foreground">No reviews yet</p>
                             <p className="text-xs text-zinc-600">Be the first to review!</p>
                           </div>
                         )}
@@ -844,7 +844,7 @@ export default function Marketplace() {
               </ScrollArea>
 
               {/* Action Footer */}
-              <div className="p-4 border-t border-zinc-800 space-y-2">
+              <div className="p-4 border-t border-border space-y-2">
                 <Button
                   onClick={() => { handleInstall(selectedTemplate.id); }}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2"
@@ -852,7 +852,7 @@ export default function Marketplace() {
                   <Download className="w-4 h-4" />
                   Install {selectedTemplate.name}
                 </Button>
-                <Button variant="outline" className="w-full border-zinc-700 text-zinc-300 gap-2" onClick={() => setSelectedTemplate(null)}>
+                <Button variant="outline" className="w-full border-border text-zinc-300 gap-2" onClick={() => setSelectedTemplate(null)}>
                   <Eye className="w-4 h-4" />
                   Back to Browse
                 </Button>
@@ -870,10 +870,10 @@ export default function Marketplace() {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="absolute inset-y-0 right-0 w-[380px] bg-zinc-900/95 backdrop-blur-xl border-l border-zinc-800 z-50 flex flex-col shadow-2xl"
+            className="absolute inset-y-0 right-0 w-[380px] bg-muted/95 backdrop-blur-xl border-l border-border z-50 flex flex-col shadow-2xl"
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+            <div className="flex items-center justify-between p-4 border-b border-border">
               <div className="flex items-center gap-2">
                 <ShoppingCart className="w-4 h-4 text-blue-400" />
                 <h2 className="text-sm font-semibold text-zinc-200">Your Cart</h2>
@@ -881,7 +881,7 @@ export default function Marketplace() {
                   {cartItems.length}
                 </Badge>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => setShowCart(false)} className="h-7 w-7 p-0 text-zinc-500">
+              <Button variant="ghost" size="sm" onClick={() => setShowCart(false)} className="h-7 w-7 p-0 text-muted-foreground">
                 <X className="w-4 h-4" />
               </Button>
             </div>
@@ -891,7 +891,7 @@ export default function Marketplace() {
               {cartItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <ShoppingCart className="w-12 h-12 text-zinc-800 mb-3" />
-                  <p className="text-sm text-zinc-500">Your cart is empty</p>
+                  <p className="text-sm text-muted-foreground">Your cart is empty</p>
                   <p className="text-xs text-zinc-600 mt-1">Add templates to get started</p>
                 </div>
               ) : (
@@ -899,19 +899,19 @@ export default function Marketplace() {
                   {cartItems.map((item) => {
                     const Icon = ICON_MAP[item.icon] || Code2
                     return (
-                      <div key={item.id} className="flex items-center gap-3 p-3 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
-                        <div className={`p-2 rounded-lg bg-zinc-800 border border-zinc-700/50 ${item.color || "text-zinc-400"}`}>
+                      <div key={item.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg border border-border/50">
+                        <div className={`p-2 rounded-lg bg-muted border border-border/50 ${item.color || "text-muted-foreground"}`}>
                           <Icon className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <h4 className="text-sm font-medium text-zinc-200 truncate">{item.name}</h4>
-                          <p className="text-xs text-zinc-500">{item.price}</p>
+                          <p className="text-xs text-muted-foreground">{item.price}</p>
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleRemoveFromCart(item.id)}
-                          className="h-7 w-7 p-0 text-zinc-500 hover:text-red-400"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-red-400"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
@@ -924,9 +924,9 @@ export default function Marketplace() {
 
             {/* Cart Footer */}
             {cartItems.length > 0 && (
-              <div className="p-4 border-t border-zinc-800 space-y-3">
+              <div className="p-4 border-t border-border space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-zinc-400">Total</span>
+                  <span className="text-muted-foreground">Total</span>
                   <span className="font-semibold text-zinc-200">
                     {cartTotal === 0 ? 'Free' : `$${cartTotal.toFixed(2)}`}
                   </span>
@@ -935,7 +935,7 @@ export default function Marketplace() {
                   <Download className="w-4 h-4" />
                   Install All ({cartItems.length})
                 </Button>
-                <Button variant="outline" className="w-full border-zinc-700 text-zinc-400 text-xs" onClick={() => setCartItems([])}>
+                <Button variant="outline" className="w-full border-border text-muted-foreground text-xs" onClick={() => setCartItems([])}>
                   Clear Cart
                 </Button>
               </div>
@@ -945,7 +945,7 @@ export default function Marketplace() {
       </AnimatePresence>
 
       {/* ── Status Bar ── */}
-      <div className="h-7 border-t border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/20 text-[11px] text-zinc-600">
+      <div className="h-7 border-t border-border flex items-center justify-between px-6 bg-muted/20 text-[11px] text-zinc-600">
         <span>{templates.length} templates available</span>
         <div className="flex items-center gap-3">
           <span>Category: {CATEGORIES.find((c) => c.id === activeCategory)?.label}</span>
@@ -955,42 +955,42 @@ export default function Marketplace() {
 
       {/* ── Publish Dialog ── */}
       <Dialog open={showPublishDialog} onOpenChange={setShowPublishDialog}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-200 max-w-lg">
+        <DialogContent className="bg-muted border-border text-zinc-200 max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg">
               <Upload className="w-5 h-5 text-blue-400" />
               Publish to Marketplace
             </DialogTitle>
-            <DialogDescription className="text-zinc-500">
+            <DialogDescription className="text-muted-foreground">
               Share your template with the community
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label className="text-zinc-400">Template Name</Label>
+              <Label className="text-muted-foreground">Template Name</Label>
               <Input
                 placeholder="My Awesome Template"
                 value={publishForm.name}
                 onChange={(e) => setPublishForm({ ...publishForm, name: e.target.value })}
-                className="bg-zinc-800 border-zinc-700 text-zinc-200"
+                className="bg-muted border-border text-zinc-200"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-zinc-400">Description</Label>
+              <Label className="text-muted-foreground">Description</Label>
               <Textarea
                 placeholder="Describe what your template does..."
                 value={publishForm.description}
                 onChange={(e) => setPublishForm({ ...publishForm, description: e.target.value })}
-                className="bg-zinc-800 border-zinc-700 text-zinc-200 min-h-[80px]"
+                className="bg-muted border-border text-zinc-200 min-h-[80px]"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-zinc-400">Category</Label>
+                <Label className="text-muted-foreground">Category</Label>
                 <select
                   value={publishForm.category}
                   onChange={(e) => setPublishForm({ ...publishForm, category: e.target.value })}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-md px-3 py-2 text-sm text-zinc-200"
+                  className="w-full bg-muted border border-border rounded-md px-3 py-2 text-sm text-zinc-200"
                 >
                   <option value="templates">Templates</option>
                   <option value="agents">Agents</option>
@@ -1000,11 +1000,11 @@ export default function Marketplace() {
                 </select>
               </div>
               <div className="space-y-2">
-                <Label className="text-zinc-400">Price</Label>
+                <Label className="text-muted-foreground">Price</Label>
                 <select
                   value={publishForm.price}
                   onChange={(e) => setPublishForm({ ...publishForm, price: e.target.value })}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-md px-3 py-2 text-sm text-zinc-200"
+                  className="w-full bg-muted border border-border rounded-md px-3 py-2 text-sm text-zinc-200"
                 >
                   <option value="Free">Free</option>
                   <option value="$4.99">$4.99</option>
@@ -1015,26 +1015,26 @@ export default function Marketplace() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-zinc-400">Tags (comma-separated)</Label>
+              <Label className="text-muted-foreground">Tags (comma-separated)</Label>
               <Input
                 placeholder="react, typescript, api"
                 value={publishForm.tags}
                 onChange={(e) => setPublishForm({ ...publishForm, tags: e.target.value })}
-                className="bg-zinc-800 border-zinc-700 text-zinc-200"
+                className="bg-muted border-border text-zinc-200"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-zinc-400">README / Documentation</Label>
+              <Label className="text-muted-foreground">README / Documentation</Label>
               <Textarea
                 placeholder="# Getting Started\n\nProvide setup instructions..."
                 value={publishForm.readme}
                 onChange={(e) => setPublishForm({ ...publishForm, readme: e.target.value })}
-                className="bg-zinc-800 border-zinc-700 text-zinc-200 min-h-[100px] font-mono text-xs"
+                className="bg-muted border-border text-zinc-200 min-h-[100px] font-mono text-xs"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPublishDialog(false)} className="border-zinc-700 text-zinc-400">
+            <Button variant="outline" onClick={() => setShowPublishDialog(false)} className="border-border text-muted-foreground">
               Cancel
             </Button>
             <Button

@@ -112,12 +112,12 @@ export function CommandPalette({ open, onClose, onAction, activeFileName }: Comm
                                                 onAction(cmd.action, cmd.payload)
                                                 onClose()
                                             }}
-                                            className="flex items-center gap-3 px-3 py-2 mx-1 rounded-md text-[13px] text-[#c9d1d9] cursor-pointer aria-selected:bg-[#1f6feb]/20 aria-selected:text-white hover:bg-[#1f1f1f]"
+                                            className="flex items-center gap-3 px-3 py-2 mx-1 rounded-md text-[13px] text-foreground cursor-pointer aria-selected:bg-[#1f6feb]/20 aria-selected:text-white hover:bg-[#1f1f1f]"
                                         >
                                             <span className="text-[#8b949e]">{cmd.icon}</span>
                                             <span className="flex-1">{cmd.label}</span>
                                             {cmd.shortcut && (
-                                                <kbd className="px-1.5 py-0.5 rounded bg-[#0d1117] border border-[#30363d] text-[10px] text-[#484f58] font-mono shrink-0">
+                                                <kbd className="px-1.5 py-0.5 rounded bg-background border border-[#30363d] text-[10px] text-[#484f58] font-mono shrink-0">
                                                     {cmd.shortcut}
                                                 </kbd>
                                             )}

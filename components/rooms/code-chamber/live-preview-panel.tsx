@@ -63,7 +63,7 @@ export function LivePreviewPanel({ projectId }: LivePreviewPanelProps) {
     }
 
     return (
-        <div className="h-full flex flex-col bg-[#0d1117]">
+        <div className="h-full flex flex-col bg-background text-foreground">
             {/* Browser Chrome */}
             <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[#1b1f27] shrink-0">
                 {/* Navigation */}
@@ -94,7 +94,7 @@ export function LivePreviewPanel({ projectId }: LivePreviewPanelProps) {
                         onKeyDown={(e) => {
                             if (e.key === "Enter") navigate(urlInput)
                         }}
-                        className="flex-1 bg-transparent text-[12px] text-[#c9d1d9] outline-none placeholder:text-[#484f58]"
+                        className="flex-1 bg-transparent text-[12px] text-foreground outline-none placeholder:text-[#484f58]"
                         placeholder="Enter URL..."
                     />
                     {isLoading && (

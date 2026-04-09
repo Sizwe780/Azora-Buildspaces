@@ -113,8 +113,8 @@ export function DraggableTabBar({ tabs, activeTabId, onSelect, onClose, onReorde
                         className={cn(
                             "group flex items-center gap-2 h-[35px] px-3 text-[13px] border-r border-[#1b1f27] transition-all shrink-0 relative",
                             isActive
-                                ? "bg-[#0d1117] text-white border-t-2 border-t-[#1f6feb]"
-                                : "bg-[#010409] text-[#8b949e] hover:text-[#c9d1d9] border-t-2 border-t-transparent",
+                                ? "bg-background text-white border-t-2 border-t-[#1f6feb]"
+                                : "bg-[#010409] text-[#8b949e] hover:text-foreground border-t-2 border-t-transparent",
                             isDragging && "opacity-40",
                             isDragOver && dragSide === "left" && "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-[#1f6feb]",
                             isDragOver && dragSide === "right" && "after:absolute after:right-0 after:top-0 after:bottom-0 after:w-0.5 after:bg-[#1f6feb]"

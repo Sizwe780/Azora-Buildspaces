@@ -185,10 +185,10 @@ function KnowledgeCard({
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="group px-4 py-3 border-b border-zinc-800/50 hover:bg-zinc-800/20 transition-colors cursor-pointer"
+      className="group px-4 py-3 border-b border-border/50 hover:bg-muted/20 transition-colors cursor-pointer"
     >
       <div className="flex items-start gap-3">
-        <div className={`mt-0.5 p-1.5 rounded-md bg-zinc-800/50 ${config.color}`}>
+        <div className={`mt-0.5 p-1.5 rounded-md bg-muted/50 ${config.color}`}>
           <Icon className="w-3.5 h-3.5" />
         </div>
 
@@ -197,7 +197,7 @@ function KnowledgeCard({
             <h4 className="text-sm font-medium text-zinc-200 truncate group-hover:text-white transition-colors">
               {highlightText(item.title, searchQuery)}
             </h4>
-            <Badge variant="outline" className={`text-[9px] h-4 px-1 border-zinc-700/50 ${config.color}`}>
+            <Badge variant="outline" className={`text-[9px] h-4 px-1 border-border/50 ${config.color}`}>
               {config.label}
             </Badge>
             {item.relevance != null && item.relevance > 0 && (
@@ -209,25 +209,25 @@ function KnowledgeCard({
 
           {item.path && (
             <div className="flex items-center gap-1.5 group/path">
-              <p className="text-[11px] text-zinc-500 truncate font-mono">{item.path}</p>
+              <p className="text-[11px] text-muted-foreground truncate font-mono">{item.path}</p>
               <button
                 onClick={(e) => { e.stopPropagation(); copyPath() }}
                 className="opacity-0 group-hover/path:opacity-100 transition-opacity flex-shrink-0"
               >
-                {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-zinc-600 hover:text-zinc-400" />}
+                {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-zinc-600 hover:text-muted-foreground" />}
               </button>
             </div>
           )}
 
           {item.description && (
-            <p className="text-xs text-zinc-500 mt-1 line-clamp-2 leading-relaxed">
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
               {highlightText(item.description, searchQuery)}
             </p>
           )}
 
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             {item.language && (
-              <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-zinc-800 text-zinc-500">
+              <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-border text-muted-foreground">
                 {item.language}
               </Badge>
             )}
@@ -248,27 +248,27 @@ function KnowledgeCard({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-zinc-500 hover:text-white"
+            className="h-7 px-2 text-muted-foreground hover:text-white"
           >
             <ArrowUpRight className="w-3.5 h-3.5" />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-zinc-500 hover:text-white">
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-white">
                 <MoreHorizontal className="w-3.5 h-3.5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-800 text-zinc-200 text-xs w-44">
-              <DropdownMenuItem onClick={copyLink} className="gap-2 cursor-pointer hover:bg-zinc-800">
+            <DropdownMenuContent align="end" className="bg-muted border-border text-zinc-200 text-xs w-44">
+              <DropdownMenuItem onClick={copyLink} className="gap-2 cursor-pointer hover:bg-muted">
                 <Copy className="w-3.5 h-3.5" /> Copy Link
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportMarkdown} className="gap-2 cursor-pointer hover:bg-zinc-800">
+              <DropdownMenuItem onClick={exportMarkdown} className="gap-2 cursor-pointer hover:bg-muted">
                 <Download className="w-3.5 h-3.5" /> Export as Markdown
               </DropdownMenuItem>
               {onDelete && (
                 <DropdownMenuItem
                   onClick={() => onDelete(item.id)}
-                  className="gap-2 cursor-pointer text-red-400 hover:bg-zinc-800 hover:text-red-300"
+                  className="gap-2 cursor-pointer text-red-400 hover:bg-muted hover:text-red-300"
                 >
                   <Trash2 className="w-3.5 h-3.5" /> Delete
                 </DropdownMenuItem>
@@ -598,18 +598,18 @@ function ForceGraph({ items, onSelect }: { items: KnowledgeItem[]; onSelect: (it
       {/* Graph Search */}
       <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input
             type="text"
             value={graphSearch}
             onChange={(e) => setGraphSearch(e.target.value)}
             placeholder="Search graph..."
-            className="w-48 pl-8 pr-3 py-1.5 text-xs bg-zinc-900/90 border border-zinc-700 rounded-lg text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+            className="w-48 pl-8 pr-3 py-1.5 text-xs bg-muted/90 border border-border rounded-lg text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
           />
           {graphSearch && (
             <button
               onClick={() => setGraphSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-zinc-300"
             >
               <X className="w-3 h-3" />
             </button>
@@ -623,24 +623,24 @@ function ForceGraph({ items, onSelect }: { items: KnowledgeItem[]; onSelect: (it
       </div>
       
       {/* Zoom Controls */}
-      <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1 bg-zinc-900/90 border border-zinc-700 rounded-lg p-1">
+      <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1 bg-muted/90 border border-border rounded-lg p-1">
         <button
           onClick={() => setZoom(z => Math.max(0.2, z / 1.2))}
-          className="p-1.5 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="p-1.5 hover:bg-zinc-700 rounded text-muted-foreground hover:text-zinc-200 transition-colors"
         >
           <ZoomOut className="w-3.5 h-3.5" />
         </button>
-        <span className="text-[10px] text-zinc-400 w-12 text-center">{Math.round(zoom * 100)}%</span>
+        <span className="text-[10px] text-muted-foreground w-12 text-center">{Math.round(zoom * 100)}%</span>
         <button
           onClick={() => setZoom(z => Math.min(3, z * 1.2))}
-          className="p-1.5 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="p-1.5 hover:bg-zinc-700 rounded text-muted-foreground hover:text-zinc-200 transition-colors"
         >
           <ZoomIn className="w-3.5 h-3.5" />
         </button>
         <div className="w-px h-4 bg-zinc-700 mx-1" />
         <button
           onClick={() => { setZoom(1); setPanOffset({ x: 0, y: 0 }); }}
-          className="p-1.5 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="p-1.5 hover:bg-zinc-700 rounded text-muted-foreground hover:text-zinc-200 transition-colors"
           title="Reset view"
         >
           <Maximize2 className="w-3.5 h-3.5" />
@@ -649,15 +649,15 @@ function ForceGraph({ items, onSelect }: { items: KnowledgeItem[]; onSelect: (it
       
       {/* Hover tooltip */}
       {hoveredNode && (
-        <div className="absolute top-3 right-3 bg-zinc-900/95 border border-zinc-700 rounded-lg px-3 py-2 text-xs max-w-[200px] z-10">
+        <div className="absolute top-3 right-3 bg-muted/95 border border-border rounded-lg px-3 py-2 text-xs max-w-[200px] z-10">
           <div className="font-semibold text-zinc-200">{hoveredNode.title}</div>
-          <div className="text-zinc-500 mt-0.5">{hoveredNode.type} • {hoveredNode.path || 'unknown'}</div>
-          {hoveredNode.description && <div className="text-zinc-400 mt-1 line-clamp-2">{hoveredNode.description}</div>}
+          <div className="text-muted-foreground mt-0.5">{hoveredNode.type} • {hoveredNode.path || 'unknown'}</div>
+          {hoveredNode.description && <div className="text-muted-foreground mt-1 line-clamp-2">{hoveredNode.description}</div>}
         </div>
       )}
       
       {/* Instructions */}
-      <div className="absolute bottom-3 right-3 z-10 text-[10px] text-zinc-600 bg-zinc-900/80 px-2 py-1 rounded">
+      <div className="absolute bottom-3 right-3 z-10 text-[10px] text-zinc-600 bg-muted/80 px-2 py-1 rounded">
         Scroll to zoom • Drag to pan • Click nodes to select
       </div>
     </div>
@@ -989,10 +989,10 @@ export default function KnowledgeOcean() {
   const totalIndexed = knowledgeItems.length
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950 text-zinc-100">
+    <div className="h-full flex flex-col bg-background text-foreground">
       {/* ── New Document Dialog ── */}
       <Dialog open={showNewDocDialog} onOpenChange={setShowNewDocDialog}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-lg">
+        <DialogContent className="bg-muted border-border text-foreground sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2">
               <FileText className="w-4 h-4 text-blue-400" />
@@ -1001,30 +1001,30 @@ export default function KnowledgeOcean() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-xs text-zinc-400">Title</Label>
+              <Label className="text-xs text-muted-foreground">Title</Label>
               <Input
                 value={newDocTitle}
                 onChange={(e) => setNewDocTitle(e.target.value)}
                 placeholder="Document title"
-                className="h-9 bg-zinc-950/50 border-zinc-700/50 text-sm"
+                className="h-9 bg-background/50 border-border/50 text-sm"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-zinc-400">Content (Markdown)</Label>
+              <Label className="text-xs text-muted-foreground">Content (Markdown)</Label>
               <Textarea
                 value={newDocContent}
                 onChange={(e) => setNewDocContent(e.target.value)}
                 placeholder="Write markdown content..."
-                className="min-h-[120px] bg-zinc-950/50 border-zinc-700/50 text-sm resize-none"
+                className="min-h-[120px] bg-background/50 border-border/50 text-sm resize-none"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-zinc-400">Tags (comma-separated)</Label>
+              <Label className="text-xs text-muted-foreground">Tags (comma-separated)</Label>
               <Input
                 value={newDocTags}
                 onChange={(e) => setNewDocTags(e.target.value)}
                 placeholder="e.g. auth, api, frontend"
-                className="h-9 bg-zinc-950/50 border-zinc-700/50 text-sm"
+                className="h-9 bg-background/50 border-border/50 text-sm"
               />
             </div>
           </div>
@@ -1033,7 +1033,7 @@ export default function KnowledgeOcean() {
               variant="ghost"
               size="sm"
               onClick={() => setShowNewDocDialog(false)}
-              className="text-zinc-400 hover:text-zinc-200"
+              className="text-muted-foreground hover:text-zinc-200"
             >
               Cancel
             </Button>
@@ -1050,25 +1050,25 @@ export default function KnowledgeOcean() {
       </Dialog>
 
       {/* ── Header ── */}
-      <div className="h-14 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/30 backdrop-blur-sm">
+      <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-background">
         <div className="flex items-center gap-3">
           <div className="p-1.5 rounded-lg bg-blue-500/10">
             <Brain className="w-4 h-4 text-blue-400" />
           </div>
           <h1 className="font-semibold text-base">Knowledge Ocean</h1>
-          <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-zinc-700 text-zinc-500">
+          <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-border text-muted-foreground">
             {totalIndexed} indexed
           </Badge>
         </div>
 
         <div className="flex items-center gap-2">
           {/* Search Mode Toggle */}
-          <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
+          <div className="flex items-center bg-muted border border-border rounded-lg p-0.5">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setSearchMode("local")}
-              className={`h-7 px-2.5 text-xs gap-1 ${searchMode === "local" ? "bg-zinc-800 text-white" : "text-zinc-500"}`}
+              className={`h-7 px-2.5 text-xs gap-1 ${searchMode === "local" ? "bg-muted text-white" : "text-muted-foreground"}`}
             >
               <Search className="w-3 h-3" />
               Text
@@ -1077,7 +1077,7 @@ export default function KnowledgeOcean() {
               variant="ghost"
               size="sm"
               onClick={() => setSearchMode("semantic")}
-              className={`h-7 px-2.5 text-xs gap-1 ${searchMode === "semantic" ? "bg-zinc-800 text-white" : "text-zinc-500"}`}
+              className={`h-7 px-2.5 text-xs gap-1 ${searchMode === "semantic" ? "bg-muted text-white" : "text-muted-foreground"}`}
             >
               <Sparkles className="w-3 h-3" />
               Semantic
@@ -1088,7 +1088,7 @@ export default function KnowledgeOcean() {
             variant="outline"
             size="sm"
             onClick={() => setShowAskPanel(!showAskPanel)}
-            className={`h-8 gap-1.5 border-zinc-700 ${showAskPanel ? "text-blue-400 border-blue-500/50" : "text-zinc-300"}`}
+            className={`h-8 gap-1.5 border-border ${showAskPanel ? "text-blue-400 border-blue-500/50" : "text-zinc-300"}`}
           >
             <Sparkles className="w-3.5 h-3.5" />
             Ask AI
@@ -1098,7 +1098,7 @@ export default function KnowledgeOcean() {
             variant="outline"
             size="sm"
             onClick={() => setShowNewDocDialog(true)}
-            className="h-8 gap-1.5 border-zinc-700 text-zinc-300 hover:text-white"
+            className="h-8 gap-1.5 border-border text-zinc-300 hover:text-white"
           >
             <Plus className="w-3.5 h-3.5" />
             New Doc
@@ -1109,7 +1109,7 @@ export default function KnowledgeOcean() {
             size="sm"
             onClick={scanProjectFiles}
             disabled={isScanning}
-            className="h-8 gap-1.5 border-zinc-700 text-zinc-300"
+            className="h-8 gap-1.5 border-border text-zinc-300"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? "animate-spin" : ""}`} />
             {isScanning ? "Scanning…" : "Rescan"}
@@ -1120,7 +1120,7 @@ export default function KnowledgeOcean() {
             size="sm"
             onClick={generateEmbeddings}
             disabled={isGeneratingEmbeddings || isScanning}
-            className={`h-8 gap-1.5 border-zinc-700 ${embeddingsReady ? 'text-emerald-400 border-emerald-700' : 'text-zinc-300'}`}
+            className={`h-8 gap-1.5 border-border ${embeddingsReady ? 'text-emerald-400 border-emerald-700' : 'text-zinc-300'}`}
           >
             <Brain className={`w-3.5 h-3.5 ${isGeneratingEmbeddings ? "animate-pulse" : ""}`} />
             {isGeneratingEmbeddings ? "Embedding…" : embeddingsReady ? "Vectors ✓" : "Embed"}
@@ -1129,21 +1129,21 @@ export default function KnowledgeOcean() {
       </div>
 
       {/* ── Search Bar ── */}
-      <div className="px-6 py-3 border-b border-zinc-800/50">
+      <div className="px-6 py-3 border-b border-border/50">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={searchMode === "semantic" ? "Search with natural language..." : "Search knowledge base..."}
-            className="pl-10 h-9 bg-zinc-900/50 border-zinc-700/50 text-sm text-zinc-200 placeholder:text-zinc-600"
+            className="pl-10 h-9 bg-muted/50 border-border/50 text-sm text-zinc-200 placeholder:text-zinc-600"
           />
           {searchQuery && (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => { setSearchQuery(""); scanProjectFiles() }}
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0 text-zinc-500"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0 text-muted-foreground"
             >
               <X className="w-3.5 h-3.5" />
             </Button>
@@ -1158,16 +1158,16 @@ export default function KnowledgeOcean() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-b border-zinc-800/50 overflow-hidden"
+            className="border-b border-border/50 overflow-hidden"
           >
-            <div className="px-6 py-4 bg-zinc-900/30">
+            <div className="px-6 py-4 bg-muted/30">
               <div className="flex items-center gap-2 mb-3">
                 <Brain className="w-4 h-4 text-blue-400" />
                 <span className="text-sm font-medium text-zinc-200">Ask about your codebase</span>
                 {conversationHistory.length > 0 && (
                   <button
                     onClick={() => setShowHistory(!showHistory)}
-                    className="ml-auto text-[10px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-colors"
+                    className="ml-auto text-[10px] text-muted-foreground hover:text-zinc-300 flex items-center gap-1 transition-colors"
                   >
                     <Clock className="w-3 h-3" />
                     {conversationHistory.length} previous {conversationHistory.length === 1 ? "question" : "questions"}
@@ -1182,9 +1182,9 @@ export default function KnowledgeOcean() {
                     <button
                       key={i}
                       onClick={() => { setRagQuestion(entry.question); setShowHistory(false) }}
-                      className="w-full text-left p-2 rounded-md bg-zinc-800/30 hover:bg-zinc-800/60 border border-zinc-800/50 transition-colors"
+                      className="w-full text-left p-2 rounded-md bg-muted/30 hover:bg-muted/60 border border-border/50 transition-colors"
                     >
-                      <div className="text-xs text-zinc-400 truncate">{entry.question}</div>
+                      <div className="text-xs text-muted-foreground truncate">{entry.question}</div>
                       <div className="text-[10px] text-zinc-600 truncate mt-0.5">{entry.answer.substring(0, 80)}…</div>
                     </button>
                   ))}
@@ -1197,7 +1197,7 @@ export default function KnowledgeOcean() {
                   onChange={(e) => setRagQuestion(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && askQuestion()}
                   placeholder="e.g. How does the authentication flow work?"
-                  className="flex-1 h-9 bg-zinc-900/50 border-zinc-700/50 text-sm text-zinc-200 placeholder:text-zinc-600"
+                  className="flex-1 h-9 bg-muted/50 border-border/50 text-sm text-zinc-200 placeholder:text-zinc-600"
                   disabled={isAskingRag}
                 />
                 <Button
@@ -1211,14 +1211,14 @@ export default function KnowledgeOcean() {
                 </Button>
               </div>
               {ragAnswer && (
-                <div className="mt-3 p-3 bg-zinc-800/50 rounded-lg border border-zinc-700/30">
+                <div className="mt-3 p-3 bg-muted/50 rounded-lg border border-border/30">
                   <div className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">{ragAnswer}</div>
                   {ragSources.length > 0 && (
-                    <div className="mt-3 pt-2 border-t border-zinc-700/30">
+                    <div className="mt-3 pt-2 border-t border-border/30">
                       <span className="text-[10px] uppercase tracking-wider text-zinc-600 font-medium">Sources</span>
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
                         {ragSources.map((src: any, i: number) => (
-                          <Badge key={i} variant="outline" className="text-[10px] h-5 px-1.5 border-zinc-700 text-zinc-500">
+                          <Badge key={i} variant="outline" className="text-[10px] h-5 px-1.5 border-border text-muted-foreground">
                             {src.title || src.path}
                           </Badge>
                         ))}
@@ -1230,8 +1230,8 @@ export default function KnowledgeOcean() {
 
               {/* Related Questions */}
               {relatedQuestions.length > 0 && (
-                <div className="mt-3 p-3 bg-zinc-800/30 rounded-lg border border-zinc-700/20">
-                  <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Related Questions</span>
+                <div className="mt-3 p-3 bg-muted/30 rounded-lg border border-border/20">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Related Questions</span>
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {relatedQuestions.map((q, i) => (
                       <button
@@ -1251,23 +1251,23 @@ export default function KnowledgeOcean() {
       </AnimatePresence>
 
       {/* ── Index Statistics Dashboard ── */}
-      <div className="px-6 py-3 border-b border-zinc-800/30 grid grid-cols-4 gap-3">
-        <div className="rounded-lg bg-zinc-900/50 border border-zinc-800/50 px-3 py-2">
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Total Documents</div>
+      <div className="px-6 py-3 border-b border-border/30 grid grid-cols-4 gap-3">
+        <div className="rounded-lg bg-muted/50 border border-border/50 px-3 py-2">
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Total Documents</div>
           <div className="text-lg font-semibold text-zinc-200">{totalIndexed}</div>
         </div>
-        <div className="rounded-lg bg-zinc-900/50 border border-zinc-800/50 px-3 py-2">
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Total Indexed</div>
+        <div className="rounded-lg bg-muted/50 border border-border/50 px-3 py-2">
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Total Indexed</div>
           <div className="text-lg font-semibold text-zinc-200">
             {stats.totalFiles + stats.totalFunctions + stats.totalComponents + stats.totalApis + stats.totalDocs}
           </div>
         </div>
-        <div className="rounded-lg bg-zinc-900/50 border border-zinc-800/50 px-3 py-2">
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Storage Used</div>
+        <div className="rounded-lg bg-muted/50 border border-border/50 px-3 py-2">
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Storage Used</div>
           <div className="text-lg font-semibold text-zinc-200">{storageUsedKB} KB</div>
         </div>
-        <div className="rounded-lg bg-zinc-900/50 border border-zinc-800/50 px-3 py-2">
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Last Indexed</div>
+        <div className="rounded-lg bg-muted/50 border border-border/50 px-3 py-2">
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Last Indexed</div>
           <div className="text-sm font-medium text-zinc-200 truncate">
             {stats.lastScan ? stats.lastScan.toLocaleTimeString() : "—"}
           </div>
@@ -1276,7 +1276,7 @@ export default function KnowledgeOcean() {
 
       {/* ── Tag Filter Bar ── */}
       {allTags.length > 0 && (
-        <div className="px-6 py-2 border-b border-zinc-800/30 flex items-center gap-2 flex-wrap">
+        <div className="px-6 py-2 border-b border-border/30 flex items-center gap-2 flex-wrap">
           <Tag className="w-3 h-3 text-zinc-600 flex-shrink-0" />
           {allTags.map((tag) => (
             <button
@@ -1285,7 +1285,7 @@ export default function KnowledgeOcean() {
               className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
                 activeTagFilter === tag
                   ? "bg-blue-500/20 border-blue-500/50 text-blue-300"
-                  : "bg-zinc-800/30 border-zinc-700/50 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
+                  : "bg-muted/30 border-border/50 text-muted-foreground hover:text-zinc-300 hover:border-zinc-600"
               }`}
             >
               #{tag}
@@ -1294,7 +1294,7 @@ export default function KnowledgeOcean() {
           {activeTagFilter && (
             <button
               onClick={() => setActiveTagFilter(null)}
-              className="text-[10px] text-zinc-600 hover:text-zinc-400 flex items-center gap-0.5 ml-1 transition-colors"
+              className="text-[10px] text-zinc-600 hover:text-muted-foreground flex items-center gap-0.5 ml-1 transition-colors"
             >
               <X className="w-3 h-3" /> Clear
             </button>
@@ -1305,7 +1305,7 @@ export default function KnowledgeOcean() {
       {/* ── Tabs + Content ── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
         <div className="px-6 pt-2">
-          <TabsList className="bg-zinc-900/50 h-8 p-0.5">
+          <TabsList className="bg-muted/50 h-8 p-0.5">
             {TABS.map((tab) => {
               const Icon = tab.icon
               const count = tab.id === "all"
@@ -1320,7 +1320,7 @@ export default function KnowledgeOcean() {
                 <TabsTrigger
                   key={tab.id}
                   value={tab.id}
-                  className="gap-1.5 text-[11px] h-7 data-[state=active]:bg-zinc-800"
+                  className="gap-1.5 text-[11px] h-7 data-[state=active]:bg-muted"
                 >
                   <Icon className="w-3 h-3" />
                   {tab.label}
@@ -1338,7 +1338,7 @@ export default function KnowledgeOcean() {
               {isScanning ? (
                 <div className="flex flex-col items-center justify-center py-16">
                   <RefreshCw className="w-8 h-8 text-blue-400 animate-spin mb-4" />
-                  <p className="text-sm text-zinc-400">Scanning project files…</p>
+                  <p className="text-sm text-muted-foreground">Scanning project files…</p>
                   <p className="text-xs text-zinc-600 mt-1">Indexing code, docs, and APIs</p>
                 </div>
               ) : filteredItems.length > 0 ? (
@@ -1350,7 +1350,7 @@ export default function KnowledgeOcean() {
               ) : (
                 <div className="flex flex-col items-center justify-center py-16">
                   <Brain className="w-10 h-10 text-zinc-700 mb-3" />
-                  <p className="text-sm text-zinc-500 mb-1">
+                  <p className="text-sm text-muted-foreground mb-1">
                     {searchQuery ? "No results found" : "No items indexed"}
                   </p>
                   <p className="text-xs text-zinc-600 mb-4">
@@ -1374,17 +1374,17 @@ export default function KnowledgeOcean() {
 
         {/* Graph tab — Interactive force-directed knowledge topology */}
         <TabsContent value="graph" className="flex-1 m-0 overflow-hidden">
-          <div className="h-full flex flex-col bg-zinc-950/50">
-            <div className="px-6 py-3 border-b border-zinc-800/50 flex items-center gap-2">
+          <div className="h-full flex flex-col bg-background/50">
+            <div className="px-6 py-3 border-b border-border/50 flex items-center gap-2">
               <Network className="w-4 h-4 text-blue-400" />
               <span className="text-sm font-medium text-zinc-300">Knowledge Graph</span>
-              <Badge variant="outline" className="text-[10px] h-5 border-zinc-700 text-zinc-500 ml-auto">{knowledgeItems.length} nodes</Badge>
+              <Badge variant="outline" className="text-[10px] h-5 border-border text-muted-foreground ml-auto">{knowledgeItems.length} nodes</Badge>
             </div>
             <div className="flex-1 overflow-auto p-6">
               {knowledgeItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full py-20">
                   <Network className="w-12 h-12 text-zinc-700 mb-3" />
-                  <p className="text-sm text-zinc-500">No knowledge indexed yet</p>
+                  <p className="text-sm text-muted-foreground">No knowledge indexed yet</p>
                   <p className="text-xs text-zinc-600 mt-1">Scan your project to visualize connections</p>
                 </div>
               ) : (
@@ -1403,14 +1403,14 @@ export default function KnowledgeOcean() {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="absolute inset-y-0 right-0 w-96 bg-zinc-900 border-l border-zinc-800 flex flex-col z-30 shadow-2xl"
+            className="absolute inset-y-0 right-0 w-96 bg-muted border-l border-border flex flex-col z-30 shadow-2xl"
           >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
               <div className="flex items-center gap-2">
                 {(() => { const conf = TYPE_CONFIG[viewingItem.type] || TYPE_CONFIG.file; const Icon = conf.icon; return <Icon className={`w-4 h-4 ${conf.color}`} /> })()}
                 <span className="text-sm font-semibold text-zinc-200 truncate max-w-[200px]">{viewingItem.title}</span>
               </div>
-              <button onClick={() => setViewingItem(null)} className="text-zinc-500 hover:text-zinc-200 transition-colors">
+              <button onClick={() => setViewingItem(null)} className="text-muted-foreground hover:text-zinc-200 transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1419,7 +1419,7 @@ export default function KnowledgeOcean() {
                 {viewingItem.path && (
                   <div>
                     <div className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold mb-1">Path</div>
-                    <code className="text-xs text-zinc-300 bg-zinc-800 px-2 py-1 rounded block break-all">{viewingItem.path}</code>
+                    <code className="text-xs text-zinc-300 bg-muted px-2 py-1 rounded block break-all">{viewingItem.path}</code>
                   </div>
                 )}
                 {viewingItem.description && (
@@ -1431,7 +1431,7 @@ export default function KnowledgeOcean() {
                 {viewingItem.language && (
                   <div>
                     <div className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold mb-1">Language</div>
-                    <Badge variant="outline" className="text-xs border-zinc-700 text-zinc-400">{viewingItem.language}</Badge>
+                    <Badge variant="outline" className="text-xs border-border text-muted-foreground">{viewingItem.language}</Badge>
                   </div>
                 )}
                 {viewingItem.tags && viewingItem.tags.length > 0 && (
@@ -1446,20 +1446,20 @@ export default function KnowledgeOcean() {
                 )}
                 <div className="grid grid-cols-2 gap-3">
                   {viewingItem.size != null && (
-                    <div className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/30">
+                    <div className="p-3 rounded-lg bg-muted/50 border border-border/30">
                       <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-0.5">Size</div>
                       <div className="text-sm font-semibold text-zinc-200">{viewingItem.size} bytes</div>
                     </div>
                   )}
                   {viewingItem.lastModified && (
-                    <div className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/30">
+                    <div className="p-3 rounded-lg bg-muted/50 border border-border/30">
                       <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-0.5">Modified</div>
                       <div className="text-sm font-semibold text-zinc-200 truncate">{viewingItem.lastModified}</div>
                     </div>
                   )}
                 </div>
                 <div className="flex gap-2 pt-2">
-                  <Button size="sm" variant="outline" className="flex-1 gap-1.5 border-zinc-700 text-zinc-300 text-xs"
+                  <Button size="sm" variant="outline" className="flex-1 gap-1.5 border-border text-zinc-300 text-xs"
                     onClick={() => { if (viewingItem.path) navigator.clipboard.writeText(viewingItem.path) }}>
                     <Copy className="w-3.5 h-3.5" />Copy Path
                   </Button>
@@ -1474,7 +1474,7 @@ export default function KnowledgeOcean() {
       </AnimatePresence>
 
       {/* ── Status Bar ── */}
-      <div className="h-7 border-t border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/20 text-[11px] text-zinc-600">
+      <div className="h-7 border-t border-border flex items-center justify-between px-6 bg-muted/20 text-[11px] text-zinc-600">
         <span>{filteredItems.length} items</span>
         <div className="flex items-center gap-3">
           <span>Mode: {searchMode === "semantic" ? "AI Semantic" : "Text Search"}</span>

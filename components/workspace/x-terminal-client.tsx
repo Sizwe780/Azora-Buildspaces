@@ -2006,7 +2006,7 @@ export default function XTerminalClient({
   return (
     <div
       ref={terminalRef}
-      className="h-full w-full overflow-hidden bg-zinc-950"
+      className="h-full w-full overflow-hidden bg-background"
     />
   );
 }

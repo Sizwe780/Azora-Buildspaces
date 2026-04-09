@@ -174,8 +174,8 @@ function renderMarkdown(text: string): React.ReactNode[] {
             if (!line.trim()) { nodes.push(<br key={`br-${idx}-${lineIdx}`} />); return }
             if (line.startsWith("## ")) { nodes.push(<h3 key={`h-${idx}-${lineIdx}`} className="text-sm font-semibold text-white mt-3 mb-1">{processInline(line.slice(3))}</h3>); return }
             if (line.startsWith("### ")) { nodes.push(<h4 key={`h4-${idx}-${lineIdx}`} className="text-xs font-semibold text-white/90 mt-2 mb-1">{processInline(line.slice(4))}</h4>); return }
-            if (line.match(/^[-*]\s/)) { nodes.push(<div key={`li-${idx}-${lineIdx}`} className="flex gap-2 text-sm text-gray-300 ml-2"><span className="text-gray-500 shrink-0">•</span><span>{processInline(line.slice(2))}</span></div>); return }
-            if (line.match(/^\d+\.\s/)) { const num = line.match(/^(\d+)\./); nodes.push(<div key={`ol-${idx}-${lineIdx}`} className="flex gap-2 text-sm text-gray-300 ml-2"><span className="text-gray-500 shrink-0">{num?.[1]}.</span><span>{processInline(line.replace(/^\d+\.\s/, ""))}</span></div>); return }
+            if (line.match(/^[-*]\s/)) { nodes.push(<div key={`li-${idx}-${lineIdx}`} className="flex gap-2 text-sm text-gray-300 ml-2"><span className="text-muted-foreground shrink-0">•</span><span>{processInline(line.slice(2))}</span></div>); return }
+            if (line.match(/^\d+\.\s/)) { const num = line.match(/^(\d+)\./); nodes.push(<div key={`ol-${idx}-${lineIdx}`} className="flex gap-2 text-sm text-gray-300 ml-2"><span className="text-muted-foreground shrink-0">{num?.[1]}.</span><span>{processInline(line.replace(/^\d+\.\s/, ""))}</span></div>); return }
             nodes.push(<p key={`p-${idx}-${lineIdx}`} className="text-sm text-gray-300 leading-relaxed">{processInline(line)}</p>)
         })
     })
@@ -199,13 +199,13 @@ function CodeBlockRenderer({ block, onApply, onCopy, onInsert }: {
     return (
         <div className="my-2 rounded-lg border border-white/10 overflow-hidden bg-[var(--ide-widget-bg)]">
             <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 border-b border-white/10">
-                <span className="text-[11px] text-gray-400 font-mono">{block.language}</span>
+                <span className="text-[11px] text-muted-foreground font-mono">{block.language}</span>
                 <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-gray-400 hover:text-white gap-1" onClick={handleCopy}>
+                    <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-muted-foreground hover:text-white gap-1" onClick={handleCopy}>
                         {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                         {copied ? "Copied" : "Copy"}
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-gray-400 hover:text-white gap-1" onClick={() => onInsert(block.code)}>
+                    <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-muted-foreground hover:text-white gap-1" onClick={() => onInsert(block.code)}>
                         <ArrowRight className="w-3 h-3" />Insert
                     </Button>
                     <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-emerald-400 hover:text-emerald-300 gap-1 hover:bg-emerald-500/10" onClick={handleApply}>
@@ -224,7 +224,7 @@ function CodeBlockRenderer({ block, onApply, onCopy, onInsert }: {
 function TerminalCommandRenderer({ command, onRun }: { command: TerminalCommand; onRun: (cmd: string) => void }) {
     return (
         <div className="my-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--ide-widget-bg)] border border-white/10">
-            <Terminal className="w-4 h-4 text-gray-400 shrink-0" />
+            <Terminal className="w-4 h-4 text-muted-foreground shrink-0" />
             <code className="flex-1 text-[13px] font-mono text-emerald-400">{command.command}</code>
             {command.status === "pending" && (
                 <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-emerald-400 hover:bg-emerald-500/10 gap-1" onClick={() => onRun(command.command)}>
@@ -245,7 +245,7 @@ function FileChangeRenderer({ change, onApply }: { change: FileChange; onApply: 
         <div className="flex items-center gap-2 px-3 py-1.5 rounded bg-white/5 border border-white/10 text-xs">
             {change.action === "create" ? <FilePlus className="w-3.5 h-3.5 text-emerald-400" /> : change.action === "edit" ? <Pencil className="w-3.5 h-3.5 text-yellow-400" /> : <X className="w-3.5 h-3.5 text-red-400" />}
             <span className="flex-1 font-mono text-gray-300">{change.path}</span>
-            <span className="text-gray-500 capitalize">{change.action}</span>
+            <span className="text-muted-foreground capitalize">{change.action}</span>
             {!change.applied && (
                 <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px] text-emerald-400 hover:bg-emerald-500/10" onClick={() => onApply(change)}>Apply</Button>
             )}
@@ -302,14 +302,14 @@ function SlashCommandPicker({ commands, searchTerm, onSelect }: {
     if (filtered.length === 0) return null
     return (
         <div className="absolute bottom-full left-0 right-0 mb-1 max-h-[240px] overflow-y-auto rounded-lg border border-white/15 bg-[var(--ide-menu-bg)] shadow-xl z-50">
-            <div className="px-3 py-2 border-b border-white/10"><p className="text-[11px] text-gray-500 font-medium">SLASH COMMANDS</p></div>
+            <div className="px-3 py-2 border-b border-white/10"><p className="text-[11px] text-muted-foreground font-medium">SLASH COMMANDS</p></div>
             <div className="p-1">
                 {filtered.map(cmd => (
                     <button key={cmd.name} className="w-full flex items-center gap-3 px-3 py-2 rounded text-left hover:bg-white/10 transition-colors" onClick={() => onSelect(cmd)}>
                         <span className="text-emerald-400">{cmd.icon}</span>
                         <div className="flex-1 min-w-0">
                             <span className="text-sm text-white font-medium">{cmd.prefix}</span>
-                            <p className="text-[11px] text-gray-500">{cmd.description}</p>
+                            <p className="text-[11px] text-muted-foreground">{cmd.description}</p>
                         </div>
                     </button>
                 ))}
@@ -365,11 +365,14 @@ export function CopilotChatPanel({ agent = "elara", className = "" }: CopilotCha
     const { setPanelView } = useWorkbench()
 
     const { messages: aiMessages, append, isLoading: isStreaming, setMessages: setAiMessages } = useChat({
+
+
+
         api: '/api/chat',
         maxSteps: 5,
         initialMessages: (() => {
             const saved = loadChatHistory()
-            if (saved && saved.length > 0) return (saved as any[]).map(m => ({ id: m.id, role: m.type === 'user' ? 'user' : 'assistant', content: m.content, createdAt: m.timestamp }))
+            if (saved && saved.length > 0) return (saved as any[]).map(m => ({ id: m.id, role: m.type === 'user' ? 'user' : 'assistant', content: m.content, createdAt: m.timestamp }) as any)
             return []
         })(),
         onToolCall: async ({ toolCall }: any) => {
@@ -399,7 +402,7 @@ export function CopilotChatPanel({ agent = "elara", className = "" }: CopilotCha
             }
             return "Tool executed.";
         }
-    })
+    } as any)
 
     const typingAgent = isStreaming ? agent : null;
 
@@ -581,13 +584,13 @@ export function CopilotChatPanel({ agent = "elara", className = "" }: CopilotCha
                         <h3 className="font-semibold text-white text-sm">{style.name}</h3>
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-medium">Citadels M</span>
                     </div>
-                    <p className="text-[11px] text-gray-500 truncate">{style.description}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{style.description}</p>
                 </div>
                 <AgentActivityBadge agent={agent} status={isStreaming ? "working" : "idle"} size="sm" />
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 w-7 p-0 text-gray-500 hover:text-white"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-white"
                     title="Clear chat history"
                     onClick={() => {
                         setAiMessages([])
@@ -655,7 +658,7 @@ export function CopilotChatPanel({ agent = "elara", className = "" }: CopilotCha
 
                                         {message.fileChanges && message.fileChanges.length > 0 && (
                                             <div className="space-y-1">
-                                                <p className="text-[11px] text-gray-500 font-medium px-1">FILES ({message.fileChanges.length})</p>
+                                                <p className="text-[11px] text-muted-foreground font-medium px-1">FILES ({message.fileChanges.length})</p>
                                                 {message.fileChanges.map((fc, i) => (
                                                     <FileChangeRenderer key={`fc-${message.id}-${i}`} change={fc} onApply={handleApplyFileChange} />
                                                 ))}
@@ -664,10 +667,10 @@ export function CopilotChatPanel({ agent = "elara", className = "" }: CopilotCha
 
                                         {!message.isStreaming && message.id !== "welcome" && (
                                             <div className="flex items-center gap-2 px-1">
-                                                <Button variant="ghost" size="sm" className={`h-6 w-6 p-0 ${message.feedback === "up" ? "text-emerald-400" : "text-gray-500 hover:text-white"}`} onClick={() => handleFeedback(message.id, "up")}><ThumbsUp className="w-3 h-3" /></Button>
-                                                <Button variant="ghost" size="sm" className={`h-6 w-6 p-0 ${message.feedback === "down" ? "text-red-400" : "text-gray-500 hover:text-white"}`} onClick={() => handleFeedback(message.id, "down")}><ThumbsDown className="w-3 h-3" /></Button>
-                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-500 hover:text-white" onClick={() => handleRetry(message.id)}><RotateCcw className="w-3 h-3" /></Button>
-                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-500 hover:text-white" onClick={() => handleCopyCode(message.content)}><Copy className="w-3 h-3" /></Button>
+                                                <Button variant="ghost" size="sm" className={`h-6 w-6 p-0 ${message.feedback === "up" ? "text-emerald-400" : "text-muted-foreground hover:text-white"}`} onClick={() => handleFeedback(message.id, "up")}><ThumbsUp className="w-3 h-3" /></Button>
+                                                <Button variant="ghost" size="sm" className={`h-6 w-6 p-0 ${message.feedback === "down" ? "text-red-400" : "text-muted-foreground hover:text-white"}`} onClick={() => handleFeedback(message.id, "down")}><ThumbsDown className="w-3 h-3" /></Button>
+                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-white" onClick={() => handleRetry(message.id)}><RotateCcw className="w-3 h-3" /></Button>
+                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-white" onClick={() => handleCopyCode(message.content)}><Copy className="w-3 h-3" /></Button>
                                             </div>
                                         )}
                                     </div>
@@ -708,16 +711,16 @@ export function CopilotChatPanel({ agent = "elara", className = "" }: CopilotCha
                         <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[11px]">
                             {activeSlashCmd.icon}<span>{activeSlashCmd.prefix}</span>
                         </div>
-                        <button onClick={() => { setActiveSlashCmd(null); setInput("") }} className="text-gray-500 hover:text-white"><X className="w-3 h-3" /></button>
+                        <button onClick={() => { setActiveSlashCmd(null); setInput("") }} className="text-muted-foreground hover:text-white"><X className="w-3 h-3" /></button>
                     </div>
                 )}
 
                 <div className="p-3">
                     <div className="flex items-center gap-3 mb-2">
-                        <button className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 transition-colors" onClick={handleAttachCurrentFile} title="Attach current file">
+                        <button className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-gray-300 transition-colors" onClick={handleAttachCurrentFile} title="Attach current file">
                             <Paperclip className="w-3 h-3" />Attach file
                         </button>
-                        {activeFileName && <span className="text-[11px] text-gray-600">Active: <span className="text-gray-400">{activeFileName}</span></span>}
+                        {activeFileName && <span className="text-[11px] text-gray-600">Active: <span className="text-muted-foreground">{activeFileName}</span></span>}
                     </div>
                     <div className="flex gap-2 items-end">
                         <div className="relative flex-1">
@@ -734,7 +737,7 @@ export function CopilotChatPanel({ agent = "elara", className = "" }: CopilotCha
                             <Button
                                 size="icon"
                                 variant="ghost"
-                                className="absolute right-1 bottom-1 h-7 w-7 text-gray-400 hover:text-white disabled:opacity-30"
+                                className="absolute right-1 bottom-1 h-7 w-7 text-muted-foreground hover:text-white disabled:opacity-30"
                                 onClick={handleSend}
                                 disabled={isStreaming || (!input.trim() && attachedFiles.length === 0)}
                             >
@@ -757,3 +760,7 @@ export function CopilotChatPanel({ agent = "elara", className = "" }: CopilotCha
         </div>
     )
 }
+
+
+
+

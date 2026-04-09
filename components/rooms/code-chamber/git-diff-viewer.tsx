@@ -75,7 +75,7 @@ export function GitDiffViewer({ fileName, workspaceId }: GitDiffViewerProps) {
 
     if (isLoading) {
         return (
-            <div className="h-full flex items-center justify-center bg-[#0d1117]">
+            <div className="h-full flex items-center justify-center bg-background">
                 <Loader2 className="w-5 h-5 text-[#484f58] animate-spin" />
             </div>
         )
@@ -83,14 +83,14 @@ export function GitDiffViewer({ fileName, workspaceId }: GitDiffViewerProps) {
 
     if (error) {
         return (
-            <div className="h-full flex items-center justify-center bg-[#0d1117]">
+            <div className="h-full flex items-center justify-center bg-background">
                 <p className="text-[13px] text-[#484f58]">{error}</p>
             </div>
         )
     }
 
     return (
-        <div className="h-full bg-[#0d1117]">
+        <div className="h-full bg-background">
             <div className="flex items-center justify-between px-3 py-1 border-b border-[#1b1f27] text-[11px] text-[#8b949e] shrink-0">
                 <span>Original (committed)</span>
                 <span className="text-white font-medium">{fileName}</span>

@@ -93,7 +93,7 @@ export function RoomSelector({ activeRoom, onRoomChange }: RoomBarProps) {
                     className={`h-9 w-9 relative rounded-lg ${
                       isActive
                         ? "text-emerald-400 bg-emerald-500/10 before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-0.5 before:h-5 before:bg-emerald-400 before:rounded-r"
-                        : "text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]"
+                        : "text-muted-foreground hover:text-gray-300 hover:bg-white/[0.04]"
                     }`}
                     onClick={() => onRoomChange(room.id)}
                   >
@@ -122,7 +122,7 @@ export function RoomSelector({ activeRoom, onRoomChange }: RoomBarProps) {
               className={`h-9 w-9 rounded-lg ${
                 activeRoom === "marketplace"
                   ? "text-emerald-400 bg-emerald-500/10"
-                  : "text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]"
+                  : "text-muted-foreground hover:text-gray-300 hover:bg-white/[0.04]"
               }`}
               onClick={() => onRoomChange("marketplace" as RoomType)}
             >

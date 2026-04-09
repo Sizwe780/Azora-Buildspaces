@@ -170,7 +170,7 @@ export function DebugPanel({ projectId, onNavigate }: DebugPanelProps) {
                         v.type === "string" ? "text-emerald-400" :
                         v.type === "number" ? "text-amber-400" :
                         v.type === "boolean" ? "text-blue-400" :
-                        "text-[#c9d1d9]"
+                        "text-foreground"
                     )}>{v.value}</span>
                 </div>
                 {hasChildren && isExpanded && v.children!.map((child, i) =>
@@ -194,7 +194,7 @@ export function DebugPanel({ projectId, onNavigate }: DebugPanelProps) {
     }
 
     return (
-        <div className="h-full flex flex-col bg-[#0d1117] text-[#c9d1d9]">
+        <div className="h-full flex flex-col bg-background text-foreground">
             {/* Debug Toolbar */}
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#1b1f27] shrink-0">
                 <div className="flex items-center gap-1">
@@ -256,7 +256,7 @@ export function DebugPanel({ projectId, onNavigate }: DebugPanelProps) {
                             <div key={i} className="flex items-center gap-2 py-[2px] text-[12px]">
                                 <span className="text-purple-400">{w.expr}</span>
                                 <span className="text-[#30363d]">=</span>
-                                <span className="text-[#c9d1d9] truncate">{w.value}</span>
+                                <span className="text-foreground truncate">{w.value}</span>
                                 <button onClick={() => setWatchExpressions(prev => prev.filter((_, idx) => idx !== i))} className="ml-auto p-0.5 rounded hover:bg-[#30363d] text-[#484f58]">
                                     <X className="w-3 h-3" />
                                 </button>
@@ -316,7 +316,7 @@ export function DebugPanel({ projectId, onNavigate }: DebugPanelProps) {
                                         bp.enabled ? "bg-red-500 border-red-500" : "border-[#484f58]"
                                     )}
                                 />
-                                <span className="text-[#c9d1d9]">{bp.file}</span>
+                                <span className="text-foreground">{bp.file}</span>
                                 <span className="text-[#484f58]">:{bp.line}</span>
                                 <button
                                     onClick={() => setBreakpoints(prev => prev.filter(b => b.id !== bp.id))}

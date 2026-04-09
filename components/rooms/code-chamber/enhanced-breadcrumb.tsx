@@ -145,7 +145,7 @@ export function EnhancedBreadcrumbBar({ fileName, fileMap, activeFileId, onOpenF
                             onClick={() => setDropdownOpen(isDropdownOpen ? null : segment.id)}
                             className={cn(
                                 "flex items-center gap-1 px-1 py-0.5 rounded hover:bg-[#1f1f1f] transition-colors",
-                                isLast && "text-[#c9d1d9]",
+                                isLast && "text-foreground",
                                 isDropdownOpen && "bg-[#1f1f1f]"
                             )}
                         >
@@ -170,7 +170,7 @@ export function EnhancedBreadcrumbBar({ fileName, fileMap, activeFileId, onOpenF
                                             }}
                                             className={cn(
                                                 "w-full flex items-center gap-2 px-3 py-1.5 text-[12px] text-left transition-colors",
-                                                isCurrent ? "bg-[#1f6feb]/10 text-white" : "text-[#c9d1d9] hover:bg-[#1f1f1f]"
+                                                isCurrent ? "bg-[#1f6feb]/10 text-white" : "text-foreground hover:bg-[#1f1f1f]"
                                             )}
                                         >
                                             {sibling.type === "directory" ? (
@@ -213,7 +213,7 @@ export function EnhancedBreadcrumbBar({ fileName, fileMap, activeFileId, onOpenF
                                         onNavigateSymbol?.(sym.line)
                                         setSymbolDropdownOpen(false)
                                     }}
-                                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] text-[#c9d1d9] hover:bg-[#1f1f1f] transition-colors text-left"
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] text-foreground hover:bg-[#1f1f1f] transition-colors text-left"
                                 >
                                     {getSymbolIcon(sym.kind)}
                                     <span className="truncate flex-1">{sym.name}</span>

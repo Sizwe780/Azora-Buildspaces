@@ -140,7 +140,7 @@ export default function AgentWorkflowEditor() {
                     <span className="font-semibold px-2">Agent Workflow Designer</span>
                     
                     {/* Auto-save Indicator */}
-                    <div className="ml-4 flex items-center px-2 py-1 rounded-md bg-zinc-900/50 text-[10px] text-zinc-400 border border-zinc-800">
+                    <div className="ml-4 flex items-center px-2 py-1 rounded-md bg-muted/50 text-[10px] text-muted-foreground border border-border">
                         {isSaving ? (
                             <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> Saving...</>
                         ) : lastSaved ? (

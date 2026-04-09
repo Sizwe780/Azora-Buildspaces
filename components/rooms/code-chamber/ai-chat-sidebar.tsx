@@ -225,7 +225,7 @@ export function AIChatSidebar({ onApplyCode }: AIChatSidebarProps) {
                                 </button>
                             </div>
                         </div>
-                        <pre className="px-3 py-2 text-[12px] font-mono text-[#c9d1d9] overflow-x-auto bg-[#0d1117]">
+                        <pre className="px-3 py-2 text-[12px] font-mono text-foreground overflow-x-auto bg-background">
                             {code}
                         </pre>
                     </div>
@@ -248,7 +248,7 @@ export function AIChatSidebar({ onApplyCode }: AIChatSidebarProps) {
     }
 
     return (
-        <div className="h-full flex flex-col bg-[#0d1117]">
+        <div className="h-full flex flex-col bg-background text-foreground">
             <div className="h-9 flex items-center justify-between px-4 shrink-0">
                 <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e]">
                     <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
@@ -311,7 +311,7 @@ export function AIChatSidebar({ onApplyCode }: AIChatSidebarProps) {
                                 <Loader2 className="w-3 h-3 text-emerald-400 animate-spin" />
                             )}
                         </div>
-                        <div className={cn("pl-7", msg.role === "user" ? "text-white" : "text-[#c9d1d9]")}>
+                        <div className={cn("pl-7", msg.role === "user" ? "text-white" : "text-foreground")}>
                             {renderContent(msg.content, msg.id)}
                             {msg.isStreaming && msg.content === "" && (
                                 <span className="text-[#8b949e] animate-pulse">Thinking...</span>

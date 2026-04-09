@@ -56,7 +56,7 @@ export function WorkbenchLayout({
             <ResizeHandle direction="horizontal" />
             <Panel defaultSize={50} minSize={20}>
               {/* Second editor group would go here */}
-              <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-gray-500">
+              <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-muted-foreground">
                 Second Editor Group
               </div>
             </Panel>
@@ -72,7 +72,7 @@ export function WorkbenchLayout({
             <ResizeHandle direction="vertical" />
             <Panel defaultSize={50} minSize={20}>
               {/* Second editor group would go here */}
-              <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-gray-500">
+              <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-muted-foreground">
                 Second Editor Group
               </div>
             </Panel>
@@ -89,7 +89,7 @@ export function WorkbenchLayout({
                 </Panel>
                 <ResizeHandle direction="vertical" />
                 <Panel defaultSize={50} minSize={20}>
-                  <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-gray-500">
+                  <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-muted-foreground">
                     Top-Right Editor
                   </div>
                 </Panel>
@@ -99,13 +99,13 @@ export function WorkbenchLayout({
             <Panel defaultSize={50} minSize={20}>
               <PanelGroup direction="horizontal">
                 <Panel defaultSize={50} minSize={20}>
-                  <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-gray-500">
+                  <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-muted-foreground">
                     Bottom-Left Editor
                   </div>
                 </Panel>
                 <ResizeHandle direction="vertical" />
                 <Panel defaultSize={50} minSize={20}>
-                  <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-gray-500">
+                  <div className="h-full w-full bg-[var(--ide-editor-bg)] flex items-center justify-center text-muted-foreground">
                     Bottom-Right Editor
                   </div>
                 </Panel>
@@ -195,9 +195,9 @@ function ResizeHandle({ direction }: { direction: 'horizontal' | 'vertical' }) {
         } flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity`}
       >
         {direction === 'vertical' ? (
-          <GripVertical className="w-4 h-4 text-gray-400" />
+          <GripVertical className="w-4 h-4 text-muted-foreground" />
         ) : (
-          <GripHorizontal className="w-4 h-4 text-gray-400" />
+          <GripHorizontal className="w-4 h-4 text-muted-foreground" />
         )}
       </div>
     </PanelResizeHandle>

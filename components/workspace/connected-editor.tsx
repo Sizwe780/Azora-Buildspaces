@@ -94,7 +94,7 @@ export function ConnectedEditor() {
 
   if (isLoadingFile) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-[var(--ide-editor-bg)] text-gray-400">
+      <div className="h-full w-full flex items-center justify-center bg-[var(--ide-editor-bg)] text-muted-foreground">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
           <p className="text-sm">Loading file...</p>
@@ -108,7 +108,7 @@ export function ConnectedEditor() {
       <div className="h-full w-full flex items-center justify-center bg-[var(--ide-editor-bg)]">
         <div className="text-center">
           <h3 className="text-xl font-semibold text-white mb-2">No File Open</h3>
-          <p className="text-gray-400 text-sm">
+          <p className="text-muted-foreground text-sm">
             Select a file from the explorer to start editing
           </p>
         </div>
@@ -130,7 +130,7 @@ export function ConnectedEditor() {
               className={`flex items-center gap-2 px-4 py-2 border-r border-[var(--ide-border)] cursor-pointer transition-colors ${
                 isActive
                   ? 'bg-[var(--ide-editor-bg)] text-white'
-                  : 'bg-[var(--ide-breadcrumb-bg)] text-gray-400 hover:text-white'
+                  : 'bg-[var(--ide-breadcrumb-bg)] text-muted-foreground hover:text-white'
               }`}
               onClick={() => openFile(filePath)}
             >
@@ -151,7 +151,7 @@ export function ConnectedEditor() {
 
       {/* Editor Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--ide-border)] bg-[var(--ide-sidebar-bg)]">
-        <div className="text-xs text-gray-400">
+        <div className="text-xs text-muted-foreground">
           {activeFilePath && <span>{activeFilePath}</span>}
         </div>
         <Button

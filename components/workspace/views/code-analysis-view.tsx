@@ -120,7 +120,7 @@ export function CodeAnalysisView() {
   const [sortBy, setSortBy] = useState<"complexity" | "loc" | "issues">("complexity")
   const [severityFilter, setSeverityFilter] = useState<"all" | "error" | "warning" | "info">("all")
 
-  const { activeFile, fileMap } = useFileSystem()
+  const { activeFileId, fileMap } = useFileSystem()
   const { setPanelView } = useWorkbench()
 
   const tabs = [
@@ -132,10 +132,10 @@ export function CodeAnalysisView() {
   ]
 
   const activeContent = useMemo(() => {
-    if (!activeFile) return null
-    const file = fileMap[activeFile]
+    if (!activeFileId) return null
+    const file = fileMap[activeFileId]
     return typeof file === 'string' ? file : file?.content || null
-  }, [activeFile, fileMap])
+  }, [activeFileId, fileMap])
 
   const handleApplyFix = (line: number, fix: string) => {
     console.log(`Apply fix to line ${line}:`, fix)
@@ -247,7 +247,7 @@ export function CodeAnalysisView() {
         {/* LSP Inspector Tab */}
         {activeTab === "lsp" && (
           <LspInspector 
-            activeFile={activeFile} 
+            activeFileId={activeFileId} 
             content={activeContent} 
             onApplyFix={handleApplyFix}
           />
@@ -525,3 +525,4 @@ export function CodeAnalysisView() {
     </div>
   )
 }
+

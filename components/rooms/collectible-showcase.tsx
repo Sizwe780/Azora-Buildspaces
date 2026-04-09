@@ -62,7 +62,7 @@ interface CollectibleCard {
 }
 
 const RARITY_CONFIG = {
-    common: { color: 'bg-gray-500', textColor: 'text-gray-500', icon: Star, range: [0, 99] as [number, number] },
+    common: { color: 'bg-gray-500', textColor: 'text-muted-foreground', icon: Star, range: [0, 99] as [number, number] },
     uncommon: { color: 'bg-green-500', textColor: 'text-green-500', icon: Award, range: [100, 499] as [number, number] },
     rare: { color: 'bg-blue-500', textColor: 'text-blue-500', icon: Medal, range: [500, 999] as [number, number] },
     epic: { color: 'bg-purple-500', textColor: 'text-purple-500', icon: Crown, range: [1000, 4999] as [number, number] },
@@ -262,7 +262,7 @@ export default function CollectibleShowcase() {
     const progress = getNextTierProgress();
 
     return (
-        <div className="h-full flex flex-col bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+        <div className="h-full flex flex-col bg-background text-foreground">
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-white/10">
                 <div>
@@ -380,7 +380,7 @@ export default function CollectibleShowcase() {
                                                                     </Badge>
                                                                     <span className="text-[10px] text-yellow-400">+{achievement.power} power</span>
                                                                     {achievement.unlockedAt && (
-                                                                        <span className="text-[10px] text-zinc-500">
+                                                                        <span className="text-[10px] text-muted-foreground">
                                                                             {new Date(achievement.unlockedAt).toLocaleDateString()}
                                                                         </span>
                                                                     )}

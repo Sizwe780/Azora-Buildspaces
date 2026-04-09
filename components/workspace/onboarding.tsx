@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { X, Sparkles, Code2, Palette, Brain, Terminal, Check } from "lucide-react"
+import { X, Sparkles, Code2, Palette, Brain, Terminal, Check, Users } from "lucide-react"
 
 interface OnboardingProps {
   onComplete?: () => void
@@ -108,7 +108,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                 <CurrentIcon className="w-6 h-6 text-emerald-400" />
               </div>
               <CardTitle className="text-xl text-white">{steps[currentStep].title}</CardTitle>
-              <CardDescription className="text-base text-gray-400">
+              <CardDescription className="text-base text-muted-foreground">
                 {steps[currentStep].description}
               </CardDescription>
             </CardHeader>
@@ -128,7 +128,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
               {/* Action Buttons */}
               <div className="flex gap-3">
-                <Button variant="ghost" onClick={handleSkip} className="flex-1 text-gray-400 hover:text-white hover:bg-white/5">
+                <Button variant="ghost" onClick={handleSkip} className="flex-1 text-muted-foreground hover:text-white hover:bg-white/5">
                   Skip Tour
                 </Button>
                 <Button onClick={handleNext} className="flex-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20">
@@ -145,8 +145,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
               {/* Keyboard Shortcuts Hint */}
               {currentStep > 0 && (
-                <div className="text-center text-sm text-gray-500">
-                  Pro tip: Use <Badge variant="outline" className="mx-1 border-white/10 text-gray-400">Ctrl+{currentStep}</Badge> to jump to this room
+                <div className="text-center text-sm text-muted-foreground">
+                  Pro tip: Use <Badge variant="outline" className="mx-1 border-white/10 text-muted-foreground">Ctrl+{currentStep}</Badge> to jump to this room
                 </div>
               )}
             </CardContent>
@@ -155,7 +155,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="absolute top-2 right-2 text-gray-500 hover:text-white hover:bg-white/5"
+              className="absolute top-2 right-2 text-muted-foreground hover:text-white hover:bg-white/5"
               onClick={handleSkip}
             >
               <X className="w-4 h-4" />
@@ -166,3 +166,4 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     </AnimatePresence>
   )
 }
+

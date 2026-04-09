@@ -73,7 +73,7 @@ export function SettingsPanel({ settings, onSettingsChange }: SettingsPanelProps
     ]
 
     return (
-        <div className="h-full flex flex-col bg-[#0d1117]">
+        <div className="h-full flex flex-col bg-background text-foreground">
             <div className="h-9 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">
                 <Settings className="w-3.5 h-3.5 mr-2" /> Settings
             </div>
@@ -89,7 +89,7 @@ export function SettingsPanel({ settings, onSettingsChange }: SettingsPanelProps
                                 onClick={() => setActiveSection(s.id)}
                                 className={cn(
                                     "w-full flex items-center gap-2 px-4 py-2 text-[12px] transition-colors text-left",
-                                    activeSection === s.id ? "bg-[#1f1f1f] text-white" : "text-[#8b949e] hover:text-[#c9d1d9]"
+                                    activeSection === s.id ? "bg-[#1f1f1f] text-white" : "text-[#8b949e] hover:text-foreground"
                                 )}
                             >
                                 <Icon className="w-3.5 h-3.5" />

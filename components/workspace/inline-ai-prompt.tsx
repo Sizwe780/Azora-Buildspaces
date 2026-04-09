@@ -79,7 +79,7 @@ export function InlineAIPrompt({ activeFile, cursorLine, onClose }: InlineAIProm
 
   return (
     <div className="absolute z-30 left-16 right-16 top-8 max-w-xl mx-auto">
-      <div className="bg-zinc-900/95 backdrop-blur-xl border border-emerald-500/20 rounded-lg shadow-2xl overflow-hidden">
+      <div className="bg-muted/95 backdrop-blur-xl border border-emerald-500/20 rounded-lg shadow-2xl overflow-hidden">
         {/* Input row */}
         <div className="flex items-center gap-2 px-3 py-2">
           <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -89,7 +89,7 @@ export function InlineAIPrompt({ activeFile, cursorLine, onClose }: InlineAIProm
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask Elara... (explain, fix, refactor)"
-            className="flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
+            className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
             disabled={isLoading}
           />
           <button
@@ -105,14 +105,14 @@ export function InlineAIPrompt({ activeFile, cursorLine, onClose }: InlineAIProm
           </button>
           <button
             onClick={escalateToSidebar}
-            className="p-1 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+            className="p-1 rounded text-muted-foreground hover:text-zinc-300 hover:bg-muted transition-colors"
             title="Open full AI sidebar"
           >
             <Maximize2 className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onClose}
-            className="p-1 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+            className="p-1 rounded text-muted-foreground hover:text-zinc-300 hover:bg-muted transition-colors"
             title="Close (Esc)"
           >
             <X className="w-3.5 h-3.5" />
@@ -121,9 +121,9 @@ export function InlineAIPrompt({ activeFile, cursorLine, onClose }: InlineAIProm
 
         {/* Response area */}
         {(response || isLoading) && (
-          <div className="border-t border-zinc-800/60 px-3 py-2 max-h-48 overflow-y-auto">
+          <div className="border-t border-border/60 px-3 py-2 max-h-48 overflow-y-auto">
             {isLoading ? (
-              <div className="flex items-center gap-2 text-sm text-zinc-400">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Elara is thinking...
               </div>

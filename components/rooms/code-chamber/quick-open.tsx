@@ -95,7 +95,7 @@ export function QuickOpen({ open, onClose, onOpenFile }: QuickOpenProps) {
                                         onOpenFile(file.id)
                                         onClose()
                                     }}
-                                    className="flex items-center gap-3 px-3 py-2 mx-1 rounded-md text-[13px] text-[#c9d1d9] cursor-pointer aria-selected:bg-[#1f6feb]/20 aria-selected:text-white hover:bg-[#1f1f1f]"
+                                    className="flex items-center gap-3 px-3 py-2 mx-1 rounded-md text-[13px] text-foreground cursor-pointer aria-selected:bg-[#1f6feb]/20 aria-selected:text-white hover:bg-[#1f1f1f]"
                                 >
                                     {getFileIcon(file.name)}
                                     <span className="flex-1 truncate">{file.name}</span>

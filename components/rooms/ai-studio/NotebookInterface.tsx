@@ -293,18 +293,18 @@ export default function NotebookInterface() {
     }
 
     return (
-        <div className="h-full flex flex-col bg-zinc-950 text-zinc-100">
-            <div className="h-11 border-b border-zinc-800 px-4 flex items-center justify-between bg-zinc-900/40 gap-3">
+        <div className="h-full flex flex-col bg-background text-foreground">
+            <div className="h-11 border-b border-border px-4 flex items-center justify-between bg-muted/40 gap-3">
                 <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-sm">AI Studio Notebook.ipynb</span>
-                    <Badge variant="outline" className="text-[10px] border-zinc-700 text-zinc-400">
+                    <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">
                         TypeScript Kernel
                     </Badge>
                     <Badge variant="outline" className={`text-[10px] ${kernelStatus === "busy" ? "border-blue-500/30 text-blue-400" : kernelStatus === "error" ? "border-red-500/30 text-red-400" : "border-emerald-500/30 text-emerald-400"}`}>
                         {kernelStatus}
                     </Badge>
-                    <span className="text-[10px] text-zinc-500">exec #{executionCount}</span>
-                    <Button variant="ghost" size="sm" onClick={() => setIsInspectorOpen(!isInspectorOpen)} className="h-6 px-2 gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 ml-1">
+                    <span className="text-[10px] text-muted-foreground">exec #{executionCount}</span>
+                    <Button variant="ghost" size="sm" onClick={() => setIsInspectorOpen(!isInspectorOpen)} className="h-6 px-2 gap-1.5 text-xs text-muted-foreground hover:text-zinc-200 ml-1">
                         <Database className="w-3 h-3" />
                         <span className="text-[10px]">{variableCount} vars</span>
                         {isInspectorOpen ? <PanelRightClose className="w-3 h-3 ml-0.5" /> : <PanelRightOpen className="w-3 h-3 ml-0.5" />}
@@ -312,19 +312,19 @@ export default function NotebookInterface() {
                     {lastSavedAt && <span className="text-[10px] text-zinc-600">saved {lastSavedAt}</span>}
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" onClick={() => addCell("code")} className="gap-1.5 text-xs border-zinc-700 bg-transparent">
+                    <Button size="sm" variant="outline" onClick={() => addCell("code")} className="gap-1.5 text-xs border-border bg-transparent">
                         <Code2 className="w-3.5 h-3.5" />
                         Code
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => addCell("markdown")} className="gap-1.5 text-xs border-zinc-700 bg-transparent">
+                    <Button size="sm" variant="outline" onClick={() => addCell("markdown")} className="gap-1.5 text-xs border-border bg-transparent">
                         <FileText className="w-3.5 h-3.5" />
                         Markdown
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={restartKernel} className="gap-1.5 text-xs text-zinc-400">
+                    <Button size="sm" variant="ghost" onClick={restartKernel} className="gap-1.5 text-xs text-muted-foreground">
                         <RefreshCw className="w-3.5 h-3.5" />
                         Restart
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={saveNotebook} disabled={isSaving} className="gap-1.5 text-xs text-zinc-400">
+                    <Button size="sm" variant="ghost" onClick={saveNotebook} disabled={isSaving} className="gap-1.5 text-xs text-muted-foreground">
                         {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                         Save
                     </Button>
@@ -338,12 +338,12 @@ export default function NotebookInterface() {
                         <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Loading notebook…
                     </div>
                 ) : cells.map((cell, index) => (
-                    <div key={cell.id} className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-900/40 shadow-sm">
-                        <div className="flex items-center gap-2 p-2.5 bg-zinc-900/60 border-b border-zinc-800">
-                            <span className="text-[11px] font-mono text-zinc-500">
+                    <div key={cell.id} className="border border-border rounded-xl overflow-hidden bg-muted/40 shadow-sm">
+                        <div className="flex items-center gap-2 p-2.5 bg-muted/60 border-b border-border">
+                            <span className="text-[11px] font-mono text-muted-foreground">
                                 {cell.type === "code" ? `In [${cell.metadata.executionCount || index + 1}]` : `Md [${index + 1}]`}
                             </span>
-                            <Badge variant="outline" className="text-[10px] border-zinc-700 text-zinc-500">
+                            <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">
                                 {cell.type === "code" ? "code" : "markdown"}
                             </Badge>
                             <div className="flex-1" />
@@ -351,19 +351,19 @@ export default function NotebookInterface() {
                                 <Button
                                     size="icon"
                                     variant="ghost"
-                                    className="h-7 w-7 text-zinc-400 hover:text-emerald-400"
+                                    className="h-7 w-7 text-muted-foreground hover:text-emerald-400"
                                     onClick={() => executeCell(cell.id)}
                                     disabled={cell.isExecuting}
                                 >
                                     {cell.isExecuting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
                                 </Button>
                             )}
-                            <Button size="icon" variant="ghost" className="h-7 w-7 text-zinc-500 hover:text-red-400" onClick={() => void deleteCell(cell.id)}>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-red-400" onClick={() => void deleteCell(cell.id)}>
                                 <Trash2 className="w-3.5 h-3.5" />
                             </Button>
                         </div>
 
-                        <div className={`${cell.type === "markdown" ? "h-40" : "h-56"} border-b border-zinc-800`}>
+                        <div className={`${cell.type === "markdown" ? "h-40" : "h-56"} border-b border-border`}>
                             <MonacoEditor
                                 height="100%"
                                 language={cell.type === "markdown" ? "markdown" : cell.language}
@@ -385,7 +385,7 @@ export default function NotebookInterface() {
                                 {cell.outputs.map((output, outputIndex) => (
                                     <div
                                         key={`${cell.id}-${outputIndex}`}
-                                        className={`p-3 whitespace-pre-wrap ${output.type === "error" ? "text-red-300 border-t border-red-500/20" : "text-zinc-100"}`}
+                                        className={`p-3 whitespace-pre-wrap ${output.type === "error" ? "text-red-300 border-t border-red-500/20" : "text-foreground"}`}
                                     >
                                         {output.content || "(no output)"}
                                     </div>
@@ -397,11 +397,11 @@ export default function NotebookInterface() {
 
                 {!isLoading && (
                     <div className="flex justify-center py-4 gap-2">
-                        <Button variant="ghost" onClick={() => addCell("code")} className="gap-2 text-zinc-500 hover:text-zinc-200 text-xs">
+                        <Button variant="ghost" onClick={() => addCell("code")} className="gap-2 text-muted-foreground hover:text-zinc-200 text-xs">
                             <Plus className="w-4 h-4" />
                             Add Code Cell
                         </Button>
-                        <Button variant="ghost" onClick={() => addCell("markdown")} className="gap-2 text-zinc-500 hover:text-zinc-200 text-xs">
+                        <Button variant="ghost" onClick={() => addCell("markdown")} className="gap-2 text-muted-foreground hover:text-zinc-200 text-xs">
                             <Plus className="w-4 h-4" />
                             Add Markdown Cell
                         </Button>
@@ -410,26 +410,26 @@ export default function NotebookInterface() {
                 </div>
 
                 {isInspectorOpen && (
-                    <div className="w-72 md:w-80 border-l border-zinc-800 bg-zinc-900/20 flex flex-col overflow-hidden shrink-0">
-                        <div className="h-9 border-b border-zinc-800 px-3 flex items-center justify-between bg-zinc-900/40">
+                    <div className="w-72 md:w-80 border-l border-border bg-muted/20 flex flex-col overflow-hidden shrink-0">
+                        <div className="h-9 border-b border-border px-3 flex items-center justify-between bg-muted/40">
                             <span className="text-xs font-semibold text-zinc-300">Variable Inspector</span>
                         </div>
                         <div className="flex-1 overflow-y-auto p-3 space-y-2">
                             {variables.length > 0 ? (
                                 variables.map((v) => (
-                                    <div key={v.name} className="bg-zinc-900/60 border border-zinc-800 rounded-md p-2.5 overflow-hidden shadow-sm">
+                                    <div key={v.name} className="bg-muted/60 border border-border rounded-md p-2.5 overflow-hidden shadow-sm">
                                         <div className="flex justify-between items-start mb-1">
                                             <span className="font-mono text-[11px] font-semibold text-blue-400">{v.name}</span>
-                                            <Badge variant="outline" className="text-[9px] h-4 py-0 px-1 border-zinc-700 font-normal text-zinc-500 bg-zinc-950/50">{v.type}</Badge>
+                                            <Badge variant="outline" className="text-[9px] h-4 py-0 px-1 border-border font-normal text-muted-foreground bg-background/50">{v.type}</Badge>
                                         </div>
-                                        <div className="font-mono text-[10px] text-zinc-300 break-all bg-black/40 p-1.5 rounded border border-zinc-800/50">
+                                        <div className="font-mono text-[10px] text-zinc-300 break-all bg-black/40 p-1.5 rounded border border-border/50">
                                             {v.value.length > 150 ? `${v.value.substring(0, 150)}...` : v.value}
                                         </div>
                                         {v.size && <div className="text-[9px] text-zinc-600 mt-1.5 text-right font-mono">{v.size} bytes</div>}
                                     </div>
                                 ))
                             ) : (
-                                <div className="text-center text-zinc-500 text-xs py-8 px-4">
+                                <div className="text-center text-muted-foreground text-xs py-8 px-4">
                                     <Database className="w-8 h-8 mx-auto mb-2 opacity-20" />
                                     No variables in memory.<br/>Execute some code cells.
                                 </div>

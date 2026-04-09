@@ -90,7 +90,7 @@ export function TaskRunner({ workspaceId }: TaskRunnerProps) {
       case 'failed':
         return <XCircle className="h-4 w-4 text-red-500" />
       default:
-        return <Clock className="h-4 w-4 text-gray-500" />
+        return <Clock className="h-4 w-4 text-muted-foreground" />
     }
   }
 

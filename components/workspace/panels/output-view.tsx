@@ -45,10 +45,10 @@ export function OutputView() {
     return (
         <div className="h-full bg-black text-white font-mono text-xs p-2 flex flex-col gap-2">
             <div className="flex items-center justify-between">
-                <div className="text-zinc-400">Output ({ordered.length})</div>
+                <div className="text-muted-foreground">Output ({ordered.length})</div>
                 <Button size="sm" variant="ghost" className="h-6 text-[11px]" onClick={clearLogs} disabled={ordered.length === 0}>Clear</Button>
             </div>
-            <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-400">
+            <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
                 <span className="rounded bg-cyan-500/15 px-1.5 py-0.5 text-cyan-300">terminal {summary.terminal}</span>
                 <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-violet-300">debug {summary.debug}</span>
                 <span className="rounded bg-zinc-500/15 px-1.5 py-0.5 text-zinc-300">system {summary.system}</span>
@@ -58,10 +58,10 @@ export function OutputView() {
             <ScrollArea className="h-full">
                 <div className="space-y-1 pr-2">
                     {ordered.length === 0 ? (
-                        <div className="text-zinc-500">No output yet. Run terminal/debug commands to populate this panel.</div>
+                        <div className="text-muted-foreground">No output yet. Run terminal/debug commands to populate this panel.</div>
                     ) : ordered.map((entry: RuntimeLogEntry) => (
                         <div key={entry.id} className={levelColor(entry.level)}>
-                            <span className="text-zinc-500">[{new Date(entry.timestamp).toLocaleTimeString()}]</span>{' '}
+                            <span className="text-muted-foreground">[{new Date(entry.timestamp).toLocaleTimeString()}]</span>{' '}
                             <span className={`rounded px-1 py-0.5 text-[10px] uppercase ${sourceColor(entry.source)}`}>{entry.source}</span>{' '}
                             <span className={`rounded px-1 py-0.5 text-[10px] uppercase ${levelBadgeColor(entry.level)}`}>{entry.level}</span>{' '}
                             <span>{entry.message}</span>

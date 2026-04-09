@@ -92,7 +92,7 @@ function ComponentNode({ data }: { data: ComponentNodeData }) {
                 {component && <component.icon className="w-4 h-4" style={{ color: component.color }} />}
                 <span className="text-sm font-medium text-gray-900">{data.label}</span>
             </div>
-            <div className="text-xs text-gray-500">{component?.category}</div>
+            <div className="text-xs text-muted-foreground">{component?.category}</div>
             <div className="flex gap-1 mt-2">
                 {Array.from({ length: data.inputs || 2 }).map((_, i) => (
                     <div key={`in-${i}`} className="w-2 h-2 bg-blue-500 rounded-full"></div>

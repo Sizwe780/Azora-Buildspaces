@@ -922,7 +922,7 @@ export default function DesignStudio() {
     return (
         <div className="h-full flex flex-col bg-background">
             {/* Enhanced Toolbar */}
-            <div className="h-14 border-b flex items-center justify-between px-4 bg-muted/20">
+            <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-background">
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 px-3 py-2 bg-pink-500/10 text-pink-500 rounded-lg border border-pink-500/20">
                         <Palette className="w-5 h-5" />
@@ -1123,9 +1123,9 @@ export default function DesignStudio() {
                                     ) : (
                                         <div className="h-full w-full inset-0 absolute">
                                             <ErrorBoundary fallback={() => <div className="h-full flex items-center justify-center text-red-400">Canvas failed to load</div>}>
-                                                <Tldraw 
+                                                <Tldraw
                                                     inferDarkMode
-                                                    persistenceKey="azora-design-studio"
+                                                    persistenceKey={`azora-design-studio-${projectId}`}
                                                 />
                                             </ErrorBoundary>
                                         </div>

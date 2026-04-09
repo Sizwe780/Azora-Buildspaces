@@ -290,14 +290,14 @@ export function WorkbenchLayout({ sidebarContent, secondarySidebarContent, edito
             {/* Translucent Overlay Terminal — does not shift editor scroll position */}
             {isTerminalOverlay && (
                 <div className="fixed inset-x-0 bottom-0 z-40 h-[40vh] max-h-[50vh]">
-                    <div className="absolute inset-0 bg-zinc-950/85 backdrop-blur-xl border-t border-emerald-500/15 rounded-t-lg shadow-2xl">
-                        <div className="flex items-center justify-between px-3 h-8 border-b border-zinc-800/60">
-                            <span className="text-[11px] text-zinc-400 font-medium tracking-wide uppercase">Overlay Terminal</span>
+                    <div className="absolute inset-0 bg-background/85 backdrop-blur-xl border-t border-emerald-500/15 rounded-t-lg shadow-2xl">
+                        <div className="flex items-center justify-between px-3 h-8 border-b border-border/60">
+                            <span className="text-[11px] text-muted-foreground font-medium tracking-wide uppercase">Overlay Terminal</span>
                             <div className="flex items-center gap-1">
-                                <kbd className="text-[9px] text-zinc-600 font-mono bg-zinc-800/60 px-1.5 py-0.5 rounded">Ctrl+Shift+`</kbd>
+                                <kbd className="text-[9px] text-zinc-600 font-mono bg-muted/60 px-1.5 py-0.5 rounded">Ctrl+Shift+`</kbd>
                                 <button
                                     onClick={toggleTerminalOverlay}
-                                    className="ml-1 w-5 h-5 flex items-center justify-center rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+                                    className="ml-1 w-5 h-5 flex items-center justify-center rounded text-muted-foreground hover:text-zinc-200 hover:bg-muted transition-colors"
                                 >
                                     ×
                                 </button>

@@ -237,7 +237,7 @@ export function PreviewPane() {
       {/* URL Bar */}
       {serverUrl && (
         <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--ide-border)] bg-[var(--ide-sidebar-bg)]/50">
-          <span className="text-xs text-gray-400">URL:</span>
+          <span className="text-xs text-muted-foreground">URL:</span>
           <code className="text-xs text-emerald-400 font-mono flex-1 truncate">
             {serverUrl}
           </code>
@@ -253,7 +253,7 @@ export function PreviewPane() {
             </div>
             <div>
               <h3 className="text-lg font-semibold text-white mb-2">Preview Error</h3>
-              <p className="text-sm text-gray-400 mb-4">{error}</p>
+              <p className="text-sm text-muted-foreground mb-4">{error}</p>
               <Button
                 onClick={handleStart}
                 size="sm"
@@ -273,7 +273,7 @@ export function PreviewPane() {
             </div>
             <div>
               <h3 className="text-lg font-semibold text-white mb-2">Ready to Preview</h3>
-              <p className="text-sm text-gray-400 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 Start the development server to see your application live
               </p>
               <Button

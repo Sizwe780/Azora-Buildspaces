@@ -73,7 +73,7 @@ export default function VersionHistory() {
               </div>
               <ChevronRight className="w-3 h-3 text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
-            <div className="flex items-center gap-3 text-xs text-gray-500">
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Clock className="w-3 h-3" /> {version.timestamp}
               </span>
@@ -84,7 +84,7 @@ export default function VersionHistory() {
       </div>
 
       <div className="pt-3 border-t border-white/[0.06]">
-        <Button size="sm" variant="ghost" className="w-full text-gray-400 hover:text-white text-xs h-8">
+        <Button size="sm" variant="ghost" className="w-full text-muted-foreground hover:text-white text-xs h-8">
           <RotateCcw className="w-3 h-3 mr-1.5" />
           Restore Selected Version
         </Button>

@@ -59,7 +59,7 @@ const getStatusIcon = (status: string) => {
         case 'added': return <Plus className="w-4 h-4 text-green-500" />
         case 'deleted': return <Minus className="w-4 h-4 text-red-500" />
         case 'untracked': return <FileText className="w-4 h-4 text-blue-400" />
-        default: return <FileText className="w-4 h-4 text-gray-400" />
+        default: return <FileText className="w-4 h-4 text-muted-foreground" />
     }
 }
 
@@ -74,7 +74,7 @@ const getFileIcon = (filename: string) => {
         case 'json':
             return <Settings className="w-4 h-4 text-yellow-400" />
         default:
-            return <FileText className="w-4 h-4 text-gray-400" />
+            return <FileText className="w-4 h-4 text-muted-foreground" />
     }
 }
 

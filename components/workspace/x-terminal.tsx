@@ -12,7 +12,7 @@ export interface XTerminalProps {
 
 const XTerminal = dynamic(() => import("./x-terminal-client"), {
     ssr: false,
-    loading: () => <div className="h-full w-full bg-zinc-950 flex items-center justify-center text-zinc-500 font-mono text-sm">Initializing terminal...</div>
+    loading: () => <div className="h-full w-full bg-background flex items-center justify-center text-muted-foreground font-mono text-sm">Initializing terminal...</div>
 })
 
 export { XTerminal }

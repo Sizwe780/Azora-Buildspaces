@@ -55,7 +55,7 @@ export function ProblemsPanel({ diagnostics, isLinting, onLintFile, onNavigate }
     }, {})
 
     return (
-        <div className="h-full flex flex-col bg-[#0d1117] text-[#c9d1d9]">
+        <div className="h-full flex flex-col bg-background text-foreground">
             {/* Toolbar */}
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#1b1f27] shrink-0">
                 <div className="flex items-center gap-3">
@@ -124,7 +124,7 @@ export function ProblemsPanel({ diagnostics, isLinting, onLintFile, onNavigate }
                 ) : (
                     Object.entries(groupedByFile).map(([file, diags]) => (
                         <div key={file}>
-                            <div className="flex items-center gap-2 px-3 py-1.5 bg-[#161b22] text-[12px] font-medium text-[#c9d1d9] sticky top-0">
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-[#161b22] text-[12px] font-medium text-foreground sticky top-0">
                                 <span className="truncate">{file}</span>
                                 <span className="text-[10px] text-[#484f58]">({diags.length})</span>
                             </div>
@@ -136,7 +136,7 @@ export function ProblemsPanel({ diagnostics, isLinting, onLintFile, onNavigate }
                                 >
                                     {getSeverityIcon(diag.severity)}
                                     <div className="flex-1 min-w-0">
-                                        <span className="text-[12px] text-[#c9d1d9]">{diag.message}</span>
+                                        <span className="text-[12px] text-foreground">{diag.message}</span>
                                         {diag.rule && (
                                             <span className="ml-2 text-[10px] text-[#484f58]">[{diag.rule}]</span>
                                         )}

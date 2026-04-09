@@ -150,12 +150,12 @@ export function StatusBar({ activeFile, agentCount, activeAgents }: StatusBarPro
           className="flex items-center gap-1.5 px-2 h-full hover:bg-[var(--ide-statusbar-item-hover)] group transition-all border-x border-emerald-500/10"
           title="Azora Vault - Your Technical Contribution Reward Balance"
         >
-          <Wallet className={`w-3 h-3 ${isWalletLoading ? "text-zinc-500" : "text-amber-500"}`} />
+          <Wallet className={`w-3 h-3 ${isWalletLoading ? "text-muted-foreground" : "text-amber-500"}`} />
           <div className="flex items-baseline gap-1">
             <span className={`font-mono font-bold tracking-tight ${isWalletLoading ? "text-zinc-600 animate-pulse" : "text-emerald-400 group-hover:text-amber-400"}`}>
               {azrBalance === null ? "..." : azrBalance.toLocaleString()}
             </span>
-            <span className="text-[9px] text-zinc-500 font-bold opacity-75">AZR</span>
+            <span className="text-[9px] text-muted-foreground font-bold opacity-75">AZR</span>
           </div>
           <RefreshCw className={`w-2.5 h-2.5 ml-0.5 text-zinc-600 group-hover:text-amber-500 transition-colors ${isWalletLoading ? "animate-spin" : ""}`} />
         </button>

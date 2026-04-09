@@ -74,12 +74,12 @@ const PRIORITY_CONFIG = {
   high: { icon: ArrowUp, color: "text-orange-500", bg: "bg-orange-500/10", label: "High", order: 1 },
   medium: { icon: Minus, color: "text-yellow-500", bg: "bg-yellow-500/10", label: "Medium", order: 2 },
   low: { icon: ArrowDown, color: "text-blue-500", bg: "bg-blue-500/10", label: "Low", order: 3 },
-  none: { icon: Minus, color: "text-zinc-500", bg: "bg-zinc-500/10", label: "None", order: 4 },
+  none: { icon: Minus, color: "text-muted-foreground", bg: "bg-zinc-500/10", label: "None", order: 4 },
 }
 
 const STATUS_CONFIG = {
-  backlog: { icon: Circle, color: "text-zinc-500", label: "Backlog" },
-  todo: { icon: Circle, color: "text-zinc-400", label: "To Do" },
+  backlog: { icon: Circle, color: "text-muted-foreground", label: "Backlog" },
+  todo: { icon: Circle, color: "text-muted-foreground", label: "To Do" },
   "in-progress": { icon: Clock, color: "text-blue-500", label: "In Progress" },
   "in-review": { icon: Eye, color: "text-purple-500", label: "In Review" },
   done: { icon: CheckCircle2, color: "text-emerald-500", label: "Done" },
@@ -120,7 +120,7 @@ function TaskCard({
       exit={{ opacity: 0, scale: 0.95 }}
       whileHover={{ y: -1 }}
       onClick={() => onClick(task)}
-      className="group bg-zinc-900/60 border border-zinc-800/60 rounded-lg p-3.5 cursor-pointer hover:border-zinc-700 hover:bg-zinc-800/40 transition-all"
+      className="group bg-muted/60 border border-border/60 rounded-lg p-3.5 cursor-pointer hover:border-border hover:bg-muted/40 transition-all"
     >
       {/* Top Row: ID + Priority */}
       <div className="flex items-center justify-between mb-2">
@@ -151,7 +151,7 @@ function TaskCard({
 
       {/* Description preview */}
       {task.description && !compact && (
-        <p className="text-xs text-zinc-500 mb-3 line-clamp-2 leading-relaxed">
+        <p className="text-xs text-muted-foreground mb-3 line-clamp-2 leading-relaxed">
           {task.description}
         </p>
       )}
@@ -244,15 +244,15 @@ function CreateTaskModal({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -20, scale: 0.96 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl"
+        className="w-full max-w-lg bg-muted border border-border rounded-xl shadow-2xl"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
           <div className="flex items-center gap-2">
-            <Plus className="w-4 h-4 text-zinc-400" />
+            <Plus className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium text-zinc-200">New Task</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0 text-zinc-500">
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0 text-muted-foreground">
             <X className="w-4 h-4" />
           </Button>
         </div>
@@ -264,7 +264,7 @@ function CreateTaskModal({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Task title"
-            className="bg-transparent border-zinc-700 text-zinc-200 placeholder:text-zinc-600 text-lg font-medium h-11"
+            className="bg-transparent border-border text-zinc-200 placeholder:text-zinc-600 text-lg font-medium h-11"
             onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
           />
 
@@ -272,18 +272,18 @@ function CreateTaskModal({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Add description..."
-            className="bg-transparent border-zinc-700 text-zinc-300 placeholder:text-zinc-600 resize-none min-h-[80px]"
+            className="bg-transparent border-border text-zinc-300 placeholder:text-zinc-600 resize-none min-h-[80px]"
           />
 
           {/* Properties Row */}
           <div className="flex items-center gap-3 flex-wrap">
             {/* Status */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-zinc-500">Status</span>
+              <span className="text-xs text-muted-foreground">Status</span>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as keyof typeof STATUS_CONFIG)}
-                className="bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1 text-xs text-zinc-300"
+                className="bg-muted border border-border rounded-md px-2 py-1 text-xs text-zinc-300"
               >
                 {Object.entries(STATUS_CONFIG).map(([key, val]) => (
                   <option key={key} value={key}>{val.label}</option>
@@ -293,11 +293,11 @@ function CreateTaskModal({
 
             {/* Priority */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-zinc-500">Priority</span>
+              <span className="text-xs text-muted-foreground">Priority</span>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as Task["priority"])}
-                className="bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1 text-xs text-zinc-300"
+                className="bg-muted border border-border rounded-md px-2 py-1 text-xs text-zinc-300"
               >
                 <option value="urgent">Urgent</option>
                 <option value="high">High</option>
@@ -309,8 +309,8 @@ function CreateTaskModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-zinc-800">
-          <Button variant="ghost" onClick={onClose} className="text-zinc-400">
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
+          <Button variant="ghost" onClick={onClose} className="text-muted-foreground">
             Cancel
           </Button>
           <Button
@@ -346,14 +346,14 @@ function TaskDetailPanel({
       animate={{ x: 0 }}
       exit={{ x: "100%" }}
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className="w-[480px] border-l border-zinc-800 bg-zinc-900/95 backdrop-blur-sm flex flex-col h-full overflow-hidden"
+      className="w-[480px] border-l border-border bg-muted/95 backdrop-blur-sm flex flex-col h-full overflow-hidden"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-zinc-500">{task.id.slice(0, 8).toUpperCase()}</span>
+          <span className="text-xs font-mono text-muted-foreground">{task.id.slice(0, 8).toUpperCase()}</span>
         </div>
-        <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0 text-zinc-500">
+        <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0 text-muted-foreground">
           <X className="w-4 h-4" />
         </Button>
       </div>
@@ -367,13 +367,13 @@ function TaskDetailPanel({
           <div className="space-y-3">
             {/* Status */}
             <div className="flex items-center justify-between">
-              <span className="text-xs text-zinc-500 w-24">Status</span>
+              <span className="text-xs text-muted-foreground w-24">Status</span>
               <div className="flex items-center gap-2">
                 <StatusIcon className={`w-4 h-4 ${status.color}`} />
                 <select
                   value={task.status}
                   onChange={(e) => onUpdate(task.id, { status: e.target.value as Task["status"] })}
-                  className="bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1 text-xs text-zinc-300"
+                  className="bg-muted border border-border rounded-md px-2 py-1 text-xs text-zinc-300"
                 >
                   {Object.entries(STATUS_CONFIG).map(([key, val]) => (
                     <option key={key} value={key}>{val.label}</option>
@@ -384,11 +384,11 @@ function TaskDetailPanel({
 
             {/* Priority */}
             <div className="flex items-center justify-between">
-              <span className="text-xs text-zinc-500 w-24">Priority</span>
+              <span className="text-xs text-muted-foreground w-24">Priority</span>
               <select
                 value={task.priority}
                 onChange={(e) => onUpdate(task.id, { priority: e.target.value as Task["priority"] })}
-                className="bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1 text-xs text-zinc-300"
+                className="bg-muted border border-border rounded-md px-2 py-1 text-xs text-zinc-300"
               >
                 <option value="urgent">🔴 Urgent</option>
                 <option value="high">🟠 High</option>
@@ -400,7 +400,7 @@ function TaskDetailPanel({
             {/* Assignee */}
             {task.assignee && (
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-500 w-24">Assignee</span>
+                <span className="text-xs text-muted-foreground w-24">Assignee</span>
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
                     <span className="text-[9px] font-bold text-white">{task.assignee.charAt(0).toUpperCase()}</span>
@@ -413,22 +413,22 @@ function TaskDetailPanel({
 
           {/* Description */}
           <div>
-            <h3 className="text-xs font-medium text-zinc-500 mb-2 uppercase tracking-wider">Description</h3>
-            <div className="text-sm text-zinc-300 leading-relaxed bg-zinc-800/30 rounded-lg p-4 min-h-[80px] border border-zinc-800/50">
+            <h3 className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Description</h3>
+            <div className="text-sm text-zinc-300 leading-relaxed bg-muted/30 rounded-lg p-4 min-h-[80px] border border-border/50">
               {task.description || <span className="text-zinc-600 italic">No description provided</span>}
             </div>
           </div>
 
           {/* Activity */}
           <div>
-            <h3 className="text-xs font-medium text-zinc-500 mb-3 uppercase tracking-wider">Activity</h3>
+            <h3 className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wider">Activity</h3>
             <div className="space-y-3">
               <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center mt-0.5">
-                  <Plus className="w-3 h-3 text-zinc-500" />
+                <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center mt-0.5">
+                  <Plus className="w-3 h-3 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-400">Task created</p>
+                  <p className="text-xs text-muted-foreground">Task created</p>
                   <p className="text-[10px] text-zinc-600 mt-0.5">Just now</p>
                 </div>
               </div>
@@ -483,39 +483,39 @@ function TaskDetailDialog({
 
   return (
     <Dialog open={!!task} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="bg-zinc-900 border-zinc-700 text-zinc-100 max-w-lg">
+      <DialogContent className="bg-muted border-border text-foreground max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-zinc-100 text-base flex items-center gap-2">
-            <span className="text-xs font-mono text-zinc-500">{task?.id.slice(0, 8).toUpperCase()}</span>
+          <DialogTitle className="text-foreground text-base flex items-center gap-2">
+            <span className="text-xs font-mono text-muted-foreground">{task?.id.slice(0, 8).toUpperCase()}</span>
             Task Details
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-1">
           <div>
-            <label className="text-xs text-zinc-500 mb-1 block">Title</label>
+            <label className="text-xs text-muted-foreground mb-1 block">Title</label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-600"
+              className="bg-muted border-border text-foreground placeholder:text-zinc-600"
               placeholder="Task title"
             />
           </div>
           <div>
-            <label className="text-xs text-zinc-500 mb-1 block">Description</label>
+            <label className="text-xs text-muted-foreground mb-1 block">Description</label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Add description..."
-              className="bg-zinc-800 border-zinc-700 text-zinc-300 placeholder:text-zinc-600 resize-none min-h-[80px]"
+              className="bg-muted border-border text-zinc-300 placeholder:text-zinc-600 resize-none min-h-[80px]"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-zinc-500 mb-1 block">Status</label>
+              <label className="text-xs text-muted-foreground mb-1 block">Status</label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as keyof typeof STATUS_CONFIG)}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-300"
+                className="w-full bg-muted border border-border rounded-md px-2 py-1.5 text-sm text-zinc-300"
               >
                 {Object.entries(STATUS_CONFIG).map(([key, val]) => (
                   <option key={key} value={key}>{val.label}</option>
@@ -523,11 +523,11 @@ function TaskDetailDialog({
               </select>
             </div>
             <div>
-              <label className="text-xs text-zinc-500 mb-1 block">Priority</label>
+              <label className="text-xs text-muted-foreground mb-1 block">Priority</label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as Task["priority"])}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-300"
+                className="w-full bg-muted border border-border rounded-md px-2 py-1.5 text-sm text-zinc-300"
               >
                 <option value="urgent">🔴 Urgent</option>
                 <option value="high">🟠 High</option>
@@ -537,27 +537,27 @@ function TaskDetailDialog({
               </select>
             </div>
             <div>
-              <label className="text-xs text-zinc-500 mb-1 block">Assignee</label>
+              <label className="text-xs text-muted-foreground mb-1 block">Assignee</label>
               <Input
                 value={assignee}
                 onChange={(e) => setAssignee(e.target.value)}
                 placeholder="Enter name..."
-                className="bg-zinc-800 border-zinc-700 text-zinc-300 placeholder:text-zinc-600 h-9"
+                className="bg-muted border-border text-zinc-300 placeholder:text-zinc-600 h-9"
               />
             </div>
             <div>
-              <label className="text-xs text-zinc-500 mb-1 block">Due Date</label>
+              <label className="text-xs text-muted-foreground mb-1 block">Due Date</label>
               <Input
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="bg-zinc-800 border-zinc-700 text-zinc-300 h-9"
+                className="bg-muted border-border text-zinc-300 h-9"
               />
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
-          <Button variant="ghost" onClick={onClose} className="text-zinc-400">
+        <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+          <Button variant="ghost" onClick={onClose} className="text-muted-foreground">
             Cancel
           </Button>
           <Button
@@ -763,18 +763,18 @@ export function TaskBoard() {
   }
 
   return (
-    <div className="h-full flex bg-zinc-950 text-zinc-100">
+    <div className="h-full flex bg-background text-foreground">
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="h-14 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/30 backdrop-blur-sm">
+        <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-background">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-blue-500/10">
                 <Layers className="w-4 h-4 text-blue-400" />
               </div>
-              <h1 className="font-semibold text-base text-zinc-100">Tasks</h1>
-              <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-zinc-700 text-zinc-500">
+              <h1 className="font-semibold text-base text-foreground">Tasks</h1>
+              <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-border text-muted-foreground">
                 {totalTasks}
               </Badge>
             </div>
@@ -782,19 +782,19 @@ export function TaskBoard() {
             {/* Progress */}
             <div className="flex items-center gap-2 ml-4">
               <Progress value={progressPercent} className="w-24 h-1.5" />
-              <span className="text-[11px] text-zinc-500">{progressPercent}%</span>
+              <span className="text-[11px] text-muted-foreground">{progressPercent}%</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search tasks..."
-                className="pl-8 h-8 w-48 bg-zinc-900 border-zinc-700 text-sm text-zinc-300 placeholder:text-zinc-600"
+                className="pl-8 h-8 w-48 bg-muted border-border text-sm text-zinc-300 placeholder:text-zinc-600"
               />
             </div>
 
@@ -802,7 +802,7 @@ export function TaskBoard() {
             <select
               value={filterPriority}
               onChange={(e) => setFilterPriority(e.target.value)}
-              className="h-8 bg-zinc-900 border border-zinc-700 rounded-md px-2 text-xs text-zinc-300 cursor-pointer"
+              className="h-8 bg-muted border border-border rounded-md px-2 text-xs text-zinc-300 cursor-pointer"
             >
               <option value="all">All Priorities</option>
               <option value="urgent">🔴 Urgent</option>
@@ -816,19 +816,19 @@ export function TaskBoard() {
               variant="ghost"
               size="sm"
               onClick={() => setShowFilters(!showFilters)}
-              className={`h-8 px-2.5 text-zinc-400 hover:text-white ${showFilters ? "bg-zinc-800" : ""}`}
+              className={`h-8 px-2.5 text-muted-foreground hover:text-white ${showFilters ? "bg-muted" : ""}`}
             >
               <Filter className="w-3.5 h-3.5 mr-1.5" />
               <span className="text-xs">Filter</span>
             </Button>
 
             {/* View Mode Toggle */}
-            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
+            <div className="flex items-center bg-muted border border-border rounded-lg p-0.5">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setViewMode("board")}
-                className={`h-7 px-2 ${viewMode === "board" ? "bg-zinc-800 text-white" : "text-zinc-500"}`}
+                className={`h-7 px-2 ${viewMode === "board" ? "bg-muted text-white" : "text-muted-foreground"}`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
               </Button>
@@ -836,7 +836,7 @@ export function TaskBoard() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setViewMode("list")}
-                className={`h-7 px-2 ${viewMode === "list" ? "bg-zinc-800 text-white" : "text-zinc-500"}`}
+                className={`h-7 px-2 ${viewMode === "list" ? "bg-muted text-white" : "text-muted-foreground"}`}
               >
                 <List className="w-3.5 h-3.5" />
               </Button>
@@ -845,13 +845,13 @@ export function TaskBoard() {
                 size="sm"
                 onClick={() => setViewMode("sprint")}
                 title="Sprint View"
-                className={`h-7 px-2 ${viewMode === "sprint" ? "bg-zinc-800 text-white" : "text-zinc-500"}`}
+                className={`h-7 px-2 ${viewMode === "sprint" ? "bg-muted text-white" : "text-muted-foreground"}`}
               >
                 <Zap className="w-3.5 h-3.5" />
               </Button>
             </div>
 
-            <div className="h-5 w-px bg-zinc-800" />
+            <div className="h-5 w-px bg-muted" />
 
             <Button
               onClick={() => { setCreateDefaultStatus(undefined); setShowCreateModal(true) }}
@@ -866,7 +866,7 @@ export function TaskBoard() {
               onClick={() => setShowAiPanel(!showAiPanel)}
               size="sm"
               variant="ghost"
-              className={`h-8 gap-1.5 text-xs ${showAiPanel ? 'bg-purple-500/20 text-purple-400' : 'text-zinc-400'}`}
+              className={`h-8 gap-1.5 text-xs ${showAiPanel ? 'bg-purple-500/20 text-purple-400' : 'text-muted-foreground'}`}
             >
               <Sparkles className="w-3.5 h-3.5" />
               AI
@@ -881,7 +881,7 @@ export function TaskBoard() {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="border-b border-zinc-800 overflow-hidden bg-purple-500/5"
+              className="border-b border-border overflow-hidden bg-purple-500/5"
             >
               <div className="px-6 py-3">
                 <div className="flex items-center gap-3 mb-2">
@@ -936,7 +936,7 @@ export function TaskBoard() {
                 {aiInsights.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2">
                     {aiInsights.map((insight, i) => (
-                      <span key={i} className="text-[11px] text-zinc-400 bg-zinc-800/60 px-2 py-1 rounded">
+                      <span key={i} className="text-[11px] text-muted-foreground bg-muted/60 px-2 py-1 rounded">
                         💡 {insight}
                       </span>
                     ))}
@@ -947,10 +947,10 @@ export function TaskBoard() {
                   <div className="flex items-center gap-4 mb-2">
                     <div className="flex items-center gap-1.5">
                       <div className={`w-2 h-2 rounded-full ${velocityData.healthScore >= 70 ? 'bg-emerald-500' : velocityData.healthScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} />
-                      <span className="text-[11px] text-zinc-400">Health: {velocityData.healthScore}/100</span>
+                      <span className="text-[11px] text-muted-foreground">Health: {velocityData.healthScore}/100</span>
                     </div>
-                    <span className="text-[11px] text-zinc-400">📈 {velocityData.velocityTrend}</span>
-                    <span className="text-[11px] text-zinc-400">✅ {velocityData.completionRate}% done</span>
+                    <span className="text-[11px] text-muted-foreground">📈 {velocityData.velocityTrend}</span>
+                    <span className="text-[11px] text-muted-foreground">✅ {velocityData.completionRate}% done</span>
                     {velocityData.riskFactors?.length > 0 && (
                       <span className="text-[11px] text-red-400">⚠️ {velocityData.riskFactors[0]}</span>
                     )}
@@ -958,13 +958,13 @@ export function TaskBoard() {
                 )}
                 {/* Standup Report */}
                 {standupReport && (
-                  <div className="bg-zinc-800/40 rounded-lg p-3 border border-zinc-700/30">
+                  <div className="bg-muted/40 rounded-lg p-3 border border-border/30">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Daily Standup</span>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Daily Standup</span>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-5 px-1.5 text-[10px] text-zinc-500"
+                        className="h-5 px-1.5 text-[10px] text-muted-foreground"
                         onClick={() => { navigator.clipboard.writeText(standupReport) }}
                       >
                         Copy
@@ -985,10 +985,10 @@ export function TaskBoard() {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="border-b border-zinc-800 overflow-hidden"
+              className="border-b border-border overflow-hidden"
             >
               <div className="px-6 py-3 flex items-center gap-4">
-                <span className="text-xs text-zinc-500">Priority:</span>
+                <span className="text-xs text-muted-foreground">Priority:</span>
                 {["all", "urgent", "high", "medium", "low"].map((p) => (
                   <button
                     key={p}
@@ -996,7 +996,7 @@ export function TaskBoard() {
                     className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
                       filterPriority === p
                         ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+                        : "text-muted-foreground hover:text-zinc-300 hover:bg-muted"
                     }`}
                   >
                     {p === "all" ? "All" : p.charAt(0).toUpperCase() + p.slice(1)}
@@ -1017,16 +1017,16 @@ export function TaskBoard() {
                 return (
                   <div
                     key={column.id}
-                    className="flex-1 min-w-[260px] max-w-[340px] flex flex-col border-r border-zinc-800/50 last:border-r-0"
+                    className="flex-1 min-w-[260px] max-w-[340px] flex flex-col border-r border-border/50 last:border-r-0"
                   >
                     {/* Column Header */}
                     <div className="px-4 py-3 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <ColIcon className={`w-4 h-4 ${column.color}`} />
-                        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                           {column.label}
                         </span>
-                        <span className="text-[10px] text-zinc-600 bg-zinc-800 px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] text-zinc-600 bg-muted px-1.5 py-0.5 rounded">
                           {column.tasks.length}
                         </span>
                       </div>
@@ -1079,7 +1079,7 @@ export function TaskBoard() {
                         {column.tasks.length === 0 && (
                           <button
                             onClick={() => handleAddToColumn(column.id)}
-                            className="w-full py-8 border border-dashed border-zinc-800 rounded-lg text-zinc-600 hover:border-zinc-700 hover:text-zinc-500 transition-colors text-xs flex flex-col items-center gap-1"
+                            className="w-full py-8 border border-dashed border-border rounded-lg text-zinc-600 hover:border-border hover:text-muted-foreground transition-colors text-xs flex flex-col items-center gap-1"
                           >
                             <Plus className="w-4 h-4" />
                             Add task
@@ -1096,13 +1096,13 @@ export function TaskBoard() {
             <ScrollArea className="h-full">
               <div className="px-6 py-4">
                 {/* Sprint progress bar */}
-                <div className="mb-6 bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
+                <div className="mb-6 bg-muted/50 border border-border rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h2 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
                       <Zap className="w-4 h-4 text-blue-400" />
                       Sprint Progress
                     </h2>
-                    <span className="text-xs text-zinc-400">{completedTasks}/{totalTasks} tasks done</span>
+                    <span className="text-xs text-muted-foreground">{completedTasks}/{totalTasks} tasks done</span>
                   </div>
                   <Progress value={progressPercent} className="h-2.5" />
                   <div className="flex items-center justify-between mt-1.5">
@@ -1127,14 +1127,14 @@ export function TaskBoard() {
                     <div key={statusKey} className="mb-5">
                       <div className="flex items-center gap-2 mb-2">
                         <StatusIcon className={`w-4 h-4 ${statusVal.color}`} />
-                        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                           {statusVal.label}
                         </span>
-                        <span className="text-[10px] text-zinc-600 bg-zinc-800 px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] text-zinc-600 bg-muted px-1.5 py-0.5 rounded">
                           {statusTasks.length}
                         </span>
                       </div>
-                      <div className="space-y-1.5 pl-2 border-l border-zinc-800">
+                      <div className="space-y-1.5 pl-2 border-l border-border">
                         {statusTasks.map((task) => {
                           const p = PRIORITY_CONFIG[task.priority as keyof typeof PRIORITY_CONFIG] || PRIORITY_CONFIG.medium
                           const PIcon = p.icon
@@ -1151,7 +1151,7 @@ export function TaskBoard() {
                               key={task.id}
                               layout
                               onClick={() => handleTaskClick(task)}
-                              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-zinc-800/40 cursor-pointer group transition-colors"
+                              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/40 cursor-pointer group transition-colors"
                             >
                               <PIcon className={`w-3.5 h-3.5 ${p.color} flex-shrink-0`} />
                               <span className="text-sm text-zinc-200 flex-1 group-hover:text-white truncate">
@@ -1180,7 +1180,7 @@ export function TaskBoard() {
                 {filteredTasks.length === 0 && (
                   <div className="text-center py-16">
                     <Target className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
-                    <p className="text-zinc-500 text-sm mb-1">No tasks found</p>
+                    <p className="text-muted-foreground text-sm mb-1">No tasks found</p>
                     <Button
                       onClick={() => setShowCreateModal(true)}
                       size="sm"
@@ -1198,7 +1198,7 @@ export function TaskBoard() {
             <ScrollArea className="h-full">
               <div className="px-6 py-2">
                 {/* List Header */}
-                <div className="flex items-center gap-4 px-4 py-2 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider border-b border-zinc-800">
+                <div className="flex items-center gap-4 px-4 py-2 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider border-b border-border">
                   <div className="w-6" />
                   <div className="flex-1">Task</div>
                   <div className="w-24">Status</div>
@@ -1219,7 +1219,7 @@ export function TaskBoard() {
                         key={task.id}
                         layout
                         onClick={() => handleTaskClick(task)}
-                        className="flex items-center gap-4 px-4 py-3 hover:bg-zinc-800/30 cursor-pointer transition-colors group"
+                        className="flex items-center gap-4 px-4 py-3 hover:bg-muted/30 cursor-pointer transition-colors group"
                       >
                         <button
                           onClick={(e) => {
@@ -1247,7 +1247,7 @@ export function TaskBoard() {
 
                         <div className="w-20 flex items-center gap-1.5">
                           <PriorityIcon className={`w-3.5 h-3.5 ${priority.color}`} />
-                          <span className="text-xs text-zinc-500">{priority.label}</span>
+                          <span className="text-xs text-muted-foreground">{priority.label}</span>
                         </div>
 
                         <div className="w-24">
@@ -1256,7 +1256,7 @@ export function TaskBoard() {
                               <div className="w-5 h-5 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
                                 <span className="text-[8px] font-bold text-white">{task.assignee.charAt(0).toUpperCase()}</span>
                               </div>
-                              <span className="text-xs text-zinc-400 truncate">{task.assignee}</span>
+                              <span className="text-xs text-muted-foreground truncate">{task.assignee}</span>
                             </div>
                           ) : (
                             <span className="text-xs text-zinc-600">—</span>
@@ -1270,7 +1270,7 @@ export function TaskBoard() {
                 {filteredTasks.length === 0 && (
                   <div className="text-center py-16">
                     <Target className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
-                    <p className="text-zinc-500 text-sm mb-1">No tasks found</p>
+                    <p className="text-muted-foreground text-sm mb-1">No tasks found</p>
                     <p className="text-zinc-600 text-xs mb-4">Create your first task to get started</p>
                     <Button
                       onClick={() => setShowCreateModal(true)}

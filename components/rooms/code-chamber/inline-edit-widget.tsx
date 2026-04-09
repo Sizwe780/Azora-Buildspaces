@@ -132,8 +132,8 @@ export function InlineEditWidget({
             {/* Selected code context */}
             {selectedCode && !result && (
                 <div className="max-h-[120px] overflow-y-auto border-b border-[#1b1f27]">
-                    <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-[#484f58] bg-[#0d1117]">Selected Code</div>
-                    <pre className="px-3 py-2 text-[12px] text-[#8b949e] font-mono whitespace-pre-wrap bg-[#0d1117]">
+                    <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-[#484f58] bg-background">Selected Code</div>
+                    <pre className="px-3 py-2 text-[12px] text-[#8b949e] font-mono whitespace-pre-wrap bg-background">
                         {selectedCode.length > 500 ? selectedCode.slice(0, 500) + "..." : selectedCode}
                     </pre>
                 </div>
@@ -142,11 +142,11 @@ export function InlineEditWidget({
             {/* Result diff */}
             {result && (
                 <div className="max-h-[280px] overflow-y-auto border-b border-[#1b1f27]">
-                    <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-[#484f58] bg-[#0d1117] flex items-center gap-2">
+                    <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-[#484f58] bg-background flex items-center gap-2">
                         <span>AI Suggestion</span>
                         {isLoading && <Loader2 className="w-3 h-3 animate-spin" />}
                     </div>
-                    <pre className="px-3 py-2 text-[12px] text-emerald-300 font-mono whitespace-pre-wrap bg-[#0d1117]">
+                    <pre className="px-3 py-2 text-[12px] text-emerald-300 font-mono whitespace-pre-wrap bg-background">
                         {result}
                     </pre>
                 </div>

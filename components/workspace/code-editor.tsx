@@ -713,7 +713,7 @@ export function CodeEditor({
           ...options,
         }}
         loading={
-          <div className="flex items-center justify-center h-full w-full bg-[var(--ide-editor-bg)] text-gray-400">
+          <div className="flex items-center justify-center h-full w-full bg-[var(--ide-editor-bg)] text-muted-foreground">
             <div className="flex flex-col items-center gap-3">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
               <p className="text-sm">Loading Monaco Editor...</p>

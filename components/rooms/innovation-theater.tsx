@@ -599,9 +599,9 @@ export default function InnovationTheater() {
   const active = slides[currentSlide]
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950 text-zinc-100">
+    <div className="h-full flex flex-col bg-background text-foreground">
       {/* ── Toolbar ── */}
-      <div className="h-14 border-b border-zinc-800 flex items-center justify-between px-5 bg-zinc-900/40">
+      <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-background">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
             <MonitorPlay className="w-4 h-4 text-red-400" />
@@ -614,11 +614,11 @@ export default function InnovationTheater() {
                 <Radio className="w-3.5 h-3.5 text-red-500" />
                 <span className="text-xs font-bold text-red-400 uppercase tracking-wider">Live</span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Clock className="w-3 h-3" />
                 {formatTime(elapsedTime)}
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Eye className="w-3 h-3" />
                 {viewerCount} viewers
               </div>
@@ -645,7 +645,7 @@ export default function InnovationTheater() {
             {isCamOn ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
           </Button>
 
-          <div className="w-px h-6 bg-zinc-800 mx-1" />
+          <div className="w-px h-6 bg-muted mx-1" />
 
           <Button
             variant="ghost"
@@ -690,14 +690,14 @@ export default function InnovationTheater() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-b border-zinc-800 bg-purple-500/5 overflow-hidden"
+            className="border-b border-border bg-purple-500/5 overflow-hidden"
           >
             <div className="px-5 py-3 flex items-center gap-3 flex-wrap">
               {/* Generate slides from topic */}
               <div className="flex items-center gap-2">
                 <Input
                   placeholder="Enter topic to generate slides..."
-                  className="h-8 w-64 text-xs bg-zinc-900/60 border-zinc-700/50"
+                  className="h-8 w-64 text-xs bg-muted/60 border-border/50"
                   value={generateTopic}
                   onChange={(e) => setGenerateTopic(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && generateSlidesFromTopic()}
@@ -716,7 +716,7 @@ export default function InnovationTheater() {
                 </Button>
               </div>
 
-              <div className="w-px h-6 bg-zinc-800" />
+              <div className="w-px h-6 bg-muted" />
 
               {/* Sentiment Analysis */}
               <Button
@@ -739,11 +739,11 @@ export default function InnovationTheater() {
                   }`}>
                     Engagement: {sentimentData.overall}%
                   </Badge>
-                  <Badge variant="outline" className="text-zinc-400 border-zinc-700">
+                  <Badge variant="outline" className="text-muted-foreground border-border">
                     {sentimentData.engagementTrend === 'rising' ? '📈' : sentimentData.engagementTrend === 'stable' ? '➡️' : '📉'} {sentimentData.engagementTrend}
                   </Badge>
                   {sentimentData.suggestions.length > 0 && (
-                    <span className="text-zinc-500 italic">💡 {sentimentData.suggestions[0]}</span>
+                    <span className="text-muted-foreground italic">💡 {sentimentData.suggestions[0]}</span>
                   )}
                 </div>
               )}
@@ -757,9 +757,9 @@ export default function InnovationTheater() {
         <ResizablePanelGroup direction="horizontal">
           {/* ── Left: Slide Thumbnails ── */}
           <ResizablePanel defaultSize={18} minSize={14} maxSize={24}>
-            <div className="h-full border-r border-zinc-800 flex flex-col bg-zinc-900/20">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-                <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Slides</span>
+            <div className="h-full border-r border-border flex flex-col bg-muted/20">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Slides</span>
                 <Button variant="ghost" size="sm" onClick={addSlide} className="h-6 w-6 p-0">
                   <Plus className="w-3.5 h-3.5" />
                 </Button>
@@ -793,12 +793,12 @@ export default function InnovationTheater() {
                         className={`w-full group relative rounded-lg border p-3 text-left transition-all cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-blue-500 ${
                           idx === currentSlide
                             ? "border-blue-500/50 bg-blue-500/10"
-                            : "border-zinc-800 hover:border-zinc-700 bg-zinc-900/40"
+                            : "border-border hover:border-border bg-muted/40"
                         }`}
                       >
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[10px] font-mono text-zinc-600">{idx + 1}</span>
-                          <Badge variant="outline" className="text-[8px] h-3.5 px-1 border-zinc-800 text-zinc-600">
+                          <Badge variant="outline" className="text-[8px] h-3.5 px-1 border-border text-zinc-600">
                             {slide.type}
                           </Badge>
                         </div>
@@ -828,32 +828,32 @@ export default function InnovationTheater() {
           <ResizablePanel defaultSize={55} minSize={35}>
             <div className="h-full flex flex-col">
               {/* Stage Area */}
-              <div className="flex-1 flex items-center justify-center bg-zinc-950 p-8 relative">
+              <div className="flex-1 flex items-center justify-center bg-background p-8 relative">
                 {active ? (
                   <motion.div
                     key={active.id}
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="w-full max-w-4xl aspect-video bg-zinc-900/80 border border-zinc-800 rounded-2xl p-12 flex flex-col items-center justify-center shadow-2xl"
+                    className="w-full max-w-4xl aspect-video bg-muted/80 border border-border rounded-2xl p-12 flex flex-col items-center justify-center shadow-2xl"
                   >
                     {active.type === "title" && (
                       <div className="text-center space-y-4">
                         <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                           {active.title}
                         </h1>
-                        <p className="text-lg text-zinc-400">{active.content}</p>
+                        <p className="text-lg text-muted-foreground">{active.content}</p>
                       </div>
                     )}
                     {active.type === "content" && (
                       <div className="space-y-4 w-full">
-                        <h2 className="text-2xl font-bold text-zinc-100">{active.title}</h2>
-                        <p className="text-base text-zinc-400 leading-relaxed whitespace-pre-wrap">{active.content}</p>
+                        <h2 className="text-2xl font-bold text-foreground">{active.title}</h2>
+                        <p className="text-base text-muted-foreground leading-relaxed whitespace-pre-wrap">{active.content}</p>
                       </div>
                     )}
                     {active.type === "code" && (
                       <div className="w-full space-y-3">
-                        <h2 className="text-xl font-bold text-zinc-100">{active.title}</h2>
-                        <pre className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 text-sm font-mono text-emerald-400 overflow-auto">
+                        <h2 className="text-xl font-bold text-foreground">{active.title}</h2>
+                        <pre className="bg-background border border-border rounded-lg p-4 text-sm font-mono text-emerald-400 overflow-auto">
                           {active.content}
                         </pre>
                       </div>
@@ -861,14 +861,14 @@ export default function InnovationTheater() {
                     {active.type === "demo" && (
                       <div className="text-center space-y-4">
                         <Sparkles className="w-12 h-12 text-amber-400 mx-auto" />
-                        <h2 className="text-2xl font-bold text-zinc-100">{active.title}</h2>
-                        <p className="text-zinc-500 text-sm">Live demo area</p>
+                        <h2 className="text-2xl font-bold text-foreground">{active.title}</h2>
+                        <p className="text-muted-foreground text-sm">Live demo area</p>
                       </div>
                     )}
                     {(active.type === "image" || active.type === "split") && (
                       <div className="space-y-4 w-full">
-                        <h2 className="text-2xl font-bold text-zinc-100">{active.title}</h2>
-                        <p className="text-base text-zinc-400">{active.content}</p>
+                        <h2 className="text-2xl font-bold text-foreground">{active.title}</h2>
+                        <p className="text-base text-muted-foreground">{active.content}</p>
                       </div>
                     )}
                   </motion.div>
@@ -881,11 +881,11 @@ export default function InnovationTheater() {
 
                 {/* Slide navigation overlay */}
                 {slides.length > 0 && (
-                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 rounded-full px-4 py-2">
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-muted/80 backdrop-blur-md border border-border rounded-full px-4 py-2">
                     <Button variant="ghost" size="sm" onClick={prevSlide} disabled={currentSlide === 0} className="h-7 w-7 p-0">
                       <ChevronLeft className="w-4 h-4" />
                     </Button>
-                    <span className="text-xs font-mono text-zinc-400">
+                    <span className="text-xs font-mono text-muted-foreground">
                       {currentSlide + 1} / {slides.length}
                     </span>
                     <Button variant="ghost" size="sm" onClick={nextSlide} disabled={currentSlide === slides.length - 1} className="h-7 w-7 p-0">
@@ -904,9 +904,9 @@ export default function InnovationTheater() {
 
               {/* Presenter Notes */}
               {isPresenterMode && active && (
-                <div className="h-32 border-t border-zinc-800 bg-zinc-900/40 p-4 overflow-y-auto">
+                <div className="h-32 border-t border-border bg-muted/40 p-4 overflow-y-auto">
                   <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider mb-1">Speaker Notes</p>
-                  <p className="text-xs text-zinc-400 leading-relaxed">{active.notes || "No notes for this slide"}</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{active.notes || "No notes for this slide"}</p>
                 </div>
               )}
             </div>
@@ -916,9 +916,9 @@ export default function InnovationTheater() {
 
           {/* ── Right: Audience & Engagement ── */}
           <ResizablePanel defaultSize={27} minSize={20} maxSize={35}>
-            <div className="h-full flex flex-col border-l border-zinc-800">
+            <div className="h-full flex flex-col border-l border-border">
               <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-                <TabsList className="grid w-full grid-cols-4 h-10 rounded-none border-b border-zinc-800 bg-zinc-900/30">
+                <TabsList className="grid w-full grid-cols-4 h-10 rounded-none border-b border-border bg-muted/30">
                   <TabsTrigger value="edit" className="gap-1 text-xs">
                     <Type className="w-3 h-3" />
                     Edit
@@ -942,24 +942,24 @@ export default function InnovationTheater() {
                   {active ? (
                     <div className="p-4 space-y-4">
                       <div>
-                        <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5 block">
+                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
                           Title
                         </label>
                         <Input
                           value={active.title}
                           onChange={(e) => updateSlide(currentSlide, { title: e.target.value })}
-                          className="h-8 text-xs bg-zinc-900/60 border-zinc-700/50"
+                          className="h-8 text-xs bg-muted/60 border-border/50"
                           placeholder="Slide title"
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5 block">
+                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
                           Type
                         </label>
                         <select
                           value={active.type}
                           onChange={(e) => updateSlide(currentSlide, { type: e.target.value as Slide["type"] })}
-                          className="w-full h-8 text-xs bg-zinc-900 border border-zinc-700/50 rounded-md px-2 text-zinc-300"
+                          className="w-full h-8 text-xs bg-muted border border-border/50 rounded-md px-2 text-zinc-300"
                         >
                           <option value="title">Title Slide</option>
                           <option value="content">Content</option>
@@ -970,24 +970,24 @@ export default function InnovationTheater() {
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5 block">
+                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
                           Content
                         </label>
                         <textarea
                           value={active.content}
                           onChange={(e) => updateSlide(currentSlide, { content: e.target.value })}
-                          className="w-full h-32 text-xs bg-zinc-900/60 border border-zinc-700/50 rounded-md p-2 text-zinc-300 resize-none"
+                          className="w-full h-32 text-xs bg-muted/60 border border-border/50 rounded-md p-2 text-zinc-300 resize-none"
                           placeholder="Slide content..."
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5 block">
+                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
                           Speaker Notes
                         </label>
                         <textarea
                           value={active.notes}
                           onChange={(e) => updateSlide(currentSlide, { notes: e.target.value })}
-                          className="w-full h-20 text-xs bg-zinc-900/60 border border-zinc-700/50 rounded-md p-2 text-zinc-300 resize-none"
+                          className="w-full h-20 text-xs bg-muted/60 border border-border/50 rounded-md p-2 text-zinc-300 resize-none"
                           placeholder="Notes visible only to presenter..."
                         />
                       </div>
@@ -1038,17 +1038,17 @@ export default function InnovationTheater() {
                                 {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                               </span>
                             </div>
-                            <p className="text-xs text-zinc-400">{msg.text}</p>
+                            <p className="text-xs text-muted-foreground">{msg.text}</p>
                           </div>
                         ))}
                       </div>
                     )}
                   </ScrollArea>
-                  <div className="p-3 border-t border-zinc-800">
+                  <div className="p-3 border-t border-border">
                     <div className="flex items-center gap-2">
                       <Input
                         placeholder="Type a message..."
-                        className="h-8 text-xs bg-zinc-900/60 border-zinc-700/50"
+                        className="h-8 text-xs bg-muted/60 border-border/50"
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && sendChat()}
@@ -1064,35 +1064,35 @@ export default function InnovationTheater() {
                 <TabsContent value="reactions" className="flex-1 m-0 p-4">
                   <div className="space-y-6">
                     <div>
-                      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Live Reactions</p>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Live Reactions</p>
                       <div className="grid grid-cols-3 gap-3">
                         <button
                           onClick={() => sendReaction("thumbsUp")}
-                          className="flex flex-col items-center gap-1 p-4 rounded-xl border border-zinc-800 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all"
+                          className="flex flex-col items-center gap-1 p-4 rounded-xl border border-border hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all"
                         >
                           <ThumbsUp className="w-6 h-6 text-emerald-400" />
-                          <span className="text-xs font-mono text-zinc-400">{reactions.thumbsUp}</span>
+                          <span className="text-xs font-mono text-muted-foreground">{reactions.thumbsUp}</span>
                         </button>
                         <button
                           onClick={() => sendReaction("thumbsDown")}
-                          className="flex flex-col items-center gap-1 p-4 rounded-xl border border-zinc-800 hover:border-red-500/30 hover:bg-red-500/5 transition-all"
+                          className="flex flex-col items-center gap-1 p-4 rounded-xl border border-border hover:border-red-500/30 hover:bg-red-500/5 transition-all"
                         >
                           <ThumbsDown className="w-6 h-6 text-red-400" />
-                          <span className="text-xs font-mono text-zinc-400">{reactions.thumbsDown}</span>
+                          <span className="text-xs font-mono text-muted-foreground">{reactions.thumbsDown}</span>
                         </button>
                         <button
                           onClick={() => sendReaction("raised")}
-                          className="flex flex-col items-center gap-1 p-4 rounded-xl border border-zinc-800 hover:border-amber-500/30 hover:bg-amber-500/5 transition-all"
+                          className="flex flex-col items-center gap-1 p-4 rounded-xl border border-border hover:border-amber-500/30 hover:bg-amber-500/5 transition-all"
                         >
                           <Hand className="w-6 h-6 text-amber-400" />
-                          <span className="text-xs font-mono text-zinc-400">{reactions.raised}</span>
+                          <span className="text-xs font-mono text-muted-foreground">{reactions.raised}</span>
                         </button>
                       </div>
                     </div>
 
                     <div>
-                      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Q&A Queue</p>
-                      <div className="text-center py-6 border border-zinc-800 rounded-lg">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Q&A Queue</p>
+                      <div className="text-center py-6 border border-border rounded-lg">
                         <Hand className="w-6 h-6 text-zinc-700 mx-auto mb-2" />
                         <p className="text-xs text-zinc-600">Raise hand to ask a question</p>
                         <Button size="sm" variant="outline" className="mt-3 text-xs gap-1" onClick={() => sendReaction("raised")}>
@@ -1107,14 +1107,14 @@ export default function InnovationTheater() {
                 {/* Polls */}
                 <TabsContent value="polls" className="flex-1 m-0 p-4">
                   <div className="space-y-4">
-                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">AI Q&A Assistant</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">AI Q&A Assistant</p>
 
                     {/* AI Question Answering */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-2">
                         <Input
                           placeholder="Ask a question about the presentation..."
-                          className="h-8 text-xs bg-zinc-900/60 border-zinc-700/50"
+                          className="h-8 text-xs bg-muted/60 border-border/50"
                           value={qaQuestion}
                           onChange={(e) => setQaQuestion(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && answerQuestion(qaQuestion)}
@@ -1154,7 +1154,7 @@ export default function InnovationTheater() {
                           <ScrollArea className="max-h-48">
                             <div className="space-y-2">
                               {qaHistory.slice().reverse().map((qa) => (
-                                <div key={qa.id} className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-2.5 space-y-1.5">
+                                <div key={qa.id} className="bg-muted/60 border border-border rounded-lg p-2.5 space-y-1.5">
                                   <div className="flex items-start justify-between gap-2">
                                     <p className="text-xs font-medium text-zinc-300">Q: {qa.question}</p>
                                     <button
@@ -1165,7 +1165,7 @@ export default function InnovationTheater() {
                                       {qa.upvotes > 0 && qa.upvotes}
                                     </button>
                                   </div>
-                                  <p className="text-[11px] text-zinc-500 leading-relaxed line-clamp-3">{qa.answer}</p>
+                                  <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">{qa.answer}</p>
                                   <span className="text-[9px] text-zinc-700">
                                     {qa.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </span>
@@ -1177,15 +1177,15 @@ export default function InnovationTheater() {
                       )}
                     </div>
 
-                    <div className="w-full h-px bg-zinc-800" />
+                    <div className="w-full h-px bg-muted" />
 
                     {/* Traditional Polls (kept but simplified) */}
-                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Quick Poll</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Quick Poll</p>
                     {!pollActive ? (
                       <div className="space-y-3">
                         <Input
                           placeholder="Poll question…"
-                          className="h-8 text-xs bg-zinc-900/60 border-zinc-700/50"
+                          className="h-8 text-xs bg-muted/60 border-border/50"
                           value={pollQuestion}
                           onChange={(e) => setPollQuestion(e.target.value)}
                         />
@@ -1193,7 +1193,7 @@ export default function InnovationTheater() {
                           <div key={i} className="flex items-center gap-2">
                             <Input
                               placeholder={`Option ${i + 1}`}
-                              className="h-8 text-xs bg-zinc-900/60 border-zinc-700/50"
+                              className="h-8 text-xs bg-muted/60 border-border/50"
                               value={opt.label}
                               onChange={(e) => {
                                 const updated = [...pollOptions]
@@ -1239,7 +1239,7 @@ export default function InnovationTheater() {
                             <div key={i} className="space-y-1">
                               <div className="flex justify-between text-xs">
                                 <span className="text-zinc-300">{opt.label}</span>
-                                <span className="text-zinc-500">{Math.round(pct)}%</span>
+                                <span className="text-muted-foreground">{Math.round(pct)}%</span>
                               </div>
                               <Progress value={pct} className="h-1.5" />
                             </div>
@@ -1268,7 +1268,7 @@ export default function InnovationTheater() {
       </div>
 
       {/* ── Status Bar ── */}
-      <div className="h-7 border-t border-zinc-800 flex items-center justify-between px-5 bg-zinc-900/20 text-[11px] text-zinc-600">
+      <div className="h-7 border-t border-border flex items-center justify-between px-5 bg-muted/20 text-[11px] text-zinc-600">
         <div className="flex items-center gap-4">
           {isLive ? (
             <span className="text-red-400 font-medium">● LIVE — {formatTime(elapsedTime)}</span>

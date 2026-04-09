@@ -282,7 +282,7 @@ export default function MakerLab() {
     return (
         <div className="h-full flex flex-col bg-background">
             {/* Enhanced Toolbar */}
-            <div className="h-14 border-b flex items-center justify-between px-4 bg-muted/20">
+            <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-background">
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 px-3 py-2 bg-orange-500/10 text-orange-500 rounded-lg border border-orange-500/20">
                         <CircuitBoard className="w-5 h-5" />

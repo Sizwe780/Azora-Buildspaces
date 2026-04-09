@@ -128,8 +128,8 @@ export default function PromptLibrary({ onSelectPrompt }: { onSelectPrompt?: (co
 
   if (editingTemplate) {
     return (
-      <div className="h-full flex flex-col bg-zinc-950 text-zinc-100 p-4 space-y-4 overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+      <div className="h-full flex flex-col bg-background text-foreground p-4 space-y-4 overflow-y-auto">
+        <div className="flex items-center justify-between border-b border-border pb-3">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Settings className="w-5 h-5 text-blue-400" />
             {editingTemplate.id === "new" ? "Create Template" : "Edit Template"}
@@ -144,40 +144,40 @@ export default function PromptLibrary({ onSelectPrompt }: { onSelectPrompt?: (co
 
         <div className="grid gap-4 max-w-3xl">
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-zinc-400">Template Title</label>
+            <label className="text-xs font-semibold text-muted-foreground">Template Title</label>
             <Input 
               value={editingTemplate.title} 
               onChange={e => setEditingTemplate({...editingTemplate, title: e.target.value})}
-              className="bg-zinc-900 border-zinc-800 text-sm"
+              className="bg-muted border-border text-sm"
             />
           </div>
           
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-zinc-400">Description</label>
+            <label className="text-xs font-semibold text-muted-foreground">Description</label>
             <Input 
               value={editingTemplate.description} 
               onChange={e => setEditingTemplate({...editingTemplate, description: e.target.value})}
-              className="bg-zinc-900 border-zinc-800 text-sm"
+              className="bg-muted border-border text-sm"
             />
           </div>
 
           <div className="flex gap-4">
             <div className="space-y-1 flex-1">
-              <label className="text-xs font-semibold text-zinc-400">Category</label>
+              <label className="text-xs font-semibold text-muted-foreground">Category</label>
               <select 
                 value={editingTemplate.category}
                 onChange={e => setEditingTemplate({...editingTemplate, category: e.target.value as TemplateCategory})}
-                className="w-full h-9 rounded-md bg-zinc-900 border border-zinc-800 px-3 text-sm text-zinc-200"
+                className="w-full h-9 rounded-md bg-muted border border-border px-3 text-sm text-zinc-200"
               >
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div className="space-y-1 flex-1">
-                <label className="text-xs font-semibold text-zinc-400">Visibility</label>
+                <label className="text-xs font-semibold text-muted-foreground">Visibility</label>
                 <select 
                   value={editingTemplate.isPublic ? "public" : "private"}
                   onChange={e => setEditingTemplate({...editingTemplate, isPublic: e.target.value === "public"})}
-                  className="w-full h-9 rounded-md bg-zinc-900 border border-zinc-800 px-3 text-sm text-zinc-200"
+                  className="w-full h-9 rounded-md bg-muted border border-border px-3 text-sm text-zinc-200"
                 >
                   <option value="public">Public (Shared)</option>
                   <option value="private">Private (Workspace Only)</option>
@@ -186,14 +186,14 @@ export default function PromptLibrary({ onSelectPrompt }: { onSelectPrompt?: (co
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-zinc-400 flex justify-between">
+            <label className="text-xs font-semibold text-muted-foreground flex justify-between">
               <span>Prompt Content</span>
               <span className="text-zinc-600 font-normal">Use {"{variableName}"} to define placeholders</span>
             </label>
             <Textarea 
               value={editingTemplate.content} 
               onChange={e => setEditingTemplate({...editingTemplate, content: e.target.value})}
-              className="bg-zinc-900 border-zinc-800 font-mono text-sm h-64 resize-none"
+              className="bg-muted border-border font-mono text-sm h-64 resize-none"
             />
           </div>
 
@@ -217,16 +217,16 @@ export default function PromptLibrary({ onSelectPrompt }: { onSelectPrompt?: (co
   }
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950 text-zinc-100 p-4">
+    <div className="h-full flex flex-col bg-background text-foreground p-4">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-lg font-semibold flex items-center gap-2 text-zinc-100">
+          <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground">
             <FileText className="w-5 h-5 text-blue-400" />
             Prompt Library
           </h2>
-          <p className="text-[11px] text-zinc-500 mt-0.5">Manage, discover, and invoke powerful AI instructions.</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Manage, discover, and invoke powerful AI instructions.</p>
         </div>
-        <Button size="sm" onClick={startNew} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs h-8">
+        <Button size="sm" onClick={startNew} className="bg-muted hover:bg-zinc-700 text-zinc-200 border border-border text-xs h-8">
           <Plus className="w-3.5 h-3.5 mr-1" />
           Create Template
         </Button>
@@ -234,25 +234,25 @@ export default function PromptLibrary({ onSelectPrompt }: { onSelectPrompt?: (co
 
       <div className="flex items-center gap-3 mb-4">
         <div className="relative flex-1 max-w-sm">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input 
             placeholder="Search templates..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 bg-zinc-900 border-zinc-800 text-xs h-8 placeholder:text-zinc-600"
+            className="pl-9 bg-muted border-border text-xs h-8 placeholder:text-zinc-600"
           />
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1 tailwind-scrollbar-hide">
           <Badge 
             variant={activeCategory === "All" ? "default" : "outline"}
-            className={`cursor-pointer whitespace-nowrap text-[10px] font-medium transition-colors ${activeCategory === "All" ? "bg-zinc-700 text-zinc-100 hover:bg-zinc-600 border-zinc-600" : "border-zinc-800 text-zinc-400 hover:text-zinc-200 bg-zinc-900/50"}`}
+            className={`cursor-pointer whitespace-nowrap text-[10px] font-medium transition-colors ${activeCategory === "All" ? "bg-zinc-700 text-foreground hover:bg-zinc-600 border-zinc-600" : "border-border text-muted-foreground hover:text-zinc-200 bg-muted/50"}`}
             onClick={() => setActiveCategory("All")}
           >All</Badge>
           {CATEGORIES.map(cat => (
             <Badge 
               key={cat}
               variant={activeCategory === cat ? "default" : "outline"}
-              className={`cursor-pointer whitespace-nowrap text-[10px] font-medium transition-colors ${activeCategory === cat ? "bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border-blue-500/30" : "border-zinc-800 text-zinc-400 hover:text-zinc-200 bg-zinc-900/50"}`}
+              className={`cursor-pointer whitespace-nowrap text-[10px] font-medium transition-colors ${activeCategory === cat ? "bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border-blue-500/30" : "border-border text-muted-foreground hover:text-zinc-200 bg-muted/50"}`}
               onClick={() => setActiveCategory(cat)}
             >{cat}</Badge>
           ))}
@@ -262,21 +262,21 @@ export default function PromptLibrary({ onSelectPrompt }: { onSelectPrompt?: (co
       <ScrollArea className="flex-1 pr-4 -mr-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {filteredTemplates.map(template => (
-            <Card key={template.id} className="bg-zinc-900/30 border-zinc-800 flex flex-col overflow-hidden hover:border-zinc-700 hover:bg-zinc-900/50 transition-all shadow-sm">
-              <CardHeader className="p-3 pb-2 bg-gradient-to-br from-zinc-900/50 to-zinc-950/50 border-b border-zinc-800/50">
+            <Card key={template.id} className="bg-muted/30 border-border flex flex-col overflow-hidden hover:border-border hover:bg-muted/50 transition-all shadow-sm">
+              <CardHeader className="p-3 pb-2 bg-gradient-to-br from-zinc-900/50 to-zinc-950/50 border-b border-border/50">
                 <div className="flex justify-between items-start gap-2">
                   <CardTitle className="text-sm font-semibold text-zinc-200 leading-tight">
                     {template.title}
                   </CardTitle>
-                  <div className="shrink-0 flex items-center gap-1 text-[10px] text-zinc-500">
+                  <div className="shrink-0 flex items-center gap-1 text-[10px] text-muted-foreground">
                     {template.isPublic ? <Globe className="w-3 h-3 text-emerald-400/70" /> : <Lock className="w-3 h-3 text-amber-400/70" />}
                   </div>
                 </div>
-                <p className="text-[11px] text-zinc-500 mt-1 line-clamp-2 min-h-[32px]">{template.description}</p>
+                <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2 min-h-[32px]">{template.description}</p>
               </CardHeader>
               <CardContent className="p-3 py-2.5 flex-1">
                  <div className="flex flex-wrap gap-1.5 mt-1">
-                   <Badge variant="outline" className="text-[9px] h-4 py-0 border-zinc-700 bg-zinc-900 text-zinc-400 px-1.5">
+                   <Badge variant="outline" className="text-[9px] h-4 py-0 border-border bg-muted text-muted-foreground px-1.5">
                      {template.category}
                    </Badge>
                    {template.variables.slice(0, 3).map(v => (
@@ -289,19 +289,19 @@ export default function PromptLibrary({ onSelectPrompt }: { onSelectPrompt?: (co
                    )}
                  </div>
               </CardContent>
-              <CardFooter className="p-2 border-t border-zinc-800 flex items-center justify-between bg-zinc-950/30">
-                <span className="text-[10px] text-zinc-500 flex items-center gap-1 font-mono bg-zinc-900 px-1.5 py-0.5 rounded-sm border border-zinc-800/80">
+              <CardFooter className="p-2 border-t border-border flex items-center justify-between bg-background/30">
+                <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono bg-muted px-1.5 py-0.5 rounded-sm border border-border/80">
                   <Play className="w-3 h-3 text-emerald-500/70" />
                   {template.usageCount.toLocaleString()}
                 </span>
                 <div className="flex items-center gap-0.5">
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800" onClick={() => copyToClipboard(template)} title="Copy raw prompt">
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-zinc-300 hover:bg-muted" onClick={() => copyToClipboard(template)} title="Copy raw prompt">
                     {copiedId === template.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10" onClick={() => setEditingTemplate(template)} title="Edit template">
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-blue-400 hover:bg-blue-500/10" onClick={() => setEditingTemplate(template)} title="Edit template">
                     <Settings className="w-3 h-3" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-zinc-500 hover:text-red-400 hover:bg-red-500/10" onClick={() => handleDelete(template.id)} title="Delete template">
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-red-400 hover:bg-red-500/10" onClick={() => handleDelete(template.id)} title="Delete template">
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>
@@ -309,7 +309,7 @@ export default function PromptLibrary({ onSelectPrompt }: { onSelectPrompt?: (co
             </Card>
           ))}
           {filteredTemplates.length === 0 && (
-            <div className="col-span-full py-16 flex flex-col items-center justify-center text-zinc-500 bg-zinc-900/20 border border-dashed border-zinc-800 rounded-lg">
+            <div className="col-span-full py-16 flex flex-col items-center justify-center text-muted-foreground bg-muted/20 border border-dashed border-border rounded-lg">
               <FileText className="w-10 h-10 mb-3 opacity-20" />
               <p className="text-xs">No templates found matching your search.</p>
               <Button variant="link" onClick={() => {setSearchQuery(""); setActiveCategory("All")}} className="text-blue-400 text-xs mt-1 h-auto p-0">Clear filters</Button>

@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +20,7 @@ import {
     Settings,
     Download,
     Upload,
-    CheckCircle,
+    CheckCircle, Shield, AlertTriangle,
     AlertCircle,
     Zap,
     Plus,
@@ -300,7 +301,7 @@ spec:
             <aside className="w-64 border-r bg-muted/20 p-4 flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Endpoints</h3>
-                    <Button size="icon" variant="ghost" className="h-8 w-8">
+                    <Button size="icon"  className="h-8 w-8">
                         <Plus className="w-4 h-4" />
                     </Button>
                 </div>
@@ -343,7 +344,7 @@ spec:
                         <Activity className="w-3.5 h-3.5 mr-2" />
                         Active Pipelines ({pipelines.filter(p => p.status === 'running').length})
                     </Button>
-                    <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-8">
+                    <Button  size="sm" className="w-full justify-start text-xs h-8">
                         <Terminal className="w-3.5 h-3.5 mr-2" />
                         Deployment Logs
                     </Button>
@@ -460,7 +461,7 @@ spec:
                                             <Shield className="w-4 h-4 text-muted-foreground" />
                                             Secrets & Environment
                                         </CardTitle>
-                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={addEnvVar}>
+                                        <Button  size="icon" className="h-6 w-6" onClick={addEnvVar}>
                                             <Plus className="w-3 h-3" />
                                         </Button>
                                     </div>
@@ -470,7 +471,7 @@ spec:
                                         <div key={index} className="space-y-1 group relative bg-muted/40 p-2 rounded-md border border-transparent hover:border-border transition-all">
                                             <Input
                                                 placeholder="NAME"
-                                                variant="ghost"
+                                                
                                                 value={env.key}
                                                 onChange={(e) => updateEnvVar(index, 'key', e.target.value)}
                                                 className="h-6 text-[11px] font-mono px-0 focus-visible:ring-0 uppercase placeholder:lowercase"
@@ -485,7 +486,7 @@ spec:
                                                 />
                                                 <Button
                                                     size="icon"
-                                                    variant="ghost"
+                                                    
                                                     className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
                                                     onClick={() => removeEnvVar(index)}
                                                 >
@@ -537,7 +538,7 @@ spec:
                                                         )}
                                                     </div>
                                                 </div>
-                                                <Button size="sm" variant="ghost" className="h-8">
+                                                <Button size="sm"  className="h-8">
                                                     View Logs
                                                     <ExternalLink className="w-3 h-3 ml-2" />
                                                 </Button>
@@ -570,3 +571,6 @@ spec:
         </div>
     );
 }
+
+
+

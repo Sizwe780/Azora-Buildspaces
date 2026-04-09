@@ -1,5 +1,6 @@
 "use client";
 
+import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRoomEvents } from "@/lib/hooks/use-room-events";
 import * as Y from "yjs";
@@ -14,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Video, Palette, MessageSquare, CheckSquare, Share2, Users, Settings, Bell, Wifi, WifiOff, Monitor, RefreshCw } from "lucide-react";
+import { Video, Palette, MessageSquare, CheckSquare, Share2, Users, Settings, Bell, Wifi, WifiOff, Monitor, RefreshCw, GitBranch, History, Zap } from "lucide-react";
 import VideoConference from "./VideoConference";
 import Whiteboard from "./Whiteboard";
 import Chat from "./Chat";
@@ -52,6 +53,7 @@ interface SessionSnapshot {
 }
 
 export default function CollaborationPod() {
+    const { toast } = useToast();
     const { emit, ROOM_EVENTS } = useRoomEvents('collaboration-pod')
     const [activeTab, setActiveTab] = useState("video");
     const [notifications, setNotifications] = useState(5);
@@ -447,10 +449,10 @@ export default function CollaborationPod() {
 
                         {/* Invite Dialog */}
                         <Dialog open={inviteOpen} onOpenChange={(v) => setInviteOpen(v)}>
-                            <DialogContent className="border-zinc-800 bg-zinc-950 sm:max-w-md">
+                            <DialogContent className="border-border bg-background sm:max-w-md">
                                 <DialogHeader>
                                     <DialogTitle>Share Workspace Link</DialogTitle>
-                                    <p className="text-zinc-400 text-sm mt-2">
+                                    <p className="text-muted-foreground text-sm mt-2">
                                         Anyone with this link can join this Collab Pod and see your current session state.
                                     </p>
                                 </DialogHeader>
@@ -458,18 +460,18 @@ export default function CollaborationPod() {
                                     <Input 
                                         readOnly 
                                         value={inviteLink} 
-                                        className="bg-zinc-900 border-zinc-800 font-mono text-xs text-zinc-300"
+                                        className="bg-muted border-border font-mono text-xs text-zinc-300"
                                         onClick={(e) => (e.target as HTMLInputElement).select()}
                                     />
                                     <Button 
                                         size="sm" 
-                                        className="shrink-0 bg-zinc-800 hover:bg-zinc-700 text-zinc-100" 
+                                        className="shrink-0 bg-muted hover:bg-zinc-700 text-foreground" 
                                         onClick={() => navigator.clipboard.writeText(inviteLink)}
                                     >
                                         Copy
                                     </Button>
                                 </div>
-                                <div className="my-2 border-t border-zinc-800/80 pt-4 flex flex-col gap-3">
+                                <div className="my-2 border-t border-border/80 pt-4 flex flex-col gap-3">
                                     <div className="flex justify-between items-center text-sm">
                                         <span className="text-zinc-300">Require approval to enter</span>
                                         <Switch defaultChecked />
@@ -590,3 +592,4 @@ export default function CollaborationPod() {
         </div>
     );
 }
+

@@ -130,7 +130,7 @@ function CodeOutput({ code, language }: { code: string; language: string }) {
           setCopied(true)
           setTimeout(() => setCopied(false), 2000)
         }}
-        className="absolute top-3 right-3 z-10 h-7 px-2 text-xs text-zinc-500 hover:text-white bg-zinc-800/80"
+        className="absolute top-3 right-3 z-10 h-7 px-2 text-xs text-muted-foreground hover:text-white bg-muted/80"
       >
         {copied ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
         {copied ? "Copied" : "Copy"}
@@ -179,7 +179,7 @@ function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: 
           <AlertCircle className="w-4 h-4 inline mr-2" />
           Cannot parse YAML: {parseError || "Empty content"}
         </div>
-        <pre className="mt-4 bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-sm font-mono text-zinc-300 whitespace-pre-wrap">{content}</pre>
+        <pre className="mt-4 bg-muted border border-border rounded-lg p-4 text-sm font-mono text-zinc-300 whitespace-pre-wrap">{content}</pre>
       </div>
     )
   }
@@ -190,10 +190,10 @@ function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: 
       <div className="space-y-2">
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="text-xs border-purple-600 text-purple-400">{spec.type || activeType}</Badge>
-          {spec.version && <Badge variant="outline" className="text-xs border-zinc-700">{spec.version}</Badge>}
+          {spec.version && <Badge variant="outline" className="text-xs border-border">{spec.version}</Badge>}
         </div>
-        <h2 className="text-2xl font-bold text-zinc-100">{spec.name || spec.title || "Untitled Spec"}</h2>
-        {spec.description && <p className="text-sm text-zinc-400 leading-relaxed">{spec.description}</p>}
+        <h2 className="text-2xl font-bold text-foreground">{spec.name || spec.title || "Untitled Spec"}</h2>
+        {spec.description && <p className="text-sm text-muted-foreground leading-relaxed">{spec.description}</p>}
       </div>
 
       {/* Requirements */}
@@ -202,7 +202,7 @@ function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: 
           <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
             <Target className="w-4 h-4 text-purple-400" /> Requirements
           </h3>
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 space-y-2">
+          <div className="bg-muted/50 border border-border rounded-lg p-4 space-y-2">
             {spec.requirements.map((req: string, i: number) => (
               <div key={i} className="flex items-start gap-2 text-sm text-zinc-300">
                 <ChevronRight className="w-3.5 h-3.5 text-purple-400 mt-0.5 shrink-0" />
@@ -219,12 +219,12 @@ function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: 
           <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
             <Settings className="w-4 h-4 text-blue-400" /> Props
           </h3>
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg overflow-hidden">
+          <div className="bg-muted/50 border border-border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-zinc-800 text-zinc-500"><th className="text-left p-3 font-medium">Name</th><th className="text-left p-3 font-medium">Type</th><th className="text-left p-3 font-medium">Required</th><th className="text-left p-3 font-medium">Default</th></tr></thead>
+              <thead><tr className="border-b border-border text-muted-foreground"><th className="text-left p-3 font-medium">Name</th><th className="text-left p-3 font-medium">Type</th><th className="text-left p-3 font-medium">Required</th><th className="text-left p-3 font-medium">Default</th></tr></thead>
               <tbody>
                 {spec.props.map((p: any, i: number) => (
-                  <tr key={i} className="border-b border-zinc-800/50"><td className="p-3 text-zinc-200 font-mono text-xs">{p.name}</td><td className="p-3 text-blue-400 font-mono text-xs">{p.type}</td><td className="p-3">{p.required ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <span className="text-zinc-600">—</span>}</td><td className="p-3 text-zinc-400 font-mono text-xs">{p.default ?? "—"}</td></tr>
+                  <tr key={i} className="border-b border-border/50"><td className="p-3 text-zinc-200 font-mono text-xs">{p.name}</td><td className="p-3 text-blue-400 font-mono text-xs">{p.type}</td><td className="p-3">{p.required ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <span className="text-zinc-600">—</span>}</td><td className="p-3 text-muted-foreground font-mono text-xs">{p.default ?? "—"}</td></tr>
                 ))}
               </tbody>
             </table>
@@ -240,12 +240,12 @@ function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: 
           </h3>
           <div className="space-y-3">
             {spec.endpoints.map((ep: any, i: number) => (
-              <div key={i} className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
+              <div key={i} className="bg-muted/50 border border-border rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <Badge className="text-[10px] font-bold bg-green-600/20 text-green-400">{ep.method || "GET"}</Badge>
                   <code className="text-sm text-zinc-200 font-mono">{ep.path || ep.url}</code>
                 </div>
-                {ep.description && <p className="text-xs text-zinc-500 mt-1">{ep.description}</p>}
+                {ep.description && <p className="text-xs text-muted-foreground mt-1">{ep.description}</p>}
               </div>
             ))}
           </div>
@@ -259,7 +259,7 @@ function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: 
             <Database className="w-4 h-4 text-orange-400" /> Database Architecture
           </h3>
 
-          <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 overflow-hidden shadow-2xl">
+          <div className="bg-background border border-border rounded-xl p-4 overflow-hidden shadow-2xl">
             <Mermaid 
               chart={`erDiagram\n${spec.tables.map((table: any) => {
                 const columns = table.columns?.map((col: any) => `    ${col.type.replace(/[{}]/g, '')} ${col.name} ${col.primary ? "PK" : ""}`).join('\n') || "";
@@ -271,7 +271,7 @@ function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: 
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {spec.tables.map((table: any, i: number) => (
-              <div key={i} className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:border-orange-500/30 transition-colors">
+              <div key={i} className="bg-muted/50 border border-border rounded-lg p-4 hover:border-orange-500/30 transition-colors">
                 <h4 className="text-sm font-semibold text-zinc-200 mb-2 flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-orange-500" /> {table.name}
                 </h4>
@@ -284,7 +284,7 @@ function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: 
                           {col.primary && <Badge className="text-[8px] h-3.5 px-1 bg-yellow-600/30 text-yellow-500 border-none">PK</Badge>}
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-zinc-500 font-mono">{col.type}</span>
+                          <span className="text-muted-foreground font-mono">{col.type}</span>
                           {col.nullable === false && <span className="text-[10px] text-blue-400/60 font-medium">NOT NULL</span>}
                         </div>
                       </div>
@@ -304,9 +304,9 @@ function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: 
             <Zap className="w-4 h-4 text-yellow-400" /> Workflow Architecture
           </h3>
           
-          <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-6 overflow-hidden shadow-2xl relative group">
+          <div className="bg-background border border-border rounded-xl p-6 overflow-hidden shadow-2xl relative group">
             <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-               <Badge variant="outline" className="bg-zinc-900/80 text-[10px] border-yellow-500/30 text-yellow-500">
+               <Badge variant="outline" className="bg-muted/80 text-[10px] border-yellow-500/30 text-yellow-500">
                  Auto-Synced
                </Badge>
             </div>
@@ -331,22 +331,22 @@ function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: 
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {spec.steps.map((step: any, i: number) => (
-              <div key={i} className="flex flex-col gap-2 bg-zinc-900/40 border border-zinc-800/60 rounded-xl p-4 hover:border-yellow-500/40 transition-all hover:shadow-lg group/step">
+              <div key={i} className="flex flex-col gap-2 bg-muted/40 border border-border/60 rounded-xl p-4 hover:border-yellow-500/40 transition-all hover:shadow-lg group/step">
                 <div className="flex items-center gap-3">
                   <div className="w-7 h-7 rounded-lg bg-yellow-500/10 text-yellow-500 text-xs flex items-center justify-center font-bold shrink-0 border border-yellow-500/20 group-hover/step:bg-yellow-500 group-hover/step:text-zinc-950 transition-colors">
                     {i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-zinc-100 truncate">{step.name || step.title || `Step ${i + 1}`}</div>
-                    <div className="text-[10px] text-zinc-500 font-mono uppercase">{step.id || `step_${i}`}</div>
+                    <div className="text-sm font-semibold text-foreground truncate">{step.name || step.title || `Step ${i + 1}`}</div>
+                    <div className="text-[10px] text-muted-foreground font-mono uppercase">{step.id || `step_${i}`}</div>
                   </div>
                 </div>
-                {step.description && <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">{step.description}</p>}
+                {step.description && <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{step.description}</p>}
                 
                 {step.conditions && (
-                   <div className="mt-2 pt-2 border-t border-zinc-800/50 flex flex-wrap gap-1.5">
+                   <div className="mt-2 pt-2 border-t border-border/50 flex flex-wrap gap-1.5">
                      {Object.entries(step.conditions).map(([key, val]: [string, any]) => (
-                        <Badge key={key} variant="outline" className="text-[9px] bg-zinc-800/30 border-zinc-700 text-zinc-400">
+                        <Badge key={key} variant="outline" className="text-[9px] bg-muted/30 border-border text-muted-foreground">
                           {key}: {String(val)}
                         </Badge>
                      ))}
@@ -364,7 +364,7 @@ function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: 
           <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Acceptance Criteria ({acceptanceCriteria.filter(c => c.checked).length}/{acceptanceCriteria.length})
           </h3>
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 space-y-1.5">
+          <div className="bg-muted/50 border border-border rounded-lg p-4 space-y-1.5">
             {acceptanceCriteria.map(c => (
               <div key={c.id} className={`flex items-center gap-2 text-sm ${c.checked ? 'text-emerald-400 line-through' : 'text-zinc-300'}`}>
                 {c.checked ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5 text-zinc-600" />}
@@ -381,15 +381,15 @@ function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: 
           <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
             <Users className="w-4 h-4 text-blue-400" /> Sign-Off Status
           </h3>
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg overflow-hidden">
+          <div className="bg-muted/50 border border-border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-zinc-800 text-zinc-500"><th className="text-left p-3 font-medium">Stakeholder</th><th className="text-left p-3 font-medium">Status</th></tr></thead>
+              <thead><tr className="border-b border-border text-muted-foreground"><th className="text-left p-3 font-medium">Stakeholder</th><th className="text-left p-3 font-medium">Status</th></tr></thead>
               <tbody>
                 {stakeholders.map(s => (
-                  <tr key={s.id} className="border-b border-zinc-800/50">
+                  <tr key={s.id} className="border-b border-border/50">
                     <td className="p-3 text-zinc-200">{s.name}</td>
                     <td className="p-3">
-                      <Badge className={`text-[10px] ${s.status === 'approved' ? 'bg-emerald-600/20 text-emerald-400' : s.status === 'rejected' ? 'bg-red-600/20 text-red-400' : 'bg-zinc-700/50 text-zinc-400'}`}>
+                      <Badge className={`text-[10px] ${s.status === 'approved' ? 'bg-emerald-600/20 text-emerald-400' : s.status === 'rejected' ? 'bg-red-600/20 text-red-400' : 'bg-zinc-700/50 text-muted-foreground'}`}>
                         {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
                       </Badge>
                     </td>
@@ -403,10 +403,10 @@ function SpecPreview({ content, activeType, acceptanceCriteria, stakeholders }: 
 
       {/* Raw YAML fallback */}
       <details className="group">
-        <summary className="text-xs text-zinc-600 cursor-pointer hover:text-zinc-400 transition-colors">
+        <summary className="text-xs text-zinc-600 cursor-pointer hover:text-muted-foreground transition-colors">
           Show raw YAML
         </summary>
-        <pre className="mt-2 bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-[11px] font-mono text-zinc-400 whitespace-pre-wrap">{content}</pre>
+        <pre className="mt-2 bg-muted border border-border rounded-lg p-4 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap">{content}</pre>
       </details>
     </div>
   )
@@ -1394,7 +1394,7 @@ export function SpecChamber() {
   }, [diffVersionId, versionHistory, content])
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950 text-zinc-100">
+    <div className="h-full flex flex-col bg-background text-foreground">
       {/* ── Toast Notification ── */}
       <AnimatePresence>
         {toast && (
@@ -1418,7 +1418,7 @@ export function SpecChamber() {
       </AnimatePresence>
 
       {/* ── Header ── */}
-      <div className="h-14 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/30 backdrop-blur-sm">
+      <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-background">
         <div className="flex items-center gap-3">
           <div className="p-1.5 rounded-lg bg-purple-500/10">
             <LayoutTemplate className="w-4 h-4 text-purple-400" />
@@ -1426,15 +1426,15 @@ export function SpecChamber() {
           <div>
             <h1 className="font-semibold text-base">Spec Chamber</h1>
           </div>
-          <div className="h-5 w-px bg-zinc-800 ml-2" />
+          <div className="h-5 w-px bg-muted ml-2" />
           <div className="flex items-center gap-1.5">
             <div className={`w-2 h-2 rounded-full ${isSaved ? "bg-emerald-500" : "bg-yellow-500 animate-pulse"}`} />
-            <span className="text-[11px] text-zinc-500">{isSaved ? "Saved" : "Unsaved"}</span>
+            <span className="text-[11px] text-muted-foreground">{isSaved ? "Saved" : "Unsaved"}</span>
           </div>
           {/* Yjs Collaborators */}
           {collaborators.length > 1 && (
             <>
-              <div className="h-5 w-px bg-zinc-800" />
+              <div className="h-5 w-px bg-muted" />
               <div className="flex items-center gap-1">
                 {collaborators.map(c => (
                   <div
@@ -1446,7 +1446,7 @@ export function SpecChamber() {
                     {c.name[0]?.toUpperCase()}
                   </div>
                 ))}
-                <span className="text-[10px] text-zinc-500 ml-1">{collaborators.length} editing</span>
+                <span className="text-[10px] text-muted-foreground ml-1">{collaborators.length} editing</span>
               </div>
             </>
           )}
@@ -1463,7 +1463,7 @@ export function SpecChamber() {
             size="sm"
             onClick={handleValidate}
             disabled={isValidating}
-            className="gap-2 border-zinc-700 hover:bg-zinc-800 text-zinc-300 h-8"
+            className="gap-2 border-border hover:bg-muted text-zinc-300 h-8"
           >
             {isValidating ? (
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -1485,7 +1485,7 @@ export function SpecChamber() {
             )}
             {isGenerating ? "Generating…" : "Generate Code"}
           </Button>
-          <Button size="sm" onClick={handleSave} className="gap-2 bg-zinc-800 hover:bg-zinc-700 h-8">
+          <Button size="sm" onClick={handleSave} className="gap-2 bg-muted hover:bg-zinc-700 h-8">
               <Save className="w-3.5 h-3.5" />
               Save
             </Button>
@@ -1493,10 +1493,10 @@ export function SpecChamber() {
               <Wand2 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Scaffold to Project</span>
             </Button>
-          <Button variant="ghost" size="sm" onClick={handleExportMarkdown} className="h-8 px-2 text-zinc-400" title="Export as Markdown">
+          <Button variant="ghost" size="sm" onClick={handleExportMarkdown} className="h-8 px-2 text-muted-foreground" title="Export as Markdown">
             <Download className="w-3.5 h-3.5" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={handleImport} className="h-8 px-2 text-zinc-400" title="Import YAML/JSON file">
+          <Button variant="ghost" size="sm" onClick={handleImport} className="h-8 px-2 text-muted-foreground" title="Import YAML/JSON file">
             <FileUp className="w-3.5 h-3.5" />
           </Button>
           <Button
@@ -1504,7 +1504,7 @@ export function SpecChamber() {
             size="sm"
             onClick={handleGenerateTests}
             disabled={isGeneratingTests}
-            className="h-8 px-2 text-zinc-400"
+            className="h-8 px-2 text-muted-foreground"
             title="Generate Tests from Spec"
           >
             {isGeneratingTests ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <TestTube className="w-3.5 h-3.5" />}
@@ -1513,7 +1513,7 @@ export function SpecChamber() {
             variant="ghost"
             size="sm"
             onClick={() => setShowAI(!showAI)}
-            className={`h-8 px-2 ${showAI ? "text-purple-400 bg-purple-500/10" : "text-zinc-400"}`}
+            className={`h-8 px-2 ${showAI ? "text-purple-400 bg-purple-500/10" : "text-muted-foreground"}`}
           >
             <Brain className="w-3.5 h-3.5" />
           </Button>
@@ -1523,9 +1523,9 @@ export function SpecChamber() {
       {/* ── Main Content ── */}
       <div className="flex-1 flex overflow-hidden">
         {/* ── Left Sidebar: Templates ── */}
-        <div className="w-60 border-r border-zinc-800 bg-zinc-900/20 flex flex-col">
+        <div className="w-60 border-r border-border bg-muted/20 flex flex-col">
           <div className="p-4">
-            <h3 className="text-[10px] font-semibold text-zinc-500 mb-3 uppercase tracking-wider">
+            <h3 className="text-[10px] font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
               Spec Type
             </h3>
             <div className="space-y-1">
@@ -1540,7 +1540,7 @@ export function SpecChamber() {
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
                       activeType === template.type
                         ? "bg-purple-500/10 border border-purple-500/20 text-zinc-200"
-                        : "hover:bg-zinc-800/50 text-zinc-400"
+                        : "hover:bg-muted/50 text-muted-foreground"
                     }`}
                   >
                     <Icon className={`w-4 h-4 flex-shrink-0 ${template.color}`} />
@@ -1579,7 +1579,7 @@ export function SpecChamber() {
                 {completenessScore != null && (
                   <div className="flex items-center gap-2 mt-1.5">
                     <Progress value={completenessScore} className="h-1 flex-1" />
-                    <span className="text-[10px] text-zinc-400 whitespace-nowrap">{completenessScore}% complete</span>
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">{completenessScore}% complete</span>
                   </div>
                 )}
                 {!validationResult.valid && validationResult.errors && (
@@ -1607,10 +1607,10 @@ export function SpecChamber() {
           )}
 
           {/* Recent Specs */}
-          <div className="flex-1 border-t border-zinc-800 overflow-hidden">
+          <div className="flex-1 border-t border-border overflow-hidden">
             <ScrollArea className="h-full">
               <div className="p-4">
-                <h3 className="text-[10px] font-semibold text-zinc-500 mb-2 uppercase tracking-wider">
+                <h3 className="text-[10px] font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
                   Recent Specs
                 </h3>
                 {specs.length > 3 && (
@@ -1622,7 +1622,7 @@ export function SpecChamber() {
                       onChange={e => setSpecSearchQuery(e.target.value)}
                       placeholder="Filter specs..."
                       aria-label="Filter specifications"
-                      className="w-full bg-zinc-800/50 border border-zinc-700 rounded text-[11px] text-zinc-300 pl-7 pr-2 py-1 focus:border-purple-500 outline-none"
+                      className="w-full bg-muted/50 border border-border rounded text-[11px] text-zinc-300 pl-7 pr-2 py-1 focus:border-purple-500 outline-none"
                     />
                   </div>
                 )}
@@ -1634,7 +1634,7 @@ export function SpecChamber() {
                       .map((spec) => (
                       <div
                         key={spec.id}
-                        className={`group w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-800/50 transition-colors flex items-start gap-2 ${
+                        className={`group w-full text-left px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors flex items-start gap-2 ${
                           activeSpecId === spec.id ? "bg-purple-500/10 border border-purple-500/20" : ""
                         }`}
                       >
@@ -1644,7 +1644,7 @@ export function SpecChamber() {
                         >
                           <div className="text-xs text-zinc-300 truncate">{spec.title}</div>
                           <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="outline" className="text-[9px] h-4 border-zinc-700">
+                            <Badge variant="outline" className="text-[9px] h-4 border-border">
                               {spec.type}
                             </Badge>
                             <Badge
@@ -1654,7 +1654,7 @@ export function SpecChamber() {
                                   ? "border-emerald-600 text-emerald-400"
                                   : spec.status === "review"
                                   ? "border-yellow-600 text-yellow-400"
-                                  : "border-zinc-700 text-zinc-500"
+                                  : "border-border text-muted-foreground"
                               }`}
                             >
                               {spec.status}
@@ -1674,7 +1674,7 @@ export function SpecChamber() {
                 ) : isLoadingSpecs ? (
                   <div className="space-y-2 py-2">
                     {[1, 2, 3].map(i => (
-                      <div key={i} className="px-3 py-2 rounded-lg bg-zinc-800/30 animate-pulse">
+                      <div key={i} className="px-3 py-2 rounded-lg bg-muted/30 animate-pulse">
                         <div className="h-3 w-24 bg-zinc-700/50 rounded mb-1.5" />
                         <div className="h-2 w-14 bg-zinc-700/30 rounded" />
                       </div>
@@ -1691,8 +1691,8 @@ export function SpecChamber() {
         {/* ── Editor Area ── */}
         <div className="flex-1 flex flex-col min-w-0">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-            <div className="border-b border-zinc-800 px-4 py-1.5 flex items-center justify-between">
-              <TabsList role="tablist" aria-label="Specification editor tabs" className="bg-zinc-800/50 h-8">
+            <div className="border-b border-border px-4 py-1.5 flex items-center justify-between">
+              <TabsList role="tablist" aria-label="Specification editor tabs" className="bg-muted/50 h-8">
                 <TabsTrigger value="editor" className="gap-1.5 text-xs h-7 data-[state=active]:bg-zinc-700">
                   <FileJson className="w-3.5 h-3.5" />
                   Spec Editor
@@ -1758,7 +1758,7 @@ export function SpecChamber() {
                     size="sm"
                     onClick={handleAiComplete}
                     disabled={isAiCompleting}
-                    className="gap-1.5 text-xs h-7 border-zinc-700 text-zinc-400 hover:text-purple-400 hover:border-purple-700"
+                    className="gap-1.5 text-xs h-7 border-border text-muted-foreground hover:text-purple-400 hover:border-purple-700"
                   >
                     {isAiCompleting ? (
                       <RefreshCw className="w-3 h-3 animate-spin" />
@@ -1813,7 +1813,7 @@ export function SpecChamber() {
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center space-y-4">
                     <div className="w-10 h-10 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                    <div className="text-sm text-zinc-400">Generating code from spec…</div>
+                    <div className="text-sm text-muted-foreground">Generating code from spec…</div>
                     <Progress value={66} className="w-48 mx-auto" />
                   </div>
                 </div>
@@ -1838,7 +1838,7 @@ export function SpecChamber() {
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-zinc-200">Acceptance Criteria</h2>
                   {acceptanceCriteria.length > 0 && (
-                    <Badge variant="outline" className="text-xs border-zinc-700">
+                    <Badge variant="outline" className="text-xs border-border">
                       {acceptanceCriteria.filter((c) => c.checked).length}/{acceptanceCriteria.length} complete
                     </Badge>
                   )}
@@ -1855,7 +1855,7 @@ export function SpecChamber() {
                     onChange={(e) => setNewCriteriaText(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAddCriteria()}
                     placeholder="Add acceptance criterion…"
-                    className="bg-zinc-800 border-zinc-700 text-sm text-zinc-300"
+                    className="bg-muted border-border text-sm text-zinc-300"
                   />
                   <Button size="sm" onClick={handleAddCriteria} className="bg-zinc-700 hover:bg-zinc-600 gap-1.5">
                     <Plus className="w-3.5 h-3.5" />
@@ -1866,7 +1866,7 @@ export function SpecChamber() {
                   {acceptanceCriteria.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-zinc-900 border border-zinc-800"
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted border border-border"
                     >
                       <input
                         type="checkbox"
@@ -1876,7 +1876,7 @@ export function SpecChamber() {
                         className="w-4 h-4 accent-purple-500 cursor-pointer flex-shrink-0"
                       />
                       <span
-                        className={`flex-1 text-sm ${item.checked ? "line-through text-zinc-500" : "text-zinc-300"}`}
+                        className={`flex-1 text-sm ${item.checked ? "line-through text-muted-foreground" : "text-zinc-300"}`}
                       >
                         {item.text}
                       </span>
@@ -1911,7 +1911,7 @@ export function SpecChamber() {
                     onChange={(e) => setNewStakeholderName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAddStakeholder()}
                     placeholder="Add stakeholder name…"
-                    className="bg-zinc-800 border-zinc-700 text-sm text-zinc-300"
+                    className="bg-muted border-border text-sm text-zinc-300"
                   />
                   <Button size="sm" onClick={handleAddStakeholder} className="bg-zinc-700 hover:bg-zinc-600 gap-1.5">
                     <Plus className="w-3.5 h-3.5" />
@@ -1923,14 +1923,14 @@ export function SpecChamber() {
                   {stakeholders.map((stakeholder) => (
                     <div
                       key={stakeholder.id}
-                      className="flex items-center justify-between px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800"
+                      className="flex items-center justify-between px-4 py-3 rounded-lg bg-muted border border-border"
                     >
                       <div className="flex items-center gap-3">
-                        <Users className="w-4 h-4 text-zinc-500" />
+                        <Users className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <span className="text-sm text-zinc-200">{stakeholder.name}</span>
                           {stakeholder.role && (
-                            <span className="text-[10px] text-zinc-500 ml-2">({stakeholder.role})</span>
+                            <span className="text-[10px] text-muted-foreground ml-2">({stakeholder.role})</span>
                           )}
                         </div>
                       </div>
@@ -1942,7 +1942,7 @@ export function SpecChamber() {
                               ? "border-emerald-600 text-emerald-400"
                               : stakeholder.status === "rejected"
                               ? "border-red-600 text-red-400"
-                              : "border-zinc-700 text-zinc-500"
+                              : "border-border text-muted-foreground"
                           }`}
                         >
                           {stakeholder.status.charAt(0).toUpperCase() + stakeholder.status.slice(1)}
@@ -1960,7 +1960,7 @@ export function SpecChamber() {
                           onClick={() => handleUpdateStakeholder(stakeholder.id, "rejected")}
                           disabled={stakeholder.status === "rejected"}
                           variant="outline"
-                          className="h-7 px-2 text-xs border-zinc-700 text-zinc-400 hover:text-red-400 hover:border-red-700"
+                          className="h-7 px-2 text-xs border-border text-muted-foreground hover:text-red-400 hover:border-red-700"
                         >
                           Request Changes
                         </Button>
@@ -1990,7 +1990,7 @@ export function SpecChamber() {
                 {specDiagnostics.length === 0 ? (
                   <div className="text-center py-8">
                     <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500/40" />
-                    <p className="text-sm text-zinc-400">All systems operational</p>
+                    <p className="text-sm text-muted-foreground">All systems operational</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -2009,7 +2009,7 @@ export function SpecChamber() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-sm text-zinc-200">{diag.message}</div>
-                          <div className="text-xs text-zinc-500 mt-0.5">
+                          <div className="text-xs text-muted-foreground mt-0.5">
                             {diag.source} · {new Date(diag.timestamp || Date.now()).toLocaleTimeString()}
                           </div>
                         </div>
@@ -2025,7 +2025,7 @@ export function SpecChamber() {
               <div className="max-w-2xl mx-auto space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-zinc-200">Version History</h2>
-                  <Badge variant="outline" className="text-xs border-zinc-700">
+                  <Badge variant="outline" className="text-xs border-border">
                     {specVersions.length} versions
                   </Badge>
                 </div>
@@ -2037,7 +2037,7 @@ export function SpecChamber() {
                     onChange={(e) => setVersionDescription(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleCreateVersion()}
                     placeholder="Version description (e.g. 'Added auth requirements')…"
-                    className="bg-zinc-800 border-zinc-700 text-sm text-zinc-300"
+                    className="bg-muted border-border text-sm text-zinc-300"
                   />
                   <Button size="sm" onClick={handleCreateVersion} className="bg-purple-700 hover:bg-purple-600 gap-1.5">
                     <Save className="w-3.5 h-3.5" />
@@ -2049,18 +2049,18 @@ export function SpecChamber() {
                   {specVersions.map((entry) => (
                     <div
                       key={entry.id}
-                      className="flex items-start justify-between px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800"
+                      className="flex items-start justify-between px-4 py-3 rounded-lg bg-muted border border-border"
                     >
                       <div className="flex items-start gap-3">
                         <GitBranch className="w-4 h-4 text-purple-400 mt-0.5 flex-shrink-0" />
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium text-zinc-200">{entry.id}</span>
-                            <Badge variant="outline" className="text-[10px] h-4 border-zinc-700 text-zinc-500">
+                            <Badge variant="outline" className="text-[10px] h-4 border-border text-muted-foreground">
                               {entry.author}
                             </Badge>
                           </div>
-                          <p className="text-xs text-zinc-400 mt-0.5">{entry.description}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>
                           <p className="text-[10px] text-zinc-600 mt-1">
                             <Clock className="w-3 h-3 inline mr-1" />
                             {new Date(entry.timestamp).toLocaleString()}
@@ -2075,7 +2075,7 @@ export function SpecChamber() {
                           className={`h-7 px-2 text-xs flex-shrink-0 ${
                             diffVersionId === entry.id 
                               ? 'border-purple-600 text-purple-400 bg-purple-500/10' 
-                              : 'border-zinc-700 text-zinc-400 hover:text-zinc-200'
+                              : 'border-border text-muted-foreground hover:text-zinc-200'
                           }`}
                         >
                           {diffVersionId === entry.id ? 'Hide Diff' : 'Diff'}
@@ -2084,7 +2084,7 @@ export function SpecChamber() {
                           size="sm"
                           variant="outline"
                           onClick={() => restoreSpecVersion(entry.id)}
-                          className="h-7 px-2 text-xs border-zinc-700 text-zinc-400 hover:text-zinc-200 flex-shrink-0"
+                          className="h-7 px-2 text-xs border-border text-muted-foreground hover:text-zinc-200 flex-shrink-0"
                         >
                           Restore
                         </Button>
@@ -2094,12 +2094,12 @@ export function SpecChamber() {
 
                   {/* Inline diff viewer */}
                   {diffLines && (
-                    <div className="rounded-lg border border-purple-800/50 bg-zinc-900/80 overflow-hidden">
-                      <div className="flex items-center justify-between px-3 py-1.5 border-b border-zinc-800 bg-zinc-900">
+                    <div className="rounded-lg border border-purple-800/50 bg-muted/80 overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted">
                         <span className="text-[10px] text-purple-400 font-medium">
                           Diff: {versionHistory.find(v => v.id === diffVersionId)?.version} → current
                         </span>
-                        <Button variant="ghost" size="sm" onClick={() => setDiffVersionId(null)} className="h-5 w-5 p-0 text-zinc-500">
+                        <Button variant="ghost" size="sm" onClick={() => setDiffVersionId(null)} className="h-5 w-5 p-0 text-muted-foreground">
                           <X className="w-3 h-3" />
                         </Button>
                       </div>
@@ -2111,7 +2111,7 @@ export function SpecChamber() {
                               className={
                                 line.type === 'added' ? 'bg-emerald-500/10 text-emerald-400'
                                 : line.type === 'removed' ? 'bg-red-500/10 text-red-400 line-through'
-                                : 'text-zinc-500'
+                                : 'text-muted-foreground'
                               }
                             >
                               <span className="select-none mr-2 text-zinc-700">
@@ -2139,7 +2139,7 @@ export function SpecChamber() {
               <div className="max-w-2xl mx-auto space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-zinc-200">Review Comments</h2>
-                  <Badge variant="outline" className="text-xs border-zinc-700">
+                  <Badge variant="outline" className="text-xs border-border">
                     {reviewComments.filter(c => !c.resolved).length} open
                   </Badge>
                 </div>
@@ -2152,13 +2152,13 @@ export function SpecChamber() {
                       onChange={(e) => setNewCommentText(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
                       placeholder="Add a review comment…"
-                      className="bg-zinc-800 border-zinc-700 text-sm text-zinc-300"
+                      className="bg-muted border-border text-sm text-zinc-300"
                     />
                     <Input
                       value={commentLineRef}
                       onChange={(e) => setCommentLineRef(e.target.value.replace(/\D/g, ''))}
                       placeholder="Line #"
-                      className="bg-zinc-800 border-zinc-700 text-sm text-zinc-300 w-20"
+                      className="bg-muted border-border text-sm text-zinc-300 w-20"
                     />
                     <Button size="sm" onClick={handleAddComment} className="bg-zinc-700 hover:bg-zinc-600 gap-1.5">
                       <MessageSquare className="w-3.5 h-3.5" />
@@ -2173,8 +2173,8 @@ export function SpecChamber() {
                       key={comment.id}
                       className={`px-4 py-3 rounded-lg border ${
                         comment.resolved
-                          ? "bg-zinc-900/50 border-zinc-800/50 opacity-60"
-                          : "bg-zinc-900 border-zinc-800"
+                          ? "bg-muted/50 border-border/50 opacity-60"
+                          : "bg-muted border-border"
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -2199,7 +2199,7 @@ export function SpecChamber() {
                                   setEditingCommentId(comment.id)
                                   setEditingCommentText(comment.text)
                                 }}
-                                className="h-5 px-1.5 text-[10px] text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+                                className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-zinc-200 hover:bg-muted"
                               >
                                 Edit
                               </Button>
@@ -2236,7 +2236,7 @@ export function SpecChamber() {
                               }
                               if (e.key === "Escape") setEditingCommentId(null)
                             }}
-                            className="bg-zinc-800 border-zinc-700 text-sm text-zinc-300 flex-1"
+                            className="bg-muted border-border text-sm text-zinc-300 flex-1"
                             autoFocus
                           />
                           <Button
@@ -2253,13 +2253,13 @@ export function SpecChamber() {
                             size="sm"
                             variant="ghost"
                             onClick={() => setEditingCommentId(null)}
-                            className="h-8 px-2 text-xs text-zinc-500"
+                            className="h-8 px-2 text-xs text-muted-foreground"
                           >
                             Cancel
                           </Button>
                         </div>
                       ) : (
-                        <p className={`text-sm ${comment.resolved ? "text-zinc-500 line-through" : "text-zinc-300"}`}>
+                        <p className={`text-sm ${comment.resolved ? "text-muted-foreground line-through" : "text-zinc-300"}`}>
                           {comment.text}
                         </p>
                       )}
@@ -2283,7 +2283,7 @@ export function SpecChamber() {
               {generatedTests ? (
                 <div className="flex-1 flex flex-col overflow-hidden">
                   {/* Coverage Summary Header */}
-                  <div className="px-4 py-3 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between flex-shrink-0">
+                  <div className="px-4 py-3 border-b border-border bg-muted/50 flex items-center justify-between flex-shrink-0">
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2">
                         <TestTube className="w-4 h-4 text-emerald-500" />
@@ -2293,7 +2293,7 @@ export function SpecChamber() {
                         {(generatedTests.match(/it\(|test\(/g) || []).length} test cases
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-4 text-xs text-zinc-400">
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
                         <span>Coverage: {acceptanceCriteria.length > 0 ? Math.round((generatedTests.match(/it\(|test\(/g) || []).length / acceptanceCriteria.length * 100) : 100}%</span>
@@ -2309,7 +2309,7 @@ export function SpecChamber() {
                   </div>
                 </div>
               ) : (
-                <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
+                <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
                   <div className="text-center space-y-3">
                     <TestTube className="w-8 h-8 mx-auto text-zinc-600" />
                     <p>Click the <TestTube className="w-3.5 h-3.5 inline" /> button in the header to generate tests from your spec.</p>
@@ -2322,8 +2322,8 @@ export function SpecChamber() {
             <TabsContent value="integrations" className="flex-1 m-0 overflow-y-auto">
               <div className="max-w-3xl mx-auto p-6 space-y-6">
                 <div>
-                  <h2 className="text-lg font-semibold text-zinc-100">API Integrations</h2>
-                  <p className="text-sm text-zinc-500">Connect external services to sync specs and receive notifications</p>
+                  <h2 className="text-lg font-semibold text-foreground">API Integrations</h2>
+                  <p className="text-sm text-muted-foreground">Connect external services to sync specs and receive notifications</p>
                 </div>
 
                 <div className="space-y-4">
@@ -2331,13 +2331,13 @@ export function SpecChamber() {
                     const iconMap: Record<IntegrationType, string> = { github: '🐙', slack: '💬', jira: '📋', linear: '📐' }
                     const isOpen = integrationConfigOpen === integration.id
                     return (
-                      <div key={integration.id} className="rounded-lg border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+                      <div key={integration.id} className="rounded-lg border border-border bg-muted/50 overflow-hidden">
                         <div className="flex items-center justify-between p-4">
                           <div className="flex items-center gap-3">
                             <span className="text-xl">{iconMap[integration.type]}</span>
                             <div>
                               <div className="text-sm font-medium text-zinc-200">{integration.name}</div>
-                              <div className="text-xs text-zinc-500">
+                              <div className="text-xs text-muted-foreground">
                                 {integration.connected
                                   ? `Connected · Last sync: ${integration.lastSync ? new Date(integration.lastSync).toLocaleString() : 'Never'}`
                                   : 'Not connected'}
@@ -2349,7 +2349,7 @@ export function SpecChamber() {
                               size="sm"
                               variant="outline"
                               onClick={() => setIntegrationConfigOpen(isOpen ? null : integration.id)}
-                              className="h-7 text-xs border-zinc-700"
+                              className="h-7 text-xs border-border"
                             >
                               <Settings className="w-3 h-3 mr-1" />
                               Configure
@@ -2378,16 +2378,16 @@ export function SpecChamber() {
                           </div>
                         </div>
                         {isOpen && (
-                          <div className="px-4 pb-4 pt-2 border-t border-zinc-800 space-y-3">
+                          <div className="px-4 pb-4 pt-2 border-t border-border space-y-3">
                             {Object.entries(integration.config).map(([key, value]) => (
                               <div key={key} className="space-y-1">
-                                <label className="text-xs text-zinc-400 capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
+                                <label className="text-xs text-muted-foreground capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
                                 <Input
                                   value={value}
                                   onChange={(e) => updateIntegrationConfig(integration.id, key, e.target.value)}
                                   type={key.toLowerCase().includes('token') || key.toLowerCase().includes('key') ? 'password' : 'text'}
                                   placeholder={`Enter ${key}`}
-                                  className="h-8 text-xs bg-zinc-800 border-zinc-700"
+                                  className="h-8 text-xs bg-muted border-border"
                                 />
                               </div>
                             ))}
@@ -2405,13 +2405,13 @@ export function SpecChamber() {
                 </div>
 
                 {/* Sync summary */}
-                <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/30">
+                <div className="p-4 rounded-lg border border-border bg-muted/30">
                   <h3 className="text-sm font-medium text-zinc-300 mb-3">Sync Status</h3>
                   <div className="grid grid-cols-4 gap-4">
                     {integrations.map(i => (
                       <div key={i.id} className="text-center">
                         <div className={`w-3 h-3 rounded-full mx-auto mb-1 ${i.connected ? 'bg-emerald-500' : 'bg-zinc-700'}`} />
-                        <span className="text-[10px] text-zinc-500">{i.name}</span>
+                        <span className="text-[10px] text-muted-foreground">{i.name}</span>
                       </div>
                     ))}
                   </div>
@@ -2424,8 +2424,8 @@ export function SpecChamber() {
               <div className="max-w-3xl mx-auto p-6 space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-lg font-semibold text-zinc-100">Spec Workflow</h2>
-                    <p className="text-sm text-zinc-500">Track and manage the lifecycle of this specification</p>
+                    <h2 className="text-lg font-semibold text-foreground">Spec Workflow</h2>
+                    <p className="text-sm text-muted-foreground">Track and manage the lifecycle of this specification</p>
                   </div>
                   <Badge
                     className="text-xs px-3 py-1"
@@ -2516,7 +2516,7 @@ export function SpecChamber() {
                       {workflowHistory.slice().reverse().map((entry, i) => {
                         const statusInfo = WORKFLOW_STATUSES.find(s => s.status === entry.status)
                         return (
-                          <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-zinc-800 bg-zinc-900/30">
+                          <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: statusInfo?.color }} />
                             <div className="flex-1">
                               <span className="text-xs text-zinc-300">{statusInfo?.label}</span>
@@ -2535,8 +2535,8 @@ export function SpecChamber() {
             <TabsContent value="reporting" className="flex-1 m-0 overflow-y-auto">
               <div className="max-w-4xl mx-auto p-6 space-y-6">
                 <div>
-                  <h2 className="text-lg font-semibold text-zinc-100">Spec Report</h2>
-                  <p className="text-sm text-zinc-500">Progress metrics, coverage analytics, and health indicators</p>
+                  <h2 className="text-lg font-semibold text-foreground">Spec Report</h2>
+                  <p className="text-sm text-muted-foreground">Progress metrics, coverage analytics, and health indicators</p>
                 </div>
 
                 {(() => {
@@ -2544,42 +2544,42 @@ export function SpecChamber() {
                   return (
                     <>
                       {/* Overall Health Score */}
-                      <div className="text-center p-6 rounded-lg border border-zinc-800 bg-zinc-900/30">
+                      <div className="text-center p-6 rounded-lg border border-border bg-muted/30">
                         <div className="text-4xl font-bold mb-2" style={{
                           color: m.overallScore >= 80 ? '#22c55e' : m.overallScore >= 50 ? '#f59e0b' : '#ef4444'
                         }}>
                           {m.overallScore}%
                         </div>
-                        <p className="text-sm text-zinc-400">Overall Health Score</p>
+                        <p className="text-sm text-muted-foreground">Overall Health Score</p>
                         <Progress value={m.overallScore} className="mt-3 h-2 max-w-xs mx-auto" />
                       </div>
 
                       {/* Key Metrics Grid */}
                       <div className="grid grid-cols-4 gap-4">
-                        <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/30 text-center">
+                        <div className="p-4 rounded-lg border border-border bg-muted/30 text-center">
                           <div className="text-2xl font-bold text-purple-400">{m.completeness}%</div>
-                          <p className="text-xs text-zinc-500 mt-1">Criteria Met</p>
+                          <p className="text-xs text-muted-foreground mt-1">Criteria Met</p>
                           <p className="text-[10px] text-zinc-600">{m.criteriaMet}/{m.criteriaTotal}</p>
                         </div>
-                        <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/30 text-center">
+                        <div className="p-4 rounded-lg border border-border bg-muted/30 text-center">
                           <div className="text-2xl font-bold text-blue-400">{m.approvalRate}%</div>
-                          <p className="text-xs text-zinc-500 mt-1">Stakeholder Approval</p>
+                          <p className="text-xs text-muted-foreground mt-1">Stakeholder Approval</p>
                           <p className="text-[10px] text-zinc-600">{m.stakeholderApproved}/{m.stakeholderTotal}</p>
                         </div>
-                        <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/30 text-center">
+                        <div className="p-4 rounded-lg border border-border bg-muted/30 text-center">
                           <div className="text-2xl font-bold text-amber-400">{m.reviewRate}%</div>
-                          <p className="text-xs text-zinc-500 mt-1">Reviews Resolved</p>
+                          <p className="text-xs text-muted-foreground mt-1">Reviews Resolved</p>
                           <p className="text-[10px] text-zinc-600">{m.reviewResolved}/{m.reviewTotal}</p>
                         </div>
-                        <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/30 text-center">
+                        <div className="p-4 rounded-lg border border-border bg-muted/30 text-center">
                           <div className="text-2xl font-bold text-emerald-400">{m.versionCount}</div>
-                          <p className="text-xs text-zinc-500 mt-1">Versions</p>
+                          <p className="text-xs text-muted-foreground mt-1">Versions</p>
                           <p className="text-[10px] text-zinc-600">{m.integrationCount} integrations</p>
                         </div>
                       </div>
 
                       {/* Status */}
-                      <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/30">
+                      <div className="p-4 rounded-lg border border-border bg-muted/30">
                         <h3 className="text-sm font-medium text-zinc-300 mb-3">Current Status</h3>
                         <div className="flex items-center gap-3">
                           <div
@@ -2602,10 +2602,10 @@ export function SpecChamber() {
                         ].map(bar => (
                           <div key={bar.label} className="space-y-1.5">
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-zinc-400">{bar.label}</span>
+                              <span className="text-muted-foreground">{bar.label}</span>
                               <span style={{ color: bar.color }}>{bar.value}%</span>
                             </div>
-                            <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
+                            <div className="h-2 rounded-full bg-muted overflow-hidden">
                               <div className="h-full rounded-full transition-all duration-500" style={{ width: `${bar.value}%`, backgroundColor: bar.color }} />
                             </div>
                           </div>
@@ -2635,7 +2635,7 @@ export function SpecChamber() {
                             </div>
                           )}
                           {m.integrationCount === 0 && (
-                            <div className="flex items-start gap-2 p-3 rounded-lg border border-zinc-500/20 bg-zinc-500/5 text-xs text-zinc-400">
+                            <div className="flex items-start gap-2 p-3 rounded-lg border border-zinc-500/20 bg-zinc-500/5 text-xs text-muted-foreground">
                               <Globe className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                               <span>No integrations connected. Connect GitHub, Slack, or Jira for better team visibility.</span>
                             </div>
@@ -2662,21 +2662,21 @@ export function SpecChamber() {
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 320, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
-              className="border-l border-zinc-800 bg-zinc-900/30 flex flex-col overflow-hidden"
+              className="border-l border-border bg-muted/30 flex flex-col overflow-hidden"
             >
-              <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+              <div className="p-4 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Brain className="w-4 h-4 text-purple-400" />
                   <span className="text-sm font-medium text-zinc-200">AI Assistant</span>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setShowAI(false)} className="h-6 w-6 p-0 text-zinc-500">
+                <Button variant="ghost" size="sm" onClick={() => setShowAI(false)} className="h-6 w-6 p-0 text-muted-foreground">
                   <X className="w-3.5 h-3.5" />
                 </Button>
               </div>
 
               <ScrollArea className="flex-1 p-4">
                 <div className="space-y-3">
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs text-muted-foreground">
                     Ask the AI to help you write, improve, or validate your specifications.
                   </p>
 
@@ -2691,7 +2691,7 @@ export function SpecChamber() {
                     <button
                       key={suggestion}
                       onClick={() => setAiQuery(suggestion)}
-                      className="w-full text-left px-3 py-2 rounded-lg border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/30 text-xs text-zinc-400 hover:text-zinc-200 transition-all"
+                      className="w-full text-left px-3 py-2 rounded-lg border border-border hover:border-border hover:bg-muted/30 text-xs text-muted-foreground hover:text-zinc-200 transition-all"
                     >
                       <Sparkles className="w-3 h-3 inline mr-2 text-purple-400" />
                       {suggestion}
@@ -2700,7 +2700,7 @@ export function SpecChamber() {
                 </div>
               </ScrollArea>
 
-              <div className="p-4 border-t border-zinc-800">
+              <div className="p-4 border-t border-border">
                 {aiResponse && (
                   <div className="mb-3 p-2.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-xs text-zinc-300">
                     {aiResponse}
@@ -2712,7 +2712,7 @@ export function SpecChamber() {
                     onChange={(e) => setAiQuery(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAiGenerate()}
                     placeholder="Describe your spec in natural language…"
-                    className="bg-zinc-800 border-zinc-700 text-sm text-zinc-300"
+                    className="bg-muted border-border text-sm text-zinc-300"
                     disabled={isAiGenerating}
                   />
                   <Button

@@ -68,7 +68,7 @@ const getFileIcon = (filename: string) => {
     case "json":
       return <Settings className="w-4 h-4 text-yellow-400" />;
     case "md":
-      return <FileText className="w-4 h-4 text-gray-400" />;
+      return <FileText className="w-4 h-4 text-muted-foreground" />;
     case "sql":
     case "db":
       return <Database className="w-4 h-4 text-green-400" />;
@@ -79,7 +79,7 @@ const getFileIcon = (filename: string) => {
     case "gif":
       return <Image className="w-4 h-4 text-purple-400" />;
     default:
-      return <File className="w-4 h-4 text-gray-400" />;
+      return <File className="w-4 h-4 text-muted-foreground" />;
   }
 };
 
@@ -506,7 +506,7 @@ export function ExplorerView() {
               const file = fileMap[fileId];
               const name = file?.name || fileId.split("/").pop() || fileId;
               const isActive = activeFileId === fileId;
-              const isDirty = dirtyFiles.includes(fileId);
+              const isDirty = dirtyFiles.has(fileId);
               return (
                 <div
                   key={fileId}

@@ -143,19 +143,19 @@ export default function ModelComparison() {
       case "Anthropic Amazon": return "text-orange-400 border-orange-400/30 bg-orange-400/10"
       case "Google Vertex": return "text-blue-400 border-blue-400/30 bg-blue-400/10"
       case "Local OSS": return "text-purple-400 border-purple-400/30 bg-purple-400/10"
-      default: return "text-zinc-400 border-zinc-400/30 bg-zinc-400/10"
+      default: return "text-muted-foreground border-zinc-400/30 bg-zinc-400/10"
     }
   }
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950 text-zinc-100 p-4">
+    <div className="h-full flex flex-col bg-background text-foreground p-4">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-lg font-semibold flex items-center gap-2 text-zinc-100">
+          <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground">
             <Layers className="w-5 h-5 text-blue-400" />
             Model Benchmark & Comparison
           </h2>
-          <p className="text-[11px] text-zinc-500 mt-0.5">Evaluate models across capabilities, context size, and economic constraints.</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Evaluate models across capabilities, context size, and economic constraints.</p>
         </div>
       </div>
 
@@ -169,15 +169,15 @@ export default function ModelComparison() {
               className={`shrink-0 flex items-center gap-3 px-3 py-2 rounded-lg border text-left transition-all max-w-[200px] w-[180px] ${
                 isSelected 
                   ? "border-blue-500/50 bg-blue-500/10 shadow-[0_0_10px_rgba(59,130,246,0.1)]" 
-                  : "border-zinc-800 bg-zinc-900/50 hover:border-zinc-700 hover:bg-zinc-900"
+                  : "border-border bg-muted/50 hover:border-border hover:bg-muted"
               }`}
             >
-              <div className={`w-4 h-4 rounded-sm flex items-center justify-center border shrink-0 ${isSelected ? "bg-blue-500 border-blue-500 text-white" : "border-zinc-700 bg-zinc-950"}`}>
+              <div className={`w-4 h-4 rounded-sm flex items-center justify-center border shrink-0 ${isSelected ? "bg-blue-500 border-blue-500 text-white" : "border-border bg-background"}`}>
                 {isSelected && <Check className="w-3 h-3" />}
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-zinc-200 truncate shadow-sm">{model.name}</div>
-                <div className="text-[10px] text-zinc-500 truncate">{model.provider}</div>
+                <div className="text-[10px] text-muted-foreground truncate">{model.provider}</div>
               </div>
             </button>
           )
@@ -186,27 +186,27 @@ export default function ModelComparison() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
         {/* Left Side: Side-by-side comparison */}
-        <div className="lg:col-span-2 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950/50 flex">
+        <div className="lg:col-span-2 overflow-x-auto rounded-lg border border-border bg-background/50 flex">
           {selectedModels.map((modelId, index) => {
             const model = AVAILABLE_MODELS.find(m => m.id === modelId)!
             return (
-              <div key={model.id} className={`flex-1 min-w-[280px] flex flex-col border-r border-zinc-800 last:border-r-0`}>
-                <div className="p-4 border-b border-zinc-800 bg-zinc-900/40">
+              <div key={model.id} className={`flex-1 min-w-[280px] flex flex-col border-r border-border last:border-r-0`}>
+                <div className="p-4 border-b border-border bg-muted/40">
                   <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold text-sm text-zinc-100">{model.name}</h3>
+                    <h3 className="font-bold text-sm text-foreground">{model.name}</h3>
                     <Badge variant="outline" className={`text-[9px] h-4 py-0 ${getProviderColor(model.provider)}`}>
                       {model.provider}
                     </Badge>
                   </div>
                   <div className="flex flex-wrap gap-1 mt-2">
-                    <Badge variant="outline" className="text-[9px] font-normal border-zinc-800 bg-zinc-950 text-zinc-400">
+                    <Badge variant="outline" className="text-[9px] font-normal border-border bg-background text-muted-foreground">
                       {model.tier} Tier
                     </Badge>
-                    <Badge variant="outline" className="text-[9px] font-normal border-zinc-800 bg-zinc-950 text-zinc-400">
+                    <Badge variant="outline" className="text-[9px] font-normal border-border bg-background text-muted-foreground">
                       <Lock className="w-2.5 h-2.5 mr-1" /> {model.license}
                     </Badge>
                     {model.paramsCount && (
-                      <Badge variant="outline" className="text-[9px] font-normal border-zinc-800 bg-zinc-950 text-zinc-400">
+                      <Badge variant="outline" className="text-[9px] font-normal border-border bg-background text-muted-foreground">
                         {model.paramsCount} Params
                       </Badge>
                     )}
@@ -216,25 +216,25 @@ export default function ModelComparison() {
                 <div className="p-4 space-y-5 flex-1 overflow-y-auto">
                   {/* Economics & Limits */}
                   <div className="space-y-3">
-                    <h4 className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                       <Zap className="w-3 h-3" /> Constraints
                     </h4>
                     
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-md p-2">
-                        <div className="text-[10px] text-zinc-500 mb-0.5">Context Window</div>
+                      <div className="bg-muted/60 border border-border/80 rounded-md p-2">
+                        <div className="text-[10px] text-muted-foreground mb-0.5">Context Window</div>
                         <div className="font-mono text-xs font-semibold text-zinc-200">{formatContext(model.contextWindow)}</div>
                       </div>
-                      <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-md p-2">
-                        <div className="text-[10px] text-zinc-500 mb-0.5">Avg Latency</div>
+                      <div className="bg-muted/60 border border-border/80 rounded-md p-2">
+                        <div className="text-[10px] text-muted-foreground mb-0.5">Avg Latency</div>
                         <div className="font-mono text-xs font-semibold text-zinc-200">{model.latencyAvg}ms</div>
                       </div>
-                      <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-md p-2">
-                        <div className="text-[10px] text-zinc-500 mb-0.5 mt-1">Input / 1k</div>
+                      <div className="bg-muted/60 border border-border/80 rounded-md p-2">
+                        <div className="text-[10px] text-muted-foreground mb-0.5 mt-1">Input / 1k</div>
                         <div className="font-mono text-xs font-semibold text-emerald-400">{formatCost(model.costInput)}</div>
                       </div>
-                      <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-md p-2">
-                        <div className="text-[10px] text-zinc-500 mb-0.5 mt-1">Output / 1k</div>
+                      <div className="bg-muted/60 border border-border/80 rounded-md p-2">
+                        <div className="text-[10px] text-muted-foreground mb-0.5 mt-1">Output / 1k</div>
                         <div className="font-mono text-xs font-semibold text-red-400">{formatCost(model.costOutput)}</div>
                       </div>
                     </div>
@@ -242,44 +242,44 @@ export default function ModelComparison() {
 
                   {/* Capabilities Scores */}
                   <div className="space-y-3">
-                    <h4 className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                       <Gauge className="w-3 h-3" /> Capabilities
                     </h4>
                     <div className="space-y-2">
                       <div>
                         <div className="flex justify-between text-[10px] mb-1">
-                          <span className="text-zinc-400">Coding Generation</span>
+                          <span className="text-muted-foreground">Coding Generation</span>
                           <span className="text-zinc-300 font-mono">{model.metrics.coding}/100</span>
                         </div>
-                        <Progress value={model.metrics.coding} className="h-1.5 bg-zinc-900" />
+                        <Progress value={model.metrics.coding} className="h-1.5 bg-muted" />
                       </div>
                       <div>
                         <div className="flex justify-between text-[10px] mb-1 mt-1.5">
-                          <span className="text-zinc-400">Deep Reasoning</span>
+                          <span className="text-muted-foreground">Deep Reasoning</span>
                           <span className="text-zinc-300 font-mono">{model.metrics.reasoning}/100</span>
                         </div>
-                        <Progress value={model.metrics.reasoning} className="h-1.5 bg-zinc-900" />
+                        <Progress value={model.metrics.reasoning} className="h-1.5 bg-muted" />
                       </div>
                       <div>
                         <div className="flex justify-between text-[10px] mb-1 mt-1.5">
-                          <span className="text-zinc-400">Math & Logic (GSM8k)</span>
+                          <span className="text-muted-foreground">Math & Logic (GSM8k)</span>
                           <span className="text-zinc-300 font-mono">{model.metrics.math}/100</span>
                         </div>
-                        <Progress value={model.metrics.math} className="h-1.5 bg-zinc-900" />
+                        <Progress value={model.metrics.math} className="h-1.5 bg-muted" />
                       </div>
                       <div>
                         <div className="flex justify-between text-[10px] mb-1 mt-1.5">
-                          <span className="text-zinc-400">Inference Speed</span>
+                          <span className="text-muted-foreground">Inference Speed</span>
                           <span className="text-zinc-300 font-mono">{model.metrics.speed}/100</span>
                         </div>
-                        <Progress value={model.metrics.speed} className="h-1.5 bg-zinc-900" />
+                        <Progress value={model.metrics.speed} className="h-1.5 bg-muted" />
                       </div>
                     </div>
                   </div>
 
                   {/* Strengths */}
                   <div className="space-y-2">
-                    <h4 className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                       <Flame className="w-3 h-3" /> Key Strengths
                     </h4>
                     <ul className="space-y-1">
@@ -298,7 +298,7 @@ export default function ModelComparison() {
           })}
           
           {selectedModels.length === 0 && (
-            <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 py-16">
+            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground py-16">
               <Brain className="w-12 h-12 mb-3 opacity-20" />
               <p className="text-sm">Select up to 3 models above to compare.</p>
             </div>
@@ -307,18 +307,18 @@ export default function ModelComparison() {
 
         {/* Right Side: Execution Mock or Extra Meta */}
         <div className="flex flex-col gap-4">
-           <Card className="bg-zinc-900/40 border-zinc-800 shadow-sm shrink-0">
-              <CardHeader className="p-3 pb-2 border-b border-zinc-800/50">
+           <Card className="bg-muted/40 border-border shadow-sm shrink-0">
+              <CardHeader className="p-3 pb-2 border-b border-border/50">
                 <CardTitle className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
                   <ArrowRight className="w-3.5 h-3.5" />
                   Routing Recommendation
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-3 text-xs text-zinc-400 leading-relaxed bg-zinc-950/20">
+              <CardContent className="p-3 text-xs text-muted-foreground leading-relaxed bg-background/20">
                 {selectedModels.length > 0 ? (
                   <>
                     <p className="mb-2">Based on your selection, an optimal cascading router pattern:</p>
-                    <div className="bg-zinc-950 border border-zinc-800 p-2 rounded text-[11px] font-mono mb-2 divide-y divide-zinc-800">
+                    <div className="bg-background border border-border p-2 rounded text-[11px] font-mono mb-2 divide-y divide-zinc-800">
                        <div className="pb-1.5 text-blue-400">1. Attempt: {AVAILABLE_MODELS.find(m => m.id === selectedModels[0])?.name} (Primary)</div>
                        {selectedModels[1] && <div className="py-1.5 text-emerald-400">2. Fallback: {AVAILABLE_MODELS.find(m => m.id === selectedModels[1])?.name}</div>}
                        {selectedModels[2] && <div className="pt-1.5 text-amber-400">3. Fallback: {AVAILABLE_MODELS.find(m => m.id === selectedModels[2])?.name}</div>}
@@ -330,21 +330,21 @@ export default function ModelComparison() {
               </CardContent>
            </Card>
 
-           <Card className="bg-zinc-900/40 border-zinc-800 shadow-sm flex-1 flex flex-col">
-              <CardHeader className="p-3 pb-2 border-b border-zinc-800/50 flex-row justify-between items-center">
+           <Card className="bg-muted/40 border-border shadow-sm flex-1 flex flex-col">
+              <CardHeader className="p-3 pb-2 border-b border-border/50 flex-row justify-between items-center">
                 <CardTitle className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
                   <FileText className="w-3.5 h-3.5" />
                   A/B Test Execution
                 </CardTitle>
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-zinc-500 hover:text-zinc-200">
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-zinc-200">
                   <Expand className="w-3 h-3" />
                 </Button>
               </CardHeader>
               <CardContent className="p-0 flex-1 flex items-center justify-center">
                 <div className="text-center p-6 opacity-40">
-                  <Cpu className="w-8 h-8 mx-auto mb-2 text-zinc-500" />
-                  <p className="text-[11px] text-zinc-400">Run parallel tests against the chosen models using a Prompt Template.</p>
-                  <Button variant="outline" size="sm" className="mt-3 text-[10px] h-6 px-3 border-zinc-700" disabled>Coming Soon</Button>
+                  <Cpu className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-[11px] text-muted-foreground">Run parallel tests against the chosen models using a Prompt Template.</p>
+                  <Button variant="outline" size="sm" className="mt-3 text-[10px] h-6 px-3 border-border" disabled>Coming Soon</Button>
                 </div>
               </CardContent>
            </Card>

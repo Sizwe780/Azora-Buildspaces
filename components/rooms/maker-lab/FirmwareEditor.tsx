@@ -531,7 +531,7 @@ export default function FirmwareEditor() {
                                             </div>
                                         ))}
                                         {breakpoints.length === 0 && (
-                                            <p className="text-sm text-gray-500">No breakpoints set</p>
+                                            <p className="text-sm text-muted-foreground">No breakpoints set</p>
                                         )}
                                     </div>
                                 </ScrollArea>

@@ -109,7 +109,7 @@ export default function CollaborationPanel({ onClose }: { onClose?: () => void }
                 <span className="text-xs font-medium text-gray-300">{comment.author}</span>
                 <span className="text-[10px] text-gray-600">{comment.timestamp}</span>
               </div>
-              <p className="text-xs text-gray-400">{comment.text}</p>
+              <p className="text-xs text-muted-foreground">{comment.text}</p>
             </div>
           ))}
         </div>
@@ -121,7 +121,7 @@ export default function CollaborationPanel({ onClose }: { onClose?: () => void }
             placeholder="Add a comment..."
             className="flex-1 text-xs bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-gray-300 placeholder:text-gray-600 focus:outline-none focus:border-white/20"
           />
-          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-gray-400 hover:text-white">
+          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-white">
             <Send className="w-3 h-3" />
           </Button>
         </div>

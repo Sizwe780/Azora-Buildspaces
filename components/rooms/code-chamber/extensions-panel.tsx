@@ -120,7 +120,7 @@ export function ExtensionsPanel() {
     })
 
     return (
-        <div className="h-full flex flex-col bg-[#0d1117]">
+        <div className="h-full flex flex-col bg-background text-foreground">
             <div className="h-9 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">
                 Extensions
             </div>

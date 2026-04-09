@@ -137,7 +137,7 @@ export function PreviewPanel() {
               {isLoading && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50 z-10 gap-3">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <span className="text-sm text-gray-500">Connecting to dev server...</span>
+                  <span className="text-sm text-muted-foreground">Connecting to dev server...</span>
                 </div>
               )}
               <iframe
@@ -155,7 +155,7 @@ export function PreviewPanel() {
               <WifiOff className="w-12 h-12 text-gray-300" />
               <div>
                 <p className="text-sm font-medium text-gray-700">Dev server not reachable</p>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Start your dev server at <code className="bg-gray-100 px-1 rounded">{previewUrl}</code>
                 </p>
               </div>

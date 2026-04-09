@@ -151,7 +151,7 @@ export default function FigmaImportDialog({ onImport, open, onOpenChange }: Figm
                         ? 'bg-blue-500/10 border border-blue-500/20 text-blue-400'
                         : connectionStatus === 'error'
                         ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
-                        : 'bg-zinc-500/10 border border-zinc-500/20 text-zinc-400'
+                        : 'bg-zinc-500/10 border border-zinc-500/20 text-muted-foreground'
                 }`}>
                     {connectionStatus === 'checking' ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />

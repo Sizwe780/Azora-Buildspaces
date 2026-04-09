@@ -178,10 +178,10 @@ export function VisualBuilder({ content = '' }: VisualBuilderProps) {
         onConnect={onConnect}
         fitView
         proOptions={{ hideAttribution: true }}
-        className="bg-zinc-950"
+        className="bg-background"
       >
-        <Controls className="bg-zinc-800 border-zinc-700 fill-zinc-300" />
-        <MiniMap className="bg-zinc-900" maskColor="rgba(255, 255, 255, 0.1)" />
+        <Controls className="bg-muted border-border fill-zinc-300" />
+        <MiniMap className="bg-muted" maskColor="rgba(255, 255, 255, 0.1)" />
         <Background color="#3f3f46" gap={16} />
       </ReactFlow>
     </div>

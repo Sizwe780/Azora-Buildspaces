@@ -74,13 +74,13 @@ export default function DesignToCode({ frame, onClose }: DesignToCodeProps) {
                     Inspect & Export
                 </div>
                 <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-md p-0.5">
-                    <Button variant="ghost" size="icon" className={\`h-6 w-6 rounded-sm \${device === 'desktop' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}\`} onClick={() => setDevice('desktop')}>
+                    <Button variant="ghost" size="icon" className={`h-6 w-6 rounded-sm ${device === 'desktop' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`} onClick={() => setDevice('desktop')}>
                         <Monitor className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className={\`h-6 w-6 rounded-sm \${device === 'tablet' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}\`} onClick={() => setDevice('tablet')}>
+                    <Button variant="ghost" size="icon" className={`h-6 w-6 rounded-sm ${device === 'tablet' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`} onClick={() => setDevice('tablet')}>
                         <Tablet className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className={\`h-6 w-6 rounded-sm \${device === 'mobile' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}\`} onClick={() => setDevice('mobile')}>
+                    <Button variant="ghost" size="icon" className={`h-6 w-6 rounded-sm ${device === 'mobile' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`} onClick={() => setDevice('mobile')}>
                         <Smartphone className="w-3.5 h-3.5" />
                     </Button>
                 </div>
@@ -143,7 +143,7 @@ export default function DesignToCode({ frame, onClose }: DesignToCodeProps) {
 
                     <div className="space-y-2">
                         {accessibilityChecks.map(check => (
-                            <div key={check.id} className={\`p-3 rounded-md border text-sm \${check.passed ? 'bg-zinc-900/30 border-zinc-800/80' : 'bg-amber-500/5 border-amber-500/20'}\`}>
+                            <div key={check.id} className={`p-3 rounded-md border text-sm ${check.passed ? 'bg-zinc-900/30 border-zinc-800/80' : 'bg-amber-500/5 border-amber-500/20'}`}>
                                 <div className="flex items-start justify-between">
                                     <div className="flex gap-2">
                                         {check.passed ? (
@@ -157,7 +157,7 @@ export default function DesignToCode({ frame, onClose }: DesignToCodeProps) {
                                         </div>
                                     </div>
                                     {check.score && (
-                                        <Badge variant="outline" className={\`text-[9px] \${check.passed ? 'text-zinc-500 border-zinc-800' : 'text-amber-500 border-amber-500/30'}\`}>
+                                        <Badge variant="outline" className={`text-[9px] ${check.passed ? 'text-zinc-500 border-zinc-800' : 'text-amber-500 border-amber-500/30'}`}>
                                             {check.score}
                                         </Badge>
                                     )}
@@ -167,4 +167,7 @@ export default function DesignToCode({ frame, onClose }: DesignToCodeProps) {
                     </div>
                 </TabsContent>
             </Tabs>
+        </div>
+    )
 }
+

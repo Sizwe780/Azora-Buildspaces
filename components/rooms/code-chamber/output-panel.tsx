@@ -40,7 +40,7 @@ export function OutputPanel({ lines, onClear }: OutputPanelProps) {
             case "warning": return "text-amber-400"
             case "success": return "text-emerald-400"
             case "system": return "text-[#484f58]"
-            default: return "text-[#c9d1d9]"
+            default: return "text-foreground"
         }
     }
 
@@ -57,7 +57,7 @@ export function OutputPanel({ lines, onClear }: OutputPanelProps) {
     }
 
     return (
-        <div className="h-full flex flex-col bg-[#0d1117]">
+        <div className="h-full flex flex-col bg-background text-foreground">
             {/* Toolbar */}
             <div className="flex items-center justify-between px-3 py-1 border-b border-[#1b1f27] shrink-0">
                 <div className="flex items-center gap-2 text-[11px] text-[#484f58]">

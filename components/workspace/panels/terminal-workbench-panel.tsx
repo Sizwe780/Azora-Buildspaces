@@ -214,16 +214,16 @@ export function TerminalWorkbenchPanel() {
     : null
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950">
-      <div className="h-9 border-b border-zinc-800 flex items-center justify-between px-2 gap-2">
+    <div className="h-full flex flex-col bg-background">
+      <div className="h-9 border-b border-border flex items-center justify-between px-2 gap-2">
         <div className="flex items-center gap-1 overflow-x-auto">
           {sessions.map((session: TerminalSession) => (
             <button
               key={session.id}
               className={`h-7 px-2 rounded text-xs flex items-center gap-2 border ${
                 session.id === activeSessionId
-                  ? 'bg-zinc-800 text-zinc-100 border-zinc-700'
-                  : 'bg-zinc-900 text-zinc-400 border-zinc-900 hover:text-zinc-200'
+                  ? 'bg-muted text-foreground border-border'
+                  : 'bg-muted text-muted-foreground border-zinc-900 hover:text-zinc-200'
               }`}
               onClick={() => setActiveSessionId(session.id)}
               onDoubleClick={() => {
@@ -246,7 +246,7 @@ export function TerminalWorkbenchPanel() {
               ) : (
                 <>
                   <span>{session.name}</span>
-                  <span className="text-[10px] uppercase text-zinc-500">{session.shell}</span>
+                  <span className="text-[10px] uppercase text-muted-foreground">{session.shell}</span>
                 </>
               )}
               {sessions.length > 1 && (
@@ -307,8 +307,8 @@ export function TerminalWorkbenchPanel() {
 
       {/* Search bar */}
       {showSearch && (
-        <div className="h-8 border-b border-zinc-800 flex items-center gap-2 px-2">
-          <Search className="w-3.5 h-3.5 text-zinc-400" />
+        <div className="h-8 border-b border-border flex items-center gap-2 px-2">
+          <Search className="w-3.5 h-3.5 text-muted-foreground" />
           <input
             type="text"
             value={searchQuery}
@@ -342,7 +342,7 @@ export function TerminalWorkbenchPanel() {
             setShowSearch(false)
             setSearchQuery("")
           }}>
-            <X className="w-3 h-3 text-zinc-400 hover:text-zinc-200" />
+            <X className="w-3 h-3 text-muted-foreground hover:text-zinc-200" />
           </button>
         </div>
       )}
@@ -350,7 +350,7 @@ export function TerminalWorkbenchPanel() {
       <div className="flex-1 relative">
         {splitMode && secondarySession ? (
           <div className="h-full grid grid-cols-2">
-            <div className="h-full border-r border-zinc-800">
+            <div className="h-full border-r border-border">
               {activeSession && (
                 <XTerminal
                   sessionId={activeSession.id}
