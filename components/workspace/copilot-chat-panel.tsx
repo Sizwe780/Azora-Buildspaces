@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { useChat } from "@ai-sdk/react"
+import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { CopilotAgentAvatar } from "@/components/ui/copilot-agent-avatar"
@@ -349,7 +350,8 @@ function saveChatHistory(messages: ChatMessage[]) {
 
 export function CopilotChatPanel({ agent = "elara", className = "" }: CopilotChatPanelProps) {
     // ── State ──────────────────────────────
-        const [input, setInput] = useState("")
+        const { toast } = useToast()
+    const [input, setInput] = useState("")
     const [attachedFiles, setAttachedFiles] = useState<FileReference[]>([])
     const [showSlashMenu, setShowSlashMenu] = useState(false)
     const [showFilePicker, setShowFilePicker] = useState(false)
@@ -366,6 +368,13 @@ export function CopilotChatPanel({ agent = "elara", className = "" }: CopilotCha
 
     const { messages: aiMessages, sendMessage: append, status, setMessages: setAiMessages } = useChat({
         api: '/api/chat',
+        onError: (error: Error) => {
+            toast({
+                title: "AI Generation Error",
+                description: error.message || "Failed to generate AI response. Please try again.",
+                variant: "destructive"
+            });
+        },
         maxSteps: 5,
         initialMessages: (() => {
             const saved = loadChatHistory()

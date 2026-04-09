@@ -530,58 +530,59 @@ export function SpecChamber() {
     const roomName = `azora-spec-${specId}`
     let wsProvider: any = null
     getWebsocketProvider().then(WsProvider => {
-      wsProvider = new WsProvider(wsUrl, roomName, doc)
-      providerRef.current = wsProvider
+        try {
+          wsProvider = new WsProvider(wsUrl, roomName, doc)
+          providerRef.current = wsProvider
 
-      // Set local awareness
-      wsProvider.awareness.setLocalStateField('user', {
-        name: userName,
-        color: userColors,
-      })
+          // Set local awareness
+          wsProvider.awareness.setLocalStateField('user', {
+            name: userName,
+            color: userColors,
+          })
 
-      wsProvider.on('status', (event: any) => {
-        setYjsConnected(event.status === 'connected')
-      })
+          wsProvider.on('status', (event: any) => {
+            setYjsConnected(event.status === 'connected')
+          })
 
-      // Track collaborators
-      const updateCollaborators = () => {
-        const states = wsProvider.awareness.getStates()
-        const users: { id: number; name: string; color: string }[] = []
-        states.forEach((state: any, clientId: number) => {
-          if (state.user) {
-            users.push({
-              id: clientId,
-              name: state.user.name || `User ${clientId}`,
-              color: state.user.color || '#888',
+          // Track collaborators
+          const updateCollaborators = () => {
+            const states = wsProvider.awareness.getStates()
+            const users: { id: number; name: string; color: string }[] = []
+            states.forEach((state: any, clientId: number) => {
+              if (state.user) {
+                users.push({
+                  id: clientId,
+                  name: state.user.name || `User ${clientId}`,
+                  color: state.user.color || '#888',
+                })
+              }
             })
+            setCollaborators(users)
           }
-        })
-        setCollaborators(users)
-      }
-      wsProvider.awareness.on('change', updateCollaborators)
-      updateCollaborators()
+          wsProvider.awareness.on('change', updateCollaborators)
+          updateCollaborators()
 
-      // Initialize Y.Text with current content if empty
-      const yText = doc.getText('spec-content')
-      if (yText.length === 0 && content) {
-        yText.insert(0, content)
-      }
+          // Initialize Y.Text with current content if empty
+          const yText = doc.getText('spec-content')
+          if (yText.length === 0 && content) {
+            yText.insert(0, content)
+          }
 
-      // Sync Y.Text changes back to Zustand store
-      yText.observe(() => {
-        const newContent = yText.toString()
-        if (newContent !== content) {
-          setContent(newContent)
+          // Sync Y.Text changes back to Zustand store
+          yText.observe(() => {
+            const newContent = yText.toString()
+            if (newContent !== content) {
+              setContent(newContent)
+            }
+          })
+        } catch (e) {
+          console.error("Yjs WebSocket Error:", e)
         }
+      }).catch((e) => {
+        console.error("Failed to load y-websocket provider:", e)
       })
-    })
 
-    return () => {
-      bindingRef.current?.destroy()
-      bindingRef.current = null
-      if (providerRef.current) {
-        providerRef.current.destroy()
-      }
+      return () => {
       doc.destroy()
       ydocRef.current = null
       providerRef.current = null

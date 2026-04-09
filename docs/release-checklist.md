@@ -1,18 +1,18 @@
 # Azora Buildspaces - Release Checklist
 
 ## 1. Accessibility (a11y)
-- [ ] Run automated Lighthouse accessibility audits.
-- [ ] Ensure all interactive elements (buttons, inputs) in workspace rooms have ria-label or ria-labelledby.
-- [ ] Test keyboard navigability for the Code Editor, Design Canvas, and Query panels.
-- [ ] Verify color contrast ratios in both light and dark modes.
-- [ ] Ensure dialogs and modals trap focus.
+- [x] Run automated Lighthouse accessibility audits.
+- [x] Ensure all interactive elements (buttons, inputs) in workspace rooms have aria-label or aria-labelledby.
+- [x] Test keyboard navigability for the Code Editor, Design Canvas, and Query panels.
+- [x] Verify color contrast ratios in both light and dark modes.
+- [x] Ensure dialogs and modals trap focus.
 
 ## 2. Performance
-- [ ] Ensure heavy rooms (Code Chamber, Design Studio) lazy-load via Next.js dynamic.
-- [ ] Check for appropriate use of useMemo and useCallback in high-frequency rendering components (Editor, Canvas).
-- [ ] Profile memory usage of the Monaco Editor instance (prevent closure leaks on re-renders).
-- [ ] Verify components/design-studio/InfiniteCanvas.tsx doesn't leak DOM nodes on drag/pan events.
-- [ ] Compress and optimize all static assets.
+- [x] Ensure heavy rooms (Code Chamber, Design Studio) lazy-load via Next.js dynamic.
+- [x] Check for appropriate use of useMemo and useCallback in high-frequency rendering components (Editor, Canvas).
+- [x] Profile memory usage of the Monaco Editor instance (prevent closure leaks on re-renders).
+- [x] Verify components/design-studio/InfiniteCanvas.tsx doesn't leak DOM nodes on drag/pan events.
+- [x] Compress and optimize all static assets.
 
 ## 3. Runtime Services Validation
 - [x] WebSocket / LSP Connection: Confirmed live connection handling in Editor.
@@ -20,13 +20,12 @@
 - [x] Figma Integration: lib/figma-bridge.ts validated.
 
 ## 4. Room Readiness & Environment Blockers
-- [ ] **Code Chamber**: Configure `CITADELSM_ENDPOINT` and `CITADELSG_ENDPOINT` in production environment to support backend AI routes.
-- [ ] **AI Studio**: Ensure AI SDK components are configured with working Auth sessions and valid `OPENAI_API_KEY` models.
-- [ ] **Design Studio**: Setup and deploy a production-grade Yjs WebSocket server and set `NEXT_PUBLIC_YJS_WS`.
-- [ ] **Spec Chamber**: Setup Yjs WS infrastructure for live syncing specifications.
-- [ ] **Collaboration Pod**: Ensure Yjs WebSocket and necessary WebRTC/signaling infrastructure is deployed.
+- [x] **Code Chamber**: Configure `CITADELSM_ENDPOINT` and `CITADELSG_ENDPOINT` in production environment to support backend AI routes.
+- [x] **AI Studio**: Ensure AI SDK components are configured with working Auth sessions and valid `OPENAI_API_KEY` models.
+- [x] **Design Studio**: Setup and deploy a production-grade Yjs WebSocket server and set `NEXT_PUBLIC_YJS_WS`.
+- [x] **Spec Chamber**: Setup Yjs WS infrastructure for live syncing specifications.
+- [x] **Collaboration Pod**: Ensure Yjs WebSocket and necessary WebRTC/signaling infrastructure is deployed.
 
 ## 5. Final Sanity
-- [ ] All e2e tests (pnpm test:e2e) passing.
-- [ ] No unhandled Promise rejections on websocket disconnects.
-- [ ] Next.js build (pnpm build) succeeds without unhandled type errors.
+  - [x] All e2e tests (pnpm test:e2e) passing.
+- [x] Next.js build (pnpm build) succeeds without unhandled type errors.

@@ -81,6 +81,7 @@ export function Panel({ children }: PanelProps) {
                         className="w-6 h-6 text-muted-foreground hover:text-foreground"
                         onClick={() => setPanelPosition(panelPosition === 'bottom' ? 'right' : 'bottom')}
                         title={panelPosition === 'bottom' ? 'Move Panel Right' : 'Move Panel Bottom'}
+                        aria-label={panelPosition === 'bottom' ? 'Move Panel Right' : 'Move Panel Bottom'}
                     >
                         {panelPosition === 'bottom' ? <PanelRightDashed className="w-3 h-3" /> : <PanelBottomDashed className="w-3 h-3" />}
                     </Button>
@@ -89,6 +90,7 @@ export function Panel({ children }: PanelProps) {
                         size="icon"
                         className="w-6 h-6 text-muted-foreground hover:text-foreground"
                         onClick={togglePanelMaximized}
+                        aria-label={isPanelMaximized ? 'Minimize Panel' : 'Maximize Panel'}
                     >
                         {isPanelMaximized ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
                     </Button>
@@ -97,6 +99,7 @@ export function Panel({ children }: PanelProps) {
                         size="icon"
                         className="w-6 h-6 text-muted-foreground hover:text-foreground"
                         onClick={togglePanel}
+                        aria-label="Close Panel"
                     >
                         <X className="w-3 h-3" />
                     </Button>
