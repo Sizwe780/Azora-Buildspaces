@@ -364,10 +364,7 @@ export function CopilotChatPanel({ agent = "elara", className = "" }: CopilotCha
     const { fileMap, activeFileId, readFile, writeFile, createFile: fsCreateFile, openFile, setActiveFile } = useFileSystem()
     const { setPanelView } = useWorkbench()
 
-    const { messages: aiMessages, append, isLoading: isStreaming, setMessages: setAiMessages } = useChat({
-
-
-
+    const { messages: aiMessages, sendMessage: append, status, setMessages: setAiMessages } = useChat({
         api: '/api/chat',
         maxSteps: 5,
         initialMessages: (() => {
@@ -404,6 +401,7 @@ export function CopilotChatPanel({ agent = "elara", className = "" }: CopilotCha
         }
     } as any)
 
+    const isStreaming = status === 'streaming' || status === 'submitted';
     const typingAgent = isStreaming ? agent : null;
 
     const messages = useMemo(() => {
@@ -561,7 +559,7 @@ export function CopilotChatPanel({ agent = "elara", className = "" }: CopilotCha
             contextPayload = `${prompt}\n\nReferenced files:\n${fileContext}`
         }
 
-        append({ role: 'user', content: contextPayload })
+        (append as any)({ role: 'user', content: contextPayload })
 
         setInput("")
         setAttachedFiles([])

@@ -28,7 +28,7 @@
     "test:e2e": "playwright test --config=tests/playwright.config.ts",
     "setup": "tsx scripts/setup.ts",
     "verify:prisma": "tsx scripts/verify-prisma.ts",
-    "verify:env": "tsx scripts/test-env-config.ts",
+    "verify:env": "npx tsx scripts/test-env-config.ts",
     "test:ui": "playwright test --config=tests/playwright.config.ts",
     "verify:auth": "pnpm run test:ui",
     "type-check": "tsc --noEmit"

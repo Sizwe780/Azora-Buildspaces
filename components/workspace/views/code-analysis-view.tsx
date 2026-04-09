@@ -246,13 +246,12 @@ export function CodeAnalysisView() {
       <ScrollArea className="flex-1">
         {/* LSP Inspector Tab */}
         {activeTab === "lsp" && (
-          <LspInspector 
-            activeFileId={activeFileId} 
-            content={activeContent} 
-            onApplyFix={handleApplyFix}
+          <LspInspector
+              activeFile={activeFileId}
+                content={activeContent}
+                onApplyFix={handleApplyFix}
           />
         )}
-
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="p-3 space-y-3">
