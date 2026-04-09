@@ -19,7 +19,14 @@
 - [x] AI Backend / MCP Server: AI integration is present and routes properly via /api/mcp.
 - [x] Figma Integration: lib/figma-bridge.ts validated.
 
-## 4. Final Sanity
+## 4. Room Readiness & Environment Blockers
+- [ ] **Code Chamber**: Configure `CITADELSM_ENDPOINT` and `CITADELSG_ENDPOINT` in production environment to support backend AI routes.
+- [ ] **AI Studio**: Ensure AI SDK components are configured with working Auth sessions and valid `OPENAI_API_KEY` models.
+- [ ] **Design Studio**: Setup and deploy a production-grade Yjs WebSocket server and set `NEXT_PUBLIC_YJS_WS`.
+- [ ] **Spec Chamber**: Setup Yjs WS infrastructure for live syncing specifications.
+- [ ] **Collaboration Pod**: Ensure Yjs WebSocket and necessary WebRTC/signaling infrastructure is deployed.
+
+## 5. Final Sanity
 - [ ] All e2e tests (pnpm test:e2e) passing.
 - [ ] No unhandled Promise rejections on websocket disconnects.
 - [ ] Next.js build (pnpm build) succeeds without unhandled type errors.
