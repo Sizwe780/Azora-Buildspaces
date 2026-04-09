@@ -96,6 +96,25 @@ try {
 } catch {
   console.log(`  Local LLM: ✗ not configured`)
 }
+
+// Display Code Chamber / Citadels Integration
+console.log()
+console.log('Code Chamber & Citadels Integration:')
+try {
+  console.log(`  CODE_CHAMBER_PROVIDER: ${env.CODE_CHAMBER_PROVIDER || 'openai (default)'}`)
+  
+  if (env.CODE_CHAMBER_PROVIDER === 'citadelsm') {
+    const hasCitadelsM = !!env.CITADELSM_ENDPOINT;
+    console.log(`  CITADELSM_ENDPOINT: ${hasCitadelsM ? '✓ configured (' + env.CITADELSM_ENDPOINT + ')' : '✗ not configured'}`)
+    if (!hasCitadelsM) {
+      console.warn('  ⚠️ WARNING: CODE_CHAMBER_PROVIDER is set to citadelsm but CITADELSM_ENDPOINT is missing!')
+    }
+  } else {
+    console.log(`  CITADELSM_ENDPOINT: ${env.CITADELSM_ENDPOINT ? '✓ configured' : 'Not required for current provider'}`)
+  }
+} catch (err) {
+  console.log(`  Code Chamber Provider Validation Failed.`)
+}
 console.log()
 
 // Display feature flags

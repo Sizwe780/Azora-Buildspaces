@@ -109,7 +109,7 @@ export default function CollaborationPod() {
         if (typeof window !== 'undefined') {
             getWebsocketProvider().then(WebsocketProvider => {
                 if (cancelled) return;
-                const wsUrl = process.env.NEXT_PUBLIC_YJS_WS_URL || 'ws://localhost:1234';
+                const wsUrl = process.env.NEXT_PUBLIC_YJS_WS_URL || (process.env.NODE_ENV === 'production' && typeof window !== 'undefined' ? `wss://${window.location.host}` : 'ws://localhost:1234');
                 wsProvider = new WebsocketProvider(wsUrl, 'azora-buildspaces-pod', doc);
                 providerRef.current = wsProvider;
                 setProvider(wsProvider);

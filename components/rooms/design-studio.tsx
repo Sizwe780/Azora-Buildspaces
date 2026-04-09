@@ -436,7 +436,7 @@ export default function DesignStudio() {
         getWebsocketProvider().then(WebsocketProvider => {
             if (cancelled) return
             try {
-                const wsUrl = process.env.NEXT_PUBLIC_YJS_WS || 'ws://localhost:1234'
+                const wsUrl = process.env.NEXT_PUBLIC_YJS_WS || (process.env.NODE_ENV === 'production' && typeof window !== 'undefined' ? `wss://${window.location.host}` : 'ws://localhost:1234')
                 provider = new WebsocketProvider(wsUrl, `design-studio-${projectId}`, doc)
                 providerRef.current = provider
 

@@ -523,7 +523,7 @@ export function SpecChamber() {
     ydocRef.current = doc
 
     const wsUrl = typeof window !== 'undefined'
-      ? (process.env.NEXT_PUBLIC_YJS_WS_URL || 'ws://localhost:1234')
+      ? (process.env.NEXT_PUBLIC_YJS_WS_URL || (process.env.NODE_ENV === 'production' && typeof window !== 'undefined' ? `wss://${window.location.host}` : 'ws://localhost:1234'))
       : ''
     if (!wsUrl) return
 
