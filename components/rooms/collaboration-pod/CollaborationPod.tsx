@@ -82,6 +82,8 @@ export default function CollaborationPod() {
 
     // Feature 5: Settings
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [inviteOpen, setInviteOpen] = useState(false);
+    const [inviteLink, setInviteLink] = useState("");
     const [settings, setSettings] = useState<RoomSettings>({
         roomName: "Azora Collaboration Pod",
         maxParticipants: "10",
@@ -376,9 +378,19 @@ export default function CollaborationPod() {
                                 </Badge>
                             )}
                         </Button>
-                        <Button variant="outline" size="sm">
-                            <Share2 className="w-4 h-4 mr-2" />
-                            Invite
+                        {/* Feature: Invite User Dialog */}
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => {
+                                // Generate a mock invite link based on current room logic
+                                setInviteLink(typeof window !== "undefined" ? `${window.location.origin}/workspace?room=collaboration-pod&joinToken=${Math.random().toString(36).substr(2, 9)}` : "");
+                                setInviteOpen(true);
+                            }}
+                            className="gap-2 bg-blue-600 hover:bg-blue-700 text-white border-none"
+                        >
+                            <Share2 className="w-4 h-4 ml-0.5" />
+                            Share Link
                         </Button>
                         {/* Feature 5: Settings button */}
                         <Button variant="outline" size="sm" onClick={() => { setPendingSettings(settings); setSettingsOpen(true); }}>
@@ -432,6 +444,43 @@ export default function CollaborationPod() {
                         onMouseLeave={() => setShowEmojiBar(false)}
                     >
                         {provider && ydoc && <ActiveComponent ydoc={ydoc} provider={provider} />}
+
+                        {/* Invite Dialog */}
+                        <Dialog open={inviteOpen} onOpenChange={(v) => setInviteOpen(v)}>
+                            <DialogContent className="border-zinc-800 bg-zinc-950 sm:max-w-md">
+                                <DialogHeader>
+                                    <DialogTitle>Share Workspace Link</DialogTitle>
+                                    <p className="text-zinc-400 text-sm mt-2">
+                                        Anyone with this link can join this Collab Pod and see your current session state.
+                                    </p>
+                                </DialogHeader>
+                                <div className="flex gap-2 mt-4 items-center">
+                                    <Input 
+                                        readOnly 
+                                        value={inviteLink} 
+                                        className="bg-zinc-900 border-zinc-800 font-mono text-xs text-zinc-300"
+                                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                                    />
+                                    <Button 
+                                        size="sm" 
+                                        className="shrink-0 bg-zinc-800 hover:bg-zinc-700 text-zinc-100" 
+                                        onClick={() => navigator.clipboard.writeText(inviteLink)}
+                                    >
+                                        Copy
+                                    </Button>
+                                </div>
+                                <div className="my-2 border-t border-zinc-800/80 pt-4 flex flex-col gap-3">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-zinc-300">Require approval to enter</span>
+                                        <Switch defaultChecked />
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-zinc-300">Grant editing permissions</span>
+                                        <Switch defaultChecked />
+                                    </div>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
 
                         {/* Emoji reaction bar */}
                         <AnimatePresence>
