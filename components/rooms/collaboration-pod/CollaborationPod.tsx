@@ -25,6 +25,7 @@ import TaskBoard from "./TaskBoard";
 // No hardcoded sample data — the list is populated live.
 
 const EMOJIS = ["👍", "❤️", "🎉", "🔥", "🤔", "😂"];
+const ROOM_ID = "azora-buildspaces-pod";
 
 interface FlyingEmoji {
     id: number;
@@ -82,6 +83,12 @@ export default function CollaborationPod() {
     const ydocRef = useRef<Y.Doc | null>(null);
     const [providerVersion, setProviderVersion] = useState(0);
 
+    // Presence WebSocket — direct connection to /api/collab for presence push
+    const presenceWsRef = useRef<WebSocket | null>(null);
+    const presencePollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    // Remote presence from other clients (userId → presence data)
+    const [remotePresence, setRemotePresence] = useState<Map<string, any>>(new Map());
+
     // Feature 5: Settings
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [inviteOpen, setInviteOpen] = useState(false);
@@ -137,6 +144,139 @@ export default function CollaborationPod() {
         }
         return () => provider?.destroy();
     }, [provider]);
+
+    // ── Presence via WebSocket ────────────────────────────────────────────────
+    // Connect to /api/collab WebSocket and send/receive presence messages.
+    // Falls back to HTTP polling when WebSocket is unavailable.
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const wsUrl = process.env.NEXT_PUBLIC_COLLAB_WS_URL ||
+            (process.env.NODE_ENV === 'production'
+                ? `wss://${window.location.host}/api/collab?room=${ROOM_ID}`
+                : `ws://localhost:3000/api/collab?room=${ROOM_ID}`);
+
+        let ws: WebSocket | null = null;
+        let wsConnected = false;
+
+        const connectPresenceWs = () => {
+            try {
+                ws = new WebSocket(wsUrl);
+                presenceWsRef.current = ws;
+
+                ws.onopen = () => {
+                    wsConnected = true;
+                    // Stop HTTP polling fallback if it was running
+                    if (presencePollingRef.current) {
+                        clearInterval(presencePollingRef.current);
+                        presencePollingRef.current = null;
+                    }
+                    // Announce our presence
+                    sendPresenceUpdate(ws!);
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        if (msg.type === 'presence' && msg.data?.userId) {
+                            setRemotePresence(prev => {
+                                const next = new Map(prev);
+                                next.set(msg.data.userId, msg.data);
+                                return next;
+                            });
+                        } else if (msg.type === 'presence-leave' && msg.userId) {
+                            setRemotePresence(prev => {
+                                const next = new Map(prev);
+                                next.delete(msg.userId);
+                                return next;
+                            });
+                        }
+                    } catch {
+                        // Binary Y.js messages — ignore in presence handler
+                    }
+                };
+
+                ws.onclose = () => {
+                    wsConnected = false;
+                    presenceWsRef.current = null;
+                    // Fall back to HTTP polling
+                    startHttpPollingFallback();
+                };
+
+                ws.onerror = () => {
+                    wsConnected = false;
+                };
+            } catch {
+                startHttpPollingFallback();
+            }
+        };
+
+        const sendPresenceUpdate = (socket: WebSocket) => {
+            if (socket.readyState !== WebSocket.OPEN) return;
+            socket.send(JSON.stringify({
+                type: 'presence',
+                data: {
+                    userId: 'local-user',
+                    displayName: 'You',
+                    status: 'online',
+                    currentFile: undefined,
+                },
+            }));
+        };
+
+        const startHttpPollingFallback = () => {
+            if (presencePollingRef.current) return; // already polling
+            presencePollingFetch();
+            presencePollingRef.current = setInterval(presencePollingFetch, 15_000);
+        };
+
+        const presencePollingFetch = async () => {
+            try {
+                const res = await fetch(`/api/collaboration/presence?roomId=${ROOM_ID}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        roomId: ROOM_ID,
+                        userId: 'local-user',
+                        displayName: 'You',
+                        status: 'online',
+                    }),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.presence) {
+                        setRemotePresence(prev => {
+                            const next = new Map(prev);
+                            next.set(data.presence.userId, data.presence);
+                            return next;
+                        });
+                    }
+                }
+            } catch {
+                // Silently ignore polling errors
+            }
+        };
+
+        connectPresenceWs();
+
+        // Periodically re-send our presence while WS is open
+        const heartbeat = setInterval(() => {
+            if (presenceWsRef.current?.readyState === WebSocket.OPEN) {
+                sendPresenceUpdate(presenceWsRef.current);
+            }
+        }, 30_000);
+
+        return () => {
+            clearInterval(heartbeat);
+            if (presencePollingRef.current) {
+                clearInterval(presencePollingRef.current);
+                presencePollingRef.current = null;
+            }
+            ws?.close();
+            presenceWsRef.current = null;
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [providerVersion]);
 
     // Awareness-driven participant list
     useEffect(() => {

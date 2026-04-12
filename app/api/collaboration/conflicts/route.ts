@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
 
 /**
  * Collaboration — Conflict Resolution API (Google Docs parity)
@@ -9,6 +11,26 @@ import { NextRequest, NextResponse } from 'next/server'
  * resolution history.
  *
  * Industry parity: Google Docs OT, Figma branching, Git merge
+ *
+ * TODO: Persist conflicts to DB once a `Conflict` Prisma model is added.
+ *       Add to prisma/schema.prisma:
+ *
+ *   model Conflict {
+ *     id          String   @id @default(cuid())
+ *     fileId      String
+ *     baseVersion Int
+ *     userAId     String
+ *     userAChanges String
+ *     userBId     String
+ *     userBChanges String
+ *     status      String   @default("manual-pending")
+ *     resolution  String?
+ *     resolvedBy  String?
+ *     resolvedAt  DateTime?
+ *     createdAt   DateTime @default(now())
+ *     @@index([fileId])
+ *     @@map("conflicts")
+ *   }
  */
 
 interface ConflictRecord {
@@ -23,11 +45,16 @@ interface ConflictRecord {
   resolvedAt?: string
 }
 
-// In-memory conflict store
+// In-memory conflict store — replace with DB queries once Conflict model is added
 const conflicts = new Map<string, ConflictRecord>()
 let conflictCounter = 0
 
 export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Auth required' }, { status: 401 })
+  }
+
   const fileId = req.nextUrl.searchParams.get('fileId')
   const status = req.nextUrl.searchParams.get('status')
 
@@ -52,6 +79,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Auth required' }, { status: 401 })
+    }
+
     const { action, fileId, baseVersion, userA, userB, conflictId, resolution, resolvedBy } = await req.json()
 
     if (action === 'detect') {

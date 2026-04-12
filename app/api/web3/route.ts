@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
 import { web3Tooling } from '@/lib/services/web3-tooling'
+
+// Actions that require authentication (access user-specific or sensitive data)
+const AUTH_REQUIRED_ACTIONS = new Set(['contracts', 'wallet', 'local-node'])
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const action = searchParams.get('action') || 'chains'
+
+  if (AUTH_REQUIRED_ACTIONS.has(action)) {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Auth required' }, { status: 401 })
+    }
+  }
 
   switch (action) {
     case 'chains':

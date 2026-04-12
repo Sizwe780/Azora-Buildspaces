@@ -83,3 +83,58 @@ export async function GET() {
     );
   }
 }
+
+export async function PUT(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || !session.user || !(session.user as any).id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = (session.user as any).id;
+    
+    // Check if it's the master user
+    if (userId === "master-user") {
+      return NextResponse.json(
+        { error: "Cannot modify master-user profile" },
+        { status: 403 }
+      );
+    }
+
+    const body = await req.json();
+    const { name, bio, location } = body;
+
+    // Update basic user profile (We use the user table for name, userProfile for extra details)
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        name,
+        profile: {
+          upsert: {
+            create: { bio, location },
+            update: { bio, location },
+          },
+        },
+      },
+      include: {
+        profile: true,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      profile: {
+        name: updatedUser.name,
+        bio: updatedUser.profile?.bio || null,
+        location: updatedUser.profile?.location || null,
+      },
+    });
+  } catch (error: any) {
+    console.error("Profile update error:", error);
+    return NextResponse.json(
+      { error: "Failed to update profile" },
+      { status: 500 }
+    );
+  }
+}

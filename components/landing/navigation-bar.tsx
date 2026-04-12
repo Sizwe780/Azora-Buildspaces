@@ -120,7 +120,7 @@ export function NavigationBar() {
               <Button variant="ghost" size="sm" className="text-muted-foreground">
                 Sign in
               </Button>
-              <Link href="/code-chamber">
+              <Link href="/workspace">
                 <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 glow-primary">
                   Get Started
                   <ArrowRight className="w-4 h-4 ml-1" />
@@ -180,7 +180,7 @@ export function NavigationBar() {
                 <Button variant="outline" className="w-full bg-transparent">
                   Sign in
                 </Button>
-                <Link href="/code-chamber" className="block">
+                <Link href="/workspace" className="block">
                   <Button className="w-full bg-primary text-primary-foreground">Get Started</Button>
                 </Link>
               </div>

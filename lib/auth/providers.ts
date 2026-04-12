@@ -93,8 +93,8 @@ export function buildProviders(): Provider[] {
              return null
           }
 
-          const user = await prisma.user.findUnique({ 
-            where: { email: credentials?.email } 
+          const user = await prisma.user.findUnique({
+            where: { email: credentials?.email }
           })
           
           if (!user) {
@@ -102,15 +102,43 @@ export function buildProviders(): Provider[] {
             return null
           }
 
+          // Implement Account Lockout Mechanism
+          if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
+            console.warn('[AUTH] Account is temporarily locked due to multiple failed login attempts:', credentials?.email)
+            throw new Error('Account is temporarily locked. Please try again later.')
+          }
+
           // Requirement 2.1: Verify password using secure hashing
           if (user.password && verifyPassword(credentials!.password, user.password)) {
+            // Reset failed login attempts on successful login
+             await prisma.user.update({
+              where: { id: user.id },
+              data: { failedLoginAttempts: 0, lockedUntil: null }
+            })
+            
             console.log('[AUTH] User authenticated successfully:', user.email)
             return { 
               id: user.id, 
               name: user.name, 
-              email: user.email 
+              email: user.email,
+              role: user.role
             } as any
           }
+          
+          // Increment failed login attempts
+          const newAttempts = (user.failedLoginAttempts || 0) + 1
+          const updateData: any = { failedLoginAttempts: newAttempts }
+          
+          // Lock account for 15 minutes after 5 failed attempts
+          if (newAttempts >= 5) {
+            updateData.lockedUntil = new Date(Date.now() + 15 * 60 * 1000)
+            console.warn(`[AUTH] Account locked for ${credentials?.email} after 5 failed attempts.`)
+          }
+          
+          await prisma.user.update({
+            where: { id: user.id },
+            data: updateData
+          })
           
           console.log('[AUTH] Invalid password for user:', credentials?.email)
           return null

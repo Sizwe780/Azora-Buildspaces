@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { openai } from "@ai-sdk/openai"
 import { streamText } from "ai"
+import { getRedisClient } from "@/lib/redis-client"
 
 // ─── System Prompts (Constitutional AI) ─────────────────────────────────
 const SYSTEM_PROMPTS: Record<string, string> = {
@@ -37,8 +38,36 @@ You embody Ubuntu philosophy — through careful reasoning, you help developers 
 Format code blocks with language tags. Embody Ubuntu — every line of code should serve its users with dignity.`,
 }
 
-// ─── Conversation Memory (in-memory per session) ─────────────────────────
-const conversationMemory = new Map<string, { role: string; content: string }[]>()
+// ─── Fallback in-memory store when Redis is unavailable ─────────────────
+const memoryFallback = new Map<string, { role: string; content: string }[]>()
+
+async function getMemory(sessionId: string): Promise<{ role: string; content: string }[]> {
+  const key = `cmd-desk:memory:${sessionId}`
+  try {
+    const redis = await getRedisClient()
+    if (redis) {
+      const raw = await redis.get(key)
+      return raw ? JSON.parse(raw) : []
+    }
+  } catch {
+    // fall through to in-memory
+  }
+  return memoryFallback.get(sessionId) || []
+}
+
+async function setMemory(sessionId: string, messages: { role: string; content: string }[]): Promise<void> {
+  const key = `cmd-desk:memory:${sessionId}`
+  try {
+    const redis = await getRedisClient()
+    if (redis) {
+      await redis.set(key, JSON.stringify(messages), 'EX', 3600)
+      return
+    }
+  } catch {
+    // fall through to in-memory
+  }
+  memoryFallback.set(sessionId, messages)
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -48,9 +77,9 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: "Messages required" }), { status: 400 })
     }
 
-    // Get or create conversation memory
+    // Get conversation memory (Redis with in-memory fallback)
     const memoryKey = sessionId || "default"
-    const memory = conversationMemory.get(memoryKey) || []
+    const memory = await getMemory(memoryKey)
 
     // Build message history with memory (context window: last 20 messages)
     const systemPrompt = SYSTEM_PROMPTS[model] || SYSTEM_PROMPTS["elara-pro"]
@@ -78,7 +107,7 @@ export async function POST(req: NextRequest) {
             ...messages.map((m: any) => ({ role: m.role, content: m.content })),
             { role: "assistant" as const, content: text },
           ].slice(-40) // Keep last 40 messages in memory
-          conversationMemory.set(memoryKey, updated)
+          await setMemory(memoryKey, updated)
         } catch { /* silent */ }
       },
     })

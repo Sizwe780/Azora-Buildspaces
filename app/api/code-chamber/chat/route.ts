@@ -15,10 +15,18 @@ export async function POST(req: Request) {
 
   const { messages } = await req.json();
 
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'AI service not configured' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   const isCitadels = process.env.CODE_CHAMBER_PROVIDER === 'citadels';
   const citadelsUrl = process.env.CITADELSG_ENDPOINT || process.env.CITADELSM_ENDPOINT;
   const customProvider = isCitadels && citadelsUrl
-    ? createOpenAI({ baseURL: citadelsUrl, apiKey: process.env.OPENAI_API_KEY || 'fake-key' })
+    ? createOpenAI({ baseURL: citadelsUrl, apiKey })
     : openai;
 
   const result = streamText({

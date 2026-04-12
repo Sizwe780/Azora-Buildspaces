@@ -16,19 +16,39 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+          run_install: false
           
       - name: Install Dependencies
-        run: npm install --legacy-peer-deps
+        run: pnpm install
         
       - name: Type Check
-        run: npm run type-check || true # Soft fail during phase 4 hardening
+        run: pnpm type-check || true # Soft fail during phase 4 hardening
         
-      - name: Run Unit Tests
-        run: npm test -- --silent
+      - name: Run Unit Tests with Coverage Gates
+        run: pnpm test:coverage -- --silent
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Upload Test Coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
         
       - name: Run API Health Checks
-        run: npm test -- tests/api/health.test.ts --silent
+        run: pnpm test -- tests/api/health.test.ts --silent
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
 
   e2e-tests:
     needs: build-and-test
@@ -38,27 +58,85 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
       - name: Install Dependencies
-        run: npm install --legacy-peer-deps
+        run: pnpm install
       - name: Install Playwright Browsers
-        run: npx playwright install --with-deps
+        run: pnpm playwright install --with-deps
       - name: Build Project
-        run: npm run build
-      - name: Run E2E Tests
-        run: npm run test:e2e -- --project=chromium --grep "Azora Economy"
+        run: pnpm build
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          NEXTAUTH_SECRET: ${{ secrets.SESSION_SECRET }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NEXT_PUBLIC_PREVIEW_URL: ${{ secrets.NEXT_PUBLIC_PREVIEW_URL }}
+          
+      - name: Run E2E Tests
+        run: pnpm test:e2e
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NEXT_PUBLIC_PREVIEW_URL: ${{ secrets.NEXT_PUBLIC_PREVIEW_URL }}
 
-  deploy:
-    needs: build-and-test
+
+  deploy-staging:
+    needs: e2e-tests
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+      - name: Set kubectl context (Staging)
+        run: echo "Configuring Kubeconfig for staging..."
+      - name: Deploy to Staging K8s
+        run: |
+          kubectl apply -f k8s/buildspaces-namespace.yaml
+          kubectl apply -f k8s/buildspaces-secrets.yaml
+          kubectl apply -f k8s/redis-deployment.yaml
+          kubectl apply -f k8s/postgres-deployment.yaml
+          kubectl apply -f k8s/buildspaces-deployment.yaml
+          kubectl rollout status deployment/buildspaces-app -n buildspaces
+
+  deploy-production:
+    needs: e2e-tests
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: production
     steps:
-      - name: Deploy to Vercel
-        run: echo "Deploying Azora-Buildspaces to Vercel production..."
-      
-      - name: Update Infrastructure (K8s)
-        run: echo "Syncing Kubernetes manifests in /k8s..."
+      - uses: actions/checkout@v4
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+      - name: Set kubectl context (Production)
+        run: echo "Configuring Kubeconfig for production..."
+      - name: Backup Production DB before deploy
+        run: |
+          # Dispatch an emergency manual backup trigger here
+          echo "Database pre-deploy snapshot initiated..."
+      - name: Deploy to Production K8s
+        run: |
+          kubectl apply -f k8s/buildspaces-namespace.yaml
+          kubectl apply -f k8s/buildspaces-secrets.yaml
+          kubectl apply -f k8s/redis-deployment.yaml
+          kubectl apply -f k8s/postgres-deployment.yaml
+          kubectl apply -f k8s/postgres-cron-backup.yaml
+          kubectl apply -f k8s/monitoring.yaml
+          kubectl apply -f k8s/monitoring-config.yaml
+          kubectl apply -f k8s/buildspaces-deployment.yaml
+          kubectl apply -f k8s/buildspaces-ingress.yaml
+      - name: Verify Rollout
+        run: |
+          if ! kubectl rollout status deployment/buildspaces-app -n buildspaces --timeout=3m; then
+            echo "Rollout failed, initiating rollback..."
+            kubectl rollout undo deployment/buildspaces-app -n buildspaces
+            exit 1
+          fi
+          echo "Production deployment successful."

@@ -1,36 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
+import { prisma } from '@/lib/database/client'
 
 /**
  * Verification API Route
  * Handles identity/document verification submissions
  */
-
-interface VerificationRequest {
-  userId: string
-  verificationType: string
-  documents: Array<{
-    name: string
-    size: number
-    type: string
-  }>
-}
-
-interface VerificationSubmission {
-  id: string
-  userId: string
-  verificationType: string
-  status: 'pending' | 'reviewing' | 'approved' | 'rejected'
-  documents: Array<{
-    name: string
-    size: number
-    type: string
-  }>
-  submittedAt: string
-  estimatedReviewTime: string
-}
-
-// In-memory store for demo (use database in production)
-const submissions = new Map<string, VerificationSubmission>()
 
 // Supported verification types
 const VERIFICATION_TYPES = {
@@ -56,23 +32,21 @@ const VERIFICATION_TYPES = {
   }
 }
 
-function generateSubmissionId(): string {
-  return `VER-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const body: VerificationRequest = await request.json()
-    const { userId, verificationType, documents } = body
-
-    // Validation
-    if (!userId || typeof userId !== 'string') {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
       return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 }
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
       )
     }
 
+    const userId = session.user.id
+    const body = await request.json()
+    const { verificationType, documents } = body
+
+    // Validation
     if (!verificationType || !VERIFICATION_TYPES[verificationType as keyof typeof VERIFICATION_TYPES]) {
       return NextResponse.json(
         { success: false, error: 'Invalid verification type' },
@@ -88,36 +62,36 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for existing pending submission
-    for (const [, submission] of submissions) {
-      if (submission.userId === userId && 
-          submission.verificationType === verificationType &&
-          (submission.status === 'pending' || submission.status === 'reviewing')) {
-        return NextResponse.json(
-          { success: false, error: 'You already have a pending verification of this type' },
-          { status: 409 }
-        )
+    const existing = await prisma.verificationSubmission.findFirst({
+      where: {
+        userId,
+        type: verificationType,
+        status: { in: ['pending', 'reviewing'] }
       }
+    })
+
+    if (existing) {
+      return NextResponse.json(
+        { success: false, error: 'You already have a pending verification of this type' },
+        { status: 409 }
+      )
     }
 
     const verificationConfig = VERIFICATION_TYPES[verificationType as keyof typeof VERIFICATION_TYPES]
-    const submissionId = generateSubmissionId()
 
-    const submission: VerificationSubmission = {
-      id: submissionId,
-      userId,
-      verificationType,
-      status: 'pending',
-      documents,
-      submittedAt: new Date().toISOString(),
-      estimatedReviewTime: verificationConfig.estimatedTime
-    }
-
-    submissions.set(submissionId, submission)
+    const submission = await prisma.verificationSubmission.create({
+      data: {
+        userId,
+        type: verificationType,
+        status: 'pending',
+        data: body
+      }
+    })
 
     return NextResponse.json({
       success: true,
       data: {
-        submissionId,
+        submissionId: submission.id,
         status: 'pending',
         message: 'Verification submission received',
         estimatedReviewTime: verificationConfig.estimatedTime,
@@ -139,13 +113,23 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const userId = session.user.id
     const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId')
     const submissionId = searchParams.get('submissionId')
 
     // Get specific submission
     if (submissionId) {
-      const submission = submissions.get(submissionId)
+      const submission = await prisma.verificationSubmission.findFirst({
+        where: { id: submissionId, userId }
+      })
       if (!submission) {
         return NextResponse.json(
           { success: false, error: 'Submission not found' },
@@ -155,27 +139,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: submission })
     }
 
-    // Get all submissions for user
-    if (userId) {
-      const userSubmissions = Array.from(submissions.values())
-        .filter(s => s.userId === userId)
-        .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+    // Get all submissions for the authenticated user
+    const userSubmissions = await prisma.verificationSubmission.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }
+    })
 
-      return NextResponse.json({
-        success: true,
-        data: userSubmissions
-      })
-    }
-
-    // Return verification types if no filters
     return NextResponse.json({
       success: true,
-      data: {
-        types: Object.entries(VERIFICATION_TYPES).map(([key, value]) => ({
-          id: key,
-          ...value
-        }))
-      }
+      data: userSubmissions
     })
   } catch (error) {
     console.error('Verification GET error:', error)

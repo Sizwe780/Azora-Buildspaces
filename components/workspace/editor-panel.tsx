@@ -2461,7 +2461,9 @@ export function EditorPanel({
                           return { items: [] };
                         }
                       },
-                      freeInlineCompletions: () => { },
+                      disposeInlineCompletions: () => {
+                        // Cleanup if needed
+                      },
                     },
                   );
 

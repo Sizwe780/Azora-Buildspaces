@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/database/client'
 
 /**
  * AI Studio — Token Usage Tracking API (B7 / A4.5)
@@ -7,20 +7,6 @@ import { NextRequest, NextResponse } from 'next/server'
  * Tracks AI token usage across all providers and agents.
  * Returns usage data for the dashboard.
  */
-
-interface TokenUsageRecord {
-  id: string
-  timestamp: string
-  provider: string
-  model: string
-  agent: string
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-  estimatedCost: number
-  userId: string
-  sessionId: string
-}
 
 // Cost per 1K tokens (approximate, 2026 pricing)
 const TOKEN_COSTS: Record<string, { input: number; output: number }> = {
@@ -32,10 +18,6 @@ const TOKEN_COSTS: Record<string, { input: number; output: number }> = {
   'llama-3.1-8b-instant': { input: 0.0001, output: 0.0001 },
   'knowledge-ocean': { input: 0, output: 0 },
 }
-
-// In-memory usage tracking
-const usageRecords: TokenUsageRecord[] = []
-const MAX_RECORDS = 50_000
 
 function estimateCost(model: string, promptTokens: number, completionTokens: number): number {
   const costs = TOKEN_COSTS[model] || { input: 0.001, output: 0.002 }
@@ -52,31 +34,25 @@ export async function POST(req: NextRequest) {
       promptTokens = 0,
       completionTokens = 0,
       userId = 'anonymous',
-      sessionId = 'default',
     } = body
 
     if (!provider || !model) {
       return NextResponse.json({ error: 'provider and model are required' }, { status: 400 })
     }
 
-    const record: TokenUsageRecord = {
-      id: `usage_${randomUUID()}`,
-      timestamp: new Date().toISOString(),
-      provider,
-      model,
-      agent,
-      promptTokens,
-      completionTokens,
-      totalTokens: promptTokens + completionTokens,
-      estimatedCost: estimateCost(model, promptTokens, completionTokens),
-      userId,
-      sessionId,
-    }
+    const estimatedCost = estimateCost(model, promptTokens, completionTokens)
 
-    usageRecords.push(record)
-    if (usageRecords.length > MAX_RECORDS) {
-      usageRecords.splice(0, usageRecords.length - MAX_RECORDS)
-    }
+    const record = await prisma.aIUsageRecord.create({
+      data: {
+        userId,
+        model,
+        provider,
+        inputTokens: promptTokens,
+        outputTokens: completionTokens,
+        cost: estimatedCost,
+        room: agent,
+      },
+    })
 
     return NextResponse.json({ success: true, record })
   } catch (error) {
@@ -100,39 +76,46 @@ export async function GET(req: NextRequest) {
       '30d': 2_592_000_000,
     }
     const windowMs = periodMs[period] || periodMs['24h']
-    const cutoff = new Date(Date.now() - windowMs).toISOString()
+    const cutoff = new Date(Date.now() - windowMs)
 
-    // Filter records
-    let filtered = usageRecords.filter((r) => r.timestamp >= cutoff)
-    if (userId) {
-      filtered = filtered.filter((r) => r.userId === userId)
-    }
+    const filtered = await prisma.aIUsageRecord.findMany({
+      where: {
+        ...(userId ? { userId } : {}),
+        createdAt: { gte: cutoff },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    })
 
     // Aggregate stats
-    const totalTokens = filtered.reduce((sum, r) => sum + r.totalTokens, 0)
-    const totalCost = filtered.reduce((sum, r) => sum + r.estimatedCost, 0)
+    const totalTokens = filtered.reduce((sum, r) => sum + r.inputTokens + r.outputTokens, 0)
+    const totalCost = filtered.reduce((sum, r) => sum + Number(r.cost), 0)
 
     const byProvider: Record<string, { tokens: number; cost: number; requests: number }> = {}
     const byAgent: Record<string, { tokens: number; cost: number; requests: number }> = {}
     const byModel: Record<string, { tokens: number; cost: number; requests: number }> = {}
 
     for (const r of filtered) {
+      const tokens = r.inputTokens + r.outputTokens
+      const cost = Number(r.cost)
+
       // By provider
       if (!byProvider[r.provider]) byProvider[r.provider] = { tokens: 0, cost: 0, requests: 0 }
-      byProvider[r.provider].tokens += r.totalTokens
-      byProvider[r.provider].cost += r.estimatedCost
+      byProvider[r.provider].tokens += tokens
+      byProvider[r.provider].cost += cost
       byProvider[r.provider].requests++
 
-      // By agent
-      if (!byAgent[r.agent]) byAgent[r.agent] = { tokens: 0, cost: 0, requests: 0 }
-      byAgent[r.agent].tokens += r.totalTokens
-      byAgent[r.agent].cost += r.estimatedCost
-      byAgent[r.agent].requests++
+      // By agent (room field)
+      const agent = r.room || 'ELARA'
+      if (!byAgent[agent]) byAgent[agent] = { tokens: 0, cost: 0, requests: 0 }
+      byAgent[agent].tokens += tokens
+      byAgent[agent].cost += cost
+      byAgent[agent].requests++
 
       // By model
       if (!byModel[r.model]) byModel[r.model] = { tokens: 0, cost: 0, requests: 0 }
-      byModel[r.model].tokens += r.totalTokens
-      byModel[r.model].cost += r.estimatedCost
+      byModel[r.model].tokens += tokens
+      byModel[r.model].cost += cost
       byModel[r.model].requests++
     }
 
@@ -149,7 +132,7 @@ export async function GET(req: NextRequest) {
       byProvider,
       byAgent,
       byModel,
-      recentRecords: filtered.slice(-limit).reverse(),
+      recentRecords: filtered,
     })
   } catch (error) {
     console.error('[Token Usage] Error fetching usage:', error)

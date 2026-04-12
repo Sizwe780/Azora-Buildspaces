@@ -5,6 +5,7 @@ import {
   type UserAction,
 } from '@/lib/services/constitutional-ai'
 import { auditLogger } from '@/lib/services/centralized-audit-logger'
+import { prisma } from '@/lib/database/client'
 
 /**
  * Command Desk — Slash Command Router (A5.1)
@@ -44,17 +45,15 @@ interface CommandResult {
   }
 }
 
-// ── In-memory command history per session (A5.6) ──────────────────────
-const commandHistory = new Map<string, { command: string; timestamp: string }[]>()
-const MAX_HISTORY = 200
-
-function recordHistory(sessionId: string, command: string) {
-  if (!commandHistory.has(sessionId)) {
-    commandHistory.set(sessionId, [])
+// ── Prisma-backed command history per session (A5.6) ──────────────────
+async function recordHistory(sessionId: string, command: string) {
+  try {
+    await prisma.commandHistory.create({
+      data: { userId: sessionId, command },
+    })
+  } catch (err) {
+    console.warn('[Command Desk] Failed to record history:', err)
   }
-  const list = commandHistory.get(sessionId)!
-  list.push({ command, timestamp: new Date().toISOString() })
-  if (list.length > MAX_HISTORY) list.splice(0, list.length - MAX_HISTORY)
 }
 
 // ── Slash Command Registry ────────────────────────────────────────────
@@ -343,23 +342,27 @@ const commands: Record<string, SlashCommand> = {
     description: 'Search command history (A5.6)',
     handler: async (args, ctx) => {
       const query = args.trim().toLowerCase()
-      const history = commandHistory.get(ctx.sessionId) || []
+      const rows = await prisma.commandHistory.findMany({
+        where: { userId: ctx.sessionId },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      })
 
       if (!query) {
-        const recent = history.slice(-10)
+        const recent = rows.slice(0, 10)
         return {
           success: true,
           output: recent.length > 0
-            ? ['📜 Recent Commands:', ...recent.map((h) => `  ${h.timestamp} — ${h.command}`)].join('\n')
+            ? ['📜 Recent Commands:', ...recent.map((h) => `  ${h.createdAt.toISOString()} — ${h.command}`)].join('\n')
             : 'No command history yet.',
         }
       }
 
-      const matches = history.filter((h) => h.command.toLowerCase().includes(query))
+      const matches = rows.filter((h) => h.command.toLowerCase().includes(query))
       return {
         success: true,
         output: matches.length > 0
-          ? [`🔍 Commands matching "${query}":`, ...matches.map((h) => `  ${h.timestamp} — ${h.command}`)].join('\n')
+          ? [`🔍 Commands matching "${query}":`, ...matches.map((h) => `  ${h.createdAt.toISOString()} — ${h.command}`)].join('\n')
           : `No commands matching "${query}".`,
       }
     },
@@ -408,7 +411,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Record in history (A5.6)
-    recordHistory(ctx.sessionId, trimmed)
+    await recordHistory(ctx.sessionId, trimmed)
 
     const result = await handler.handler(args, ctx)
 

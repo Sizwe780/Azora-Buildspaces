@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
 import {
   executeNotebookCode,
   getNotebookKernelSnapshot,
@@ -8,14 +10,25 @@ import {
 } from '@/lib/notebook/kernel-runtime'
 
 export async function GET(req: NextRequest) {
-  const kernelId = req.nextUrl.searchParams.get('kernelId') || 'default'
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Auth required' }, { status: 401 })
+  }
+
+  const kernelId = `kernel-${(session.user as any).id}`
 
   return NextResponse.json(getNotebookKernelSnapshot(kernelId))
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Auth required' }, { status: 401 })
+  }
+
   try {
-    const { action, kernelId = 'default', code, variableName } = await req.json()
+    const { action, code, variableName } = await req.json()
+    const kernelId = `kernel-${(session.user as any).id}`
 
     if (action === 'restart') {
       const snapshot = restartNotebookKernel(kernelId)

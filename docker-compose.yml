@@ -19,5 +19,51 @@ services:
       timeout: 5s
       retries: 5
 
+  lsp-broker:
+    build:
+      context: .
+      dockerfile: services/lsp-broker/Dockerfile
+    container_name: buildspaces-lsp-broker
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      LSP_PORT: 3001
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  dap-broker:
+    build:
+      context: .
+      dockerfile: services/dap-broker/Dockerfile
+    container_name: buildspaces-dap-broker
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      DAP_PORT: 3002
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3002/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  piston:
+    image: ghcr.io/engineer-man/piston
+    container_name: buildspaces-piston
+    restart: unless-stopped
+    ports:
+      - "2000:2000"
+    environment:
+      - PISTON_LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:2000/api/v2/runtimes || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   postgres_data:

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/config"
+import { prisma } from "@/lib/database/client"
 
 /**
  * Marketplace — Publish Template API
  * POST /api/marketplace/publish
- * 
+ *
  * Publishes a new template to the marketplace.
  */
 
@@ -19,9 +20,6 @@ interface PublishRequest {
   screenshots?: string[]
   repoUrl?: string
 }
-
-// In-memory store for published templates (replace with DB in production)
-const publishedTemplates = new Map<string, any>()
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,40 +45,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Description must be 10-500 characters' }, { status: 400 })
     }
 
-    // Generate template ID
-    const id = `tpl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+    const userId = (session.user as any).id as string
 
-    const template = {
-      id,
-      name: name.trim(),
-      description: description.trim(),
-      category: category || 'templates',
-      tags: Array.isArray(tags) ? tags.filter(t => t.trim()) : [],
-      price: price || 'Free',
-      readme: readme || '',
-      screenshots: screenshots || [],
-      repoUrl: repoUrl || null,
-      author: session.user.name || session.user.email || 'Anonymous',
-      authorId: (session.user as any).id || 'unknown',
-      version: '1.0.0',
-      downloads: 0,
-      rating: 0,
-      reviews: [],
-      verified: false,
-      featured: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      icon: getCategoryIcon(category),
-      color: getCategoryColor(category)
-    }
-
-    // Store template
-    publishedTemplates.set(id, template)
+    const template = await prisma.marketplaceTemplate.create({
+      data: {
+        publisherId: userId,
+        name: name.trim(),
+        description: description.trim(),
+        category: category || 'templates',
+        tags: Array.isArray(tags) ? tags.filter((t: string) => t.trim()) : [],
+        files: {
+          readme: readme || '',
+          screenshots: screenshots || [],
+          repoUrl: repoUrl || null,
+        },
+        price: parseFloat(price) || 0,
+        status: 'published',
+      },
+    })
 
     return NextResponse.json({
       success: true,
-      template,
-      message: `Template "${name}" published successfully!`
+      template: {
+        ...template,
+        author: session.user.name || session.user.email || 'Anonymous',
+        icon: getCategoryIcon(category),
+        color: getCategoryColor(category),
+      },
+      message: `Template "${name}" published successfully!`,
     })
   } catch (error: any) {
     console.error('Publish error:', error)
@@ -89,18 +81,19 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  // Return list of user's published templates
   const session = await getServerSession(authOptions)
   if (!session?.user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
 
-  const userId = (session.user as any).id || 'unknown'
-  const userTemplates = Array.from(publishedTemplates.values())
-    .filter(t => t.authorId === userId)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  const userId = (session.user as any).id as string
 
-  return NextResponse.json({ templates: userTemplates })
+  const templates = await prisma.marketplaceTemplate.findMany({
+    where: { publisherId: userId },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  return NextResponse.json({ templates })
 }
 
 function getCategoryIcon(category: string): string {

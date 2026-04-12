@@ -7,6 +7,16 @@
  * - No Mock Protocol: Production-ready configuration
  */
 
+// Validate required environment variables in production
+if (process.env.NODE_ENV === 'production') {
+  const requiredEnvVars = ['DATABASE_URL', 'NEXTAUTH_SECRET', 'NEXTAUTH_URL']
+  for (const v of requiredEnvVars) {
+    if (!process.env[v]) {
+      throw new Error(`Missing required environment variable: ${v}`)
+    }
+  }
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Security Headers
@@ -24,7 +34,7 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://vercel.live https://va.vercel-scripts.com",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "font-src 'self' data:",

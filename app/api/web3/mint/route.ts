@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
+import { prisma } from '@/lib/database/client'
 
 /**
  * Web3 — NFT Minting API
  * POST /api/web3/mint
  *
  * Handles collectible card minting with proper transaction structure,
- * wallet validation, chain selection, and receipt tracking.
+ * wallet validation, chain selection, and DB-backed receipt tracking.
  *
  * Industry parity: OpenSea minting, Zora Mint, thirdweb SDK
  */
@@ -19,9 +20,6 @@ const SUPPORTED_CHAINS: Record<string, { name: string; chainId: number; explorer
   base: { name: 'Base', chainId: 8453, explorer: 'https://basescan.org' },
   sepolia: { name: 'Sepolia Testnet', chainId: 11155111, explorer: 'https://sepolia.etherscan.io' },
 }
-
-// In-memory mint receipts
-const mintReceipts = new Map<string, any>()
 
 export async function POST(request: NextRequest) {
   try {
@@ -93,10 +91,19 @@ export async function POST(request: NextRequest) {
         bridgeResponse = await response.json()
       }
     } catch {
-      // Bridge unavailable — still record the receipt for later relay
+      // Bridge unavailable — still persist the receipt for later relay
     }
 
-    // Store mint receipt
+    // Persist mint receipt to DB: mark collectible as minted with tx hash
+    await prisma.collectible.update({
+      where: { id: cardId },
+      data: {
+        minted: true,
+        transaction: txHash,
+        ownerId: userId,
+      },
+    })
+
     const receipt = {
       id: `mint_${Date.now()}`,
       txHash,
@@ -110,8 +117,6 @@ export async function POST(request: NextRequest) {
       mintedAt: new Date().toISOString(),
       bridgeResponse,
     }
-
-    mintReceipts.set(receipt.id, receipt)
 
     return NextResponse.json({
       success: true,
@@ -130,14 +135,34 @@ export async function GET(request: NextRequest) {
 
   const userId = (session.user as any).id
 
-  // Return user's mint receipts
-  const userReceipts = Array.from(mintReceipts.values())
-    .filter((r) => r.userId === userId)
-    .sort((a, b) => new Date(b.mintedAt).getTime() - new Date(a.mintedAt).getTime())
+  // Return user's minted collectibles from DB
+  const minted = await prisma.collectible.findMany({
+    where: { ownerId: userId, minted: true },
+    orderBy: { updatedAt: 'desc' },
+    select: {
+      id: true,
+      name: true,
+      tier: true,
+      transaction: true,
+      minted: true,
+      updatedAt: true,
+    },
+  })
+
+  const receipts = minted.map((c) => ({
+    id: `mint_${c.id}`,
+    cardId: c.id,
+    cardName: c.name,
+    tier: c.tier,
+    txHash: c.transaction,
+    userId,
+    status: c.transaction ? 'confirmed' : 'pending',
+    mintedAt: c.updatedAt.toISOString(),
+  }))
 
   return NextResponse.json({
-    receipts: userReceipts,
-    count: userReceipts.length,
+    receipts,
+    count: receipts.length,
     supportedChains: Object.entries(SUPPORTED_CHAINS).map(([id, info]) => ({
       id,
       ...info,

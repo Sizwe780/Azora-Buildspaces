@@ -1,0 +1,152 @@
+openapi: 3.0.0
+info:
+  title: Azora Buildspaces API
+  description: API reference for Azora Buildspaces, providing endpoints for workspace coordination, AI orchestration, Code Chamber features, and knowledge integration.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api
+    description: Local Development Server
+tags:
+  - name: Core
+    description: Application infrastructure endpoints
+  - name: Workspace
+    description: Workspace management and FS operations
+  - name: AI
+    description: AI agents, chat, and MCP integration
+  - name: Rooms
+    description: Feature-specific endpoints for rooms
+
+paths:
+  /health:
+    get:
+      summary: Health check and status
+      tags:
+        - Core
+      responses:
+        '200':
+          description: Standard health check response indicating system status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  uptime:
+                    type: number
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /mcp:
+    post:
+      summary: Model Context Protocol (MCP) server
+      tags:
+        - AI
+      requestBody:
+        description: Standard MCP execution request
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Successful execution of MCP action.
+
+  /fs/tree:
+    get:
+      summary: Retrieve the file system tree for a workspace
+      tags:
+        - Workspace
+      parameters:
+        - name: workspaceId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The UUID of the workspace
+      responses:
+        '200':
+          description: A serialized tree structure of the workspace
+        '401':
+          description: Unauthorized access
+
+  /fs/file:
+    get:
+      summary: Read a file from the workspace
+      tags:
+        - Workspace
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: workspaceId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File contents returned
+
+    post:
+      summary: Write contents to a file in the workspace
+      tags:
+        - Workspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+                content:
+                  type: string
+                workspaceId:
+                  type: string
+      responses:
+        '200':
+          description: File successfully updated
+
+  /knowledge/search:
+    post:
+      summary: Semantic search across project knowledge
+      tags:
+        - AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+      responses:
+        '200':
+          description: Matching snippets and relevance scores
+
+  /auth/session:
+    get:
+      summary: Retrieve standard NextAuth session
+      tags:
+        - Core
+      responses:
+        '200':
+          description: Session objects or null
+
+components:
+  securitySchemes:
+    nextAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - nextAuth: []

@@ -82,6 +82,23 @@ class LanguageServerService {
     return server
   }
 
+  private async callBroker(languageId: string, method: string, params: any): Promise<any> {
+    const brokerUrl = process.env.LSP_BACKEND_URL
+    if (!brokerUrl) return null
+
+    try {
+      const res = await fetch(`${brokerUrl}/lsp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: languageId, method, params }),
+      })
+      if (!res.ok) return null
+      return res.json()
+    } catch {
+      return null
+    }
+  }
+
   /**
    * Get the LSP command for a language
    */
@@ -181,13 +198,12 @@ class LanguageServerService {
     column: number,
     context?: string
   ): Promise<LSPCompletionItem[]> {
-    void file
-    void line
-    void column
     void context
-    this.ensureBackendEnabled()
-    this.ensureRunningServer(languageId)
-    throw new Error('LSP completion request requires broker integration implementation')
+    const result = await this.callBroker(languageId, 'textDocument/completion', {
+      textDocument: { uri: `file://${file}` },
+      position: { line, character: column },
+    })
+    return result?.result?.items ?? result?.result ?? []
   }
 
   /**
@@ -199,12 +215,13 @@ class LanguageServerService {
     line: number,
     column: number
   ): Promise<{ contents: string } | null> {
-    void file
-    void line
-    void column
-    this.ensureBackendEnabled()
-    this.ensureRunningServer(languageId)
-    throw new Error('LSP hover request requires broker integration implementation')
+    const result = await this.callBroker(languageId, 'textDocument/hover', {
+      textDocument: { uri: `file://${file}` },
+      position: { line, character: column },
+    })
+    if (!result?.result) return null
+    const contents = result.result.contents
+    return { contents: typeof contents === 'string' ? contents : contents?.value ?? JSON.stringify(contents) }
   }
 
   /**
@@ -216,12 +233,19 @@ class LanguageServerService {
     line: number,
     column: number
   ): Promise<{ file: string; line: number; column: number } | null> {
-    void file
-    void line
-    void column
-    this.ensureBackendEnabled()
-    this.ensureRunningServer(languageId)
-    throw new Error('LSP definition request requires broker integration implementation')
+    const result = await this.callBroker(languageId, 'textDocument/definition', {
+      textDocument: { uri: `file://${file}` },
+      position: { line, character: column },
+    })
+    const loc = result?.result
+    if (!loc) return null
+    const target = Array.isArray(loc) ? loc[0] : loc
+    if (!target) return null
+    return {
+      file: target.uri?.replace('file://', '') ?? file,
+      line: target.range?.start?.line ?? 0,
+      column: target.range?.start?.character ?? 0,
+    }
   }
 
   /**
@@ -232,11 +256,22 @@ class LanguageServerService {
     file: string,
     content: string
   ): Promise<LSPDiagnostic[]> {
-    void file
     void content
-    this.ensureBackendEnabled()
-    this.ensureRunningServer(languageId)
-    throw new Error('LSP diagnostics request requires broker integration implementation')
+    const result = await this.callBroker(languageId, 'textDocument/diagnostic', {
+      textDocument: { uri: `file://${file}` },
+    })
+    const items: any[] = result?.result?.items ?? []
+    return items.map((d: any) => ({
+      file,
+      line: d.range?.start?.line ?? 0,
+      column: d.range?.start?.character ?? 0,
+      endLine: d.range?.end?.line,
+      endColumn: d.range?.end?.character,
+      severity: (['error', 'warning', 'info', 'hint'][((d.severity ?? 1) - 1)] ?? 'error') as LSPDiagnostic['severity'],
+      message: d.message ?? '',
+      source: d.source ?? languageId,
+      code: d.code,
+    }))
   }
 
   /**
@@ -250,10 +285,11 @@ class LanguageServerService {
     const language = getLanguageById(languageId)
     if (!language?.formatter) return null
     void content
-    void options
-    this.ensureBackendEnabled()
-    this.ensureRunningServer(languageId)
-    throw new Error('Document formatting requires formatter backend integration')
+    const result = await this.callBroker(languageId, 'textDocument/formatting', {
+      textDocument: { uri: `file:///untitled` },
+      options: { tabSize: options?.tabSize ?? 2, insertSpaces: options?.insertSpaces ?? true },
+    })
+    return result?.result ?? null
   }
 
   /**

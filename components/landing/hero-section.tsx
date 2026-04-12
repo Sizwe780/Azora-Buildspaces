@@ -71,7 +71,7 @@ export function HeroSection() {
             transition={{ delay: 0.4 }}
             className="flex flex-wrap items-center justify-center gap-4"
           >
-            <Link href="/code-chamber">
+            <Link href="/workspace">
               <Button
                 size="lg"
                 className="bg-primary text-primary-foreground hover:bg-primary/90 glow-primary h-12 px-8 text-base"

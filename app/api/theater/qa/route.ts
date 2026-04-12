@@ -7,44 +7,42 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-
-interface QAEntry {
-  id: string
-  question: string
-  answer: string
-  askedBy: string
-  slideContext?: string
-  timestamp: string
-  upvotes: number
-}
-
-// In-memory store per session (production: use database)
-const qaStore = new Map<string, QAEntry[]>()
-
-function getSessionQA(sessionId: string): QAEntry[] {
-  if (!qaStore.has(sessionId)) {
-    qaStore.set(sessionId, [])
-  }
-  return qaStore.get(sessionId)!
-}
+import { prisma } from '@/lib/database/client'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const sessionId = searchParams.get('sessionId') || searchParams.get('session') || 'default'
   const since = searchParams.get('since')
 
-  let entries = getSessionQA(sessionId)
+  try {
+    const where: any = { sessionId }
+    if (since) {
+      where.createdAt = { gt: new Date(since) }
+    }
 
-  if (since) {
-    const sinceDate = new Date(since)
-    entries = entries.filter(e => new Date(e.timestamp) > sinceDate)
+    const entries = await prisma.theaterQAEntry.findMany({
+      where,
+      orderBy: { createdAt: 'asc' },
+    })
+
+    const total = await prisma.theaterQAEntry.count({ where: { sessionId } })
+
+    return NextResponse.json({
+      questions: entries.map((e) => ({
+        id: e.id,
+        question: e.question,
+        answer: null,
+        askedBy: e.displayName,
+        timestamp: e.createdAt.toISOString(),
+        upvotes: e.upvotes,
+        answered: e.answered,
+      })),
+      total,
+      sessionId,
+    })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({
-    questions: entries,
-    total: getSessionQA(sessionId).length,
-    sessionId,
-  })
 }
 
 export async function POST(request: NextRequest) {
@@ -53,39 +51,64 @@ export async function POST(request: NextRequest) {
     const { action, sessionId = 'default', ...data } = body
 
     if (action === 'save') {
-      const entry: QAEntry = {
-        id: data.id || `qa-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        question: data.question,
-        answer: data.answer,
-        askedBy: data.askedBy || 'Anonymous',
-        slideContext: data.slideContext,
-        timestamp: data.timestamp || new Date().toISOString(),
-        upvotes: 0,
+      // If an ID is provided, check for existing entry to avoid duplicates
+      if (data.id) {
+        const existing = await prisma.theaterQAEntry.findUnique({ where: { id: data.id } })
+        if (existing) {
+          return NextResponse.json({
+            success: true,
+            entry: {
+              id: existing.id,
+              question: existing.question,
+              answer: null,
+              askedBy: existing.displayName,
+              timestamp: existing.createdAt.toISOString(),
+              upvotes: existing.upvotes,
+              answered: existing.answered,
+            },
+          })
+        }
       }
 
-      const store = getSessionQA(sessionId)
-      // Avoid duplicates by ID
-      if (!store.find(e => e.id === entry.id)) {
-        store.push(entry)
-        // Cap at 200 entries per session
-        if (store.length > 200) store.shift()
-      }
+      const entry = await prisma.theaterQAEntry.create({
+        data: {
+          id: data.id || undefined,
+          sessionId,
+          displayName: data.askedBy || 'Anonymous',
+          question: data.question,
+          upvotes: 0,
+          answered: false,
+        },
+      })
 
-      return NextResponse.json({ success: true, entry })
+      return NextResponse.json({
+        success: true,
+        entry: {
+          id: entry.id,
+          question: entry.question,
+          answer: null,
+          askedBy: entry.displayName,
+          timestamp: entry.createdAt.toISOString(),
+          upvotes: entry.upvotes,
+          answered: entry.answered,
+        },
+      })
     }
 
     if (action === 'upvote') {
-      const store = getSessionQA(sessionId)
-      const entry = store.find(e => e.id === data.id)
-      if (entry) {
-        entry.upvotes += 1
-        return NextResponse.json({ success: true, upvotes: entry.upvotes })
+      const entry = await prisma.theaterQAEntry.findUnique({ where: { id: data.id } })
+      if (!entry) {
+        return NextResponse.json({ error: 'Question not found' }, { status: 404 })
       }
-      return NextResponse.json({ error: 'Question not found' }, { status: 404 })
+      const updated = await prisma.theaterQAEntry.update({
+        where: { id: data.id },
+        data: { upvotes: { increment: 1 } },
+      })
+      return NextResponse.json({ success: true, upvotes: updated.upvotes })
     }
 
     if (action === 'clear') {
-      qaStore.set(sessionId, [])
+      await prisma.theaterQAEntry.deleteMany({ where: { sessionId } })
       return NextResponse.json({ success: true })
     }
 

@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
+import { getRedisClient } from '@/lib/redis-client'
 
 /**
  * Deep Focus — Pomodoro Timer API (Forest/Centered parity)
@@ -9,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
  * and custom durations.
  *
  * Industry parity: Forest, Centered, Toggl Timer
+ * State stored in Redis with in-memory fallback.
  */
 
 interface TimerState {
@@ -32,12 +36,46 @@ const PRESETS: Record<string, { focus: number; break: number }> = {
   sprint: { focus: 15, break: 5 },
 }
 
-// In-memory timer store (keyed by userId)
+// In-memory fallback (keyed by userId)
 const activeTimers = new Map<string, TimerState>()
 
+const TIMER_TTL = 60 * 60 * 4 // 4 hours
+
+async function getTimer(userId: string): Promise<TimerState | null> {
+  const redis = await getRedisClient()
+  if (redis) {
+    const raw = await redis.get(`deep-focus:timer:${userId}`)
+    return raw ? (JSON.parse(raw) as TimerState) : null
+  }
+  return activeTimers.get(userId) ?? null
+}
+
+async function saveTimer(userId: string, timer: TimerState): Promise<void> {
+  const redis = await getRedisClient()
+  if (redis) {
+    await redis.set(`deep-focus:timer:${userId}`, JSON.stringify(timer), 'EX', TIMER_TTL)
+  } else {
+    activeTimers.set(userId, timer)
+  }
+}
+
+async function deleteTimer(userId: string): Promise<void> {
+  const redis = await getRedisClient()
+  if (redis) {
+    await redis.del(`deep-focus:timer:${userId}`)
+  } else {
+    activeTimers.delete(userId)
+  }
+}
+
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get('userId') || 'default'
-  const timer = activeTimers.get(userId)
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+  const userId = (session.user as any).id as string
+
+  const timer = await getTimer(userId)
 
   if (!timer) {
     return NextResponse.json({ active: false, timer: null })
@@ -58,8 +96,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+  const userId = (session.user as any).id as string
+
   try {
-    const { action, userId = 'default', mode, focusMinutes, breakMinutes } = await req.json()
+    const { action, mode, focusMinutes, breakMinutes } = await req.json()
 
     if (action === 'start') {
       const preset = PRESETS[mode || 'pomodoro'] || PRESETS.pomodoro
@@ -75,11 +119,11 @@ export async function POST(req: NextRequest) {
         sessionsCompleted: 0,
         distractions: 0,
       }
-      activeTimers.set(userId, timer)
+      await saveTimer(userId, timer)
       return NextResponse.json({ success: true, timer })
     }
 
-    const timer = activeTimers.get(userId)
+    const timer = await getTimer(userId)
     if (!timer) {
       return NextResponse.json({ error: 'No active timer' }, { status: 404 })
     }
@@ -87,12 +131,14 @@ export async function POST(req: NextRequest) {
     if (action === 'pause') {
       timer.status = 'paused'
       timer.pausedAt = new Date().toISOString()
+      await saveTimer(userId, timer)
       return NextResponse.json({ success: true, timer })
     }
 
     if (action === 'resume') {
       timer.status = 'running'
       timer.pausedAt = undefined
+      await saveTimer(userId, timer)
       return NextResponse.json({ success: true, timer })
     }
 
@@ -100,17 +146,18 @@ export async function POST(req: NextRequest) {
       timer.status = 'completed'
       timer.completedAt = new Date().toISOString()
       timer.sessionsCompleted += 1
+      await saveTimer(userId, timer)
       return NextResponse.json({ success: true, timer })
     }
 
     if (action === 'cancel') {
-      timer.status = 'cancelled'
-      activeTimers.delete(userId)
+      await deleteTimer(userId)
       return NextResponse.json({ success: true, message: 'Timer cancelled' })
     }
 
     if (action === 'distraction') {
       timer.distractions += 1
+      await saveTimer(userId, timer)
       return NextResponse.json({ success: true, distractions: timer.distractions })
     }
 

@@ -28,7 +28,7 @@ export function verifyPassword(password: string, storedPassword: string): boolea
       return false
     }
     
-    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex')
+    const hash = crypto.pbkdf2Sync(password, salt, 310000, 64, 'sha512').toString('hex')
     return hash === storedHash
   } catch (e) {
     console.error('[AUTH] Password verification error:', e)
@@ -47,7 +47,7 @@ export function verifyPassword(password: string, storedPassword: string): boolea
  */
 export function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString('hex')
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex')
+  const hash = crypto.pbkdf2Sync(password, salt, 310000, 64, 'sha512').toString('hex')
   return `${salt}:${hash}`
 }
 

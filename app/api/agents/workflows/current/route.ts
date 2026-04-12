@@ -2,13 +2,15 @@
  * AI Studio — Current Workflow Route
  *
  * Returns the active workflow definition that the UI should display/edit.
- * Delegates to the parent workflows store so there is a single source of truth.
+ * Persists to Redis (per-user, 24hr TTL) with in-memory fallback.
  */
 
 import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth/config"
+import { getRedisClient } from "@/lib/redis-client"
 
-// Shared in-memory store (mirrors the parent workflows route's state until a DB is wired)
-let currentWorkflow = {
+const DEFAULT_WORKFLOW = {
   id: "workflow-current",
   name: "Agent Workflow",
   nodes: [
@@ -38,21 +40,59 @@ let currentWorkflow = {
     { id: "e1-2", source: "node-1", target: "node-2" },
     { id: "e2-3", source: "node-2", target: "node-3" },
   ],
-  updatedAt: new Date().toISOString(),
 }
 
+// In-memory fallback when Redis is unavailable
+const inMemoryStore: Record<string, object> = {}
+
 export async function GET() {
-  return NextResponse.json({ workflow: currentWorkflow })
+  const session = await getServerSession(authOptions)
+  const userId = (session?.user as any)?.id || "anonymous"
+  const key = `agents:workflow:current:${userId}`
+
+  const redis = await getRedisClient()
+  if (redis) {
+    try {
+      const raw = await redis.get(key)
+      if (raw) {
+        return NextResponse.json({ workflow: JSON.parse(raw) })
+      }
+    } catch (err) {
+      console.warn("[agents/workflows/current] Redis GET failed:", err)
+    }
+  }
+
+  // Fall back to in-memory, then default
+  const workflow = inMemoryStore[key] ?? { ...DEFAULT_WORKFLOW, updatedAt: new Date().toISOString() }
+  return NextResponse.json({ workflow })
 }
 
 export async function PUT(req: Request) {
   try {
+    const session = await getServerSession(authOptions)
+    const userId = (session?.user as any)?.id || "anonymous"
+    const key = `agents:workflow:current:${userId}`
+
     const body = await req.json()
-    if (body.name) currentWorkflow.name = body.name
-    if (Array.isArray(body.nodes)) currentWorkflow.nodes = body.nodes
-    if (Array.isArray(body.edges)) currentWorkflow.edges = body.edges
-    currentWorkflow.updatedAt = new Date().toISOString()
-    return NextResponse.json({ success: true, workflow: currentWorkflow })
+    const workflow = {
+      ...DEFAULT_WORKFLOW,
+      ...body,
+      updatedAt: new Date().toISOString(),
+    }
+
+    const redis = await getRedisClient()
+    if (redis) {
+      try {
+        await redis.set(key, JSON.stringify(workflow), "EX", 86400)
+      } catch (err) {
+        console.warn("[agents/workflows/current] Redis SET failed, using in-memory:", err)
+        inMemoryStore[key] = workflow
+      }
+    } else {
+      inMemoryStore[key] = workflow
+    }
+
+    return NextResponse.json({ success: true, workflow })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to update workflow" }, { status: 500 })
   }

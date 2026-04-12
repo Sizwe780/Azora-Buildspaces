@@ -1,4 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { z } from 'zod'
+import { authOptions } from '@/lib/auth/config'
+import { prisma } from '@/lib/database/client'
+
+const createCellSchema = z.object({
+  type: z.enum(['code', 'markdown', 'output', 'raw']).optional(),
+  content: z.string().max(100_000),
+  output: z.string().optional(),
+  order: z.number().int().optional(),
+})
 
 /**
  * Notebook — Cell Management (Jupyter parity)
@@ -6,70 +17,80 @@ import { NextRequest, NextResponse } from 'next/server'
  *
  * Manages notebook cells: create, reorder, update, delete.
  * Supports code cells, markdown cells, and output cells.
+ * All operations are scoped to the authenticated user.
  *
  * Industry parity: Jupyter Notebook, Google Colab, Observable
  */
 
-interface NotebookCell {
-  id: string
-  type: 'code' | 'markdown' | 'output' | 'raw'
-  source: string
-  language: string
-  outputs: CellOutput[]
-  metadata: {
-    collapsed: boolean
-    scrolled: boolean
-    executionCount?: number
-    executionTime?: number
+async function getOrCreateNotebook(userId: string) {
+  let notebook = await prisma.notebook.findFirst({ where: { userId } })
+  if (!notebook) {
+    notebook = await prisma.notebook.create({
+      data: { userId, title: 'My Notebook' },
+    })
   }
-  position: number
+  return notebook
 }
-
-interface CellOutput {
-  type: 'text' | 'html' | 'image' | 'error' | 'stream'
-  content: string
-  mimeType?: string
-}
-
-// In-memory notebook store (notebookId → cells)
-const notebooks = new Map<string, NotebookCell[]>()
 
 export async function GET(req: NextRequest) {
-  const notebookId = req.nextUrl.searchParams.get('notebookId') || 'default'
-  const cells = notebooks.get(notebookId) || []
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
 
-  return NextResponse.json({
-    notebookId,
-    cells: cells.sort((a, b) => a.position - b.position),
-    cellCount: cells.length,
-    metadata: {
-      language: 'typescript',
-      kernelStatus: 'idle',
-    },
-  })
+  try {
+    const notebook = await getOrCreateNotebook(session.user.id)
+    const cells = await prisma.notebookCell.findMany({
+      where: { notebookId: notebook.id },
+      orderBy: { order: 'asc' },
+    })
+
+    return NextResponse.json({
+      notebookId: notebook.id,
+      cells,
+      cellCount: cells.length,
+      metadata: {
+        language: 'typescript',
+        kernelStatus: 'idle',
+      },
+    })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   try {
-    const { notebookId = 'default', type, source, language, position } = await req.json()
+    const body = await req.json()
+    const result = createCellSchema.safeParse(body)
+    if (!result.success) {
+      return NextResponse.json({ error: 'Validation failed', details: result.error.flatten().fieldErrors }, { status: 400 })
+    }
+    const { type, content, output, order } = result.data
 
-    const cells = notebooks.get(notebookId) || []
+    const notebook = await getOrCreateNotebook(session.user.id)
 
-    const cell: NotebookCell = {
-      id: `cell_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      type: type || 'code',
-      source: source || '',
-      language: language || 'typescript',
-      outputs: [],
-      metadata: {
-        collapsed: false,
-        scrolled: false,
-      },
-      position: position ?? cells.length,
+    // Determine order: append at end if not specified
+    let cellOrder = order
+    if (cellOrder === undefined || cellOrder === null) {
+      const count = await prisma.notebookCell.count({ where: { notebookId: notebook.id } })
+      cellOrder = count
     }
 
-    cells.push(cell)
-    notebooks.set(notebookId, cells)
+    const cell = await prisma.notebookCell.create({
+      data: {
+        notebookId: notebook.id,
+        type: type || 'code',
+        content: content || '',
+        output: output || null,
+        order: cellOrder,
+      },
+    })
 
     return NextResponse.json({ success: true, cell })
   } catch (error: any) {
@@ -78,53 +99,87 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   try {
-    const { notebookId = 'default', cellId, source, type, language, outputs, metadata, position } = await req.json()
+    const { cellId, content, type, output, order } = await req.json()
 
     if (!cellId) {
       return NextResponse.json({ error: 'cellId is required' }, { status: 400 })
     }
 
-    const cells = notebooks.get(notebookId) || []
-    const cell = cells.find((c) => c.id === cellId)
+    // Verify the cell belongs to the authenticated user's notebook
+    const notebook = await prisma.notebook.findFirst({ where: { userId: session.user.id } })
+    if (!notebook) {
+      return NextResponse.json({ error: 'Notebook not found' }, { status: 404 })
+    }
 
-    if (!cell) {
+    const existing = await prisma.notebookCell.findFirst({
+      where: { id: cellId, notebookId: notebook.id },
+    })
+    if (!existing) {
       return NextResponse.json({ error: 'Cell not found' }, { status: 404 })
     }
 
-    if (source !== undefined) cell.source = source
-    if (type !== undefined) cell.type = type
-    if (language !== undefined) cell.language = language
-    if (outputs !== undefined) cell.outputs = outputs
-    if (metadata) Object.assign(cell.metadata, metadata)
-    if (position !== undefined) cell.position = position
+    const updated = await prisma.notebookCell.update({
+      where: { id: cellId },
+      data: {
+        ...(content !== undefined && { content }),
+        ...(type !== undefined && { type }),
+        ...(output !== undefined && { output }),
+        ...(order !== undefined && { order }),
+      },
+    })
 
-    return NextResponse.json({ success: true, cell })
+    return NextResponse.json({ success: true, cell: updated })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
 export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   try {
-    const { notebookId = 'default', cellId } = await req.json()
+    const { cellId } = await req.json()
 
     if (!cellId) {
       return NextResponse.json({ error: 'cellId is required' }, { status: 400 })
     }
 
-    const cells = notebooks.get(notebookId) || []
-    const idx = cells.findIndex((c) => c.id === cellId)
+    // Verify the cell belongs to the authenticated user's notebook
+    const notebook = await prisma.notebook.findFirst({ where: { userId: session.user.id } })
+    if (!notebook) {
+      return NextResponse.json({ error: 'Notebook not found' }, { status: 404 })
+    }
 
-    if (idx === -1) {
+    const existing = await prisma.notebookCell.findFirst({
+      where: { id: cellId, notebookId: notebook.id },
+    })
+    if (!existing) {
       return NextResponse.json({ error: 'Cell not found' }, { status: 404 })
     }
 
-    cells.splice(idx, 1)
-    // Reindex positions
-    cells.forEach((c, i) => { c.position = i })
+    await prisma.notebookCell.delete({ where: { id: cellId } })
 
-    return NextResponse.json({ success: true, remainingCells: cells.length })
+    // Reindex remaining cells by order
+    const remaining = await prisma.notebookCell.findMany({
+      where: { notebookId: notebook.id },
+      orderBy: { order: 'asc' },
+    })
+    await Promise.all(
+      remaining.map((cell, idx) =>
+        prisma.notebookCell.update({ where: { id: cell.id }, data: { order: idx } })
+      )
+    )
+
+    return NextResponse.json({ success: true, remainingCells: remaining.length })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

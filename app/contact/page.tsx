@@ -7,6 +7,42 @@ import { useState } from "react"
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setLoading(true)
+    setError("")
+
+    const formData = new FormData(e.currentTarget)
+    const data = {
+      name: formData.get("name"),
+      email: formData.get("email"),
+      subject: formData.get("subject"),
+      message: formData.get("message")
+    }
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        setSubmitted(true)
+      } else {
+        setError(result.error || "Failed to send message")
+      }
+    } catch (err) {
+      setError("An unexpected error occurred")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#0d1117] text-white">
@@ -60,18 +96,23 @@ export default function ContactPage() {
                     <p className="text-gray-400">We&apos;ll get back to you within 24 hours.</p>
                   </div>
                 ) : (
-                  <form onSubmit={(e) => { e.preventDefault(); setSubmitted(true) }} className="space-y-5">
+                  <form onSubmit={handleSubmit} className="space-y-5">
+                    {error && (
+                      <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                        {error}
+                      </div>
+                    )}
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-1.5">Name</label>
-                      <input type="text" required className="w-full px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-white placeholder-gray-600 focus:border-blue-500/40 focus:outline-none transition-colors" placeholder="Your name" />
+                      <input type="text" name="name" required className="w-full px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-white placeholder-gray-600 focus:border-blue-500/40 focus:outline-none transition-colors" placeholder="Your name" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
-                      <input type="email" required className="w-full px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-white placeholder-gray-600 focus:border-blue-500/40 focus:outline-none transition-colors" placeholder="you@company.com" />
+                      <input type="email" name="email" required className="w-full px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-white placeholder-gray-600 focus:border-blue-500/40 focus:outline-none transition-colors" placeholder="you@company.com" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-1.5">Subject</label>
-                      <select className="w-full px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-white focus:border-blue-500/40 focus:outline-none transition-colors">
+                      <select name="subject" className="w-full px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-white focus:border-blue-500/40 focus:outline-none transition-colors">
                         <option value="general">General Inquiry</option>
                         <option value="enterprise">Enterprise Plans</option>
                         <option value="support">Technical Support</option>
@@ -80,10 +121,10 @@ export default function ContactPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-1.5">Message</label>
-                      <textarea rows={5} required className="w-full px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-white placeholder-gray-600 focus:border-blue-500/40 focus:outline-none transition-colors resize-none" placeholder="Tell us what you need..." />
+                      <textarea name="message" rows={5} required className="w-full px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-white placeholder-gray-600 focus:border-blue-500/40 focus:outline-none transition-colors resize-none" placeholder="Tell us what you need..." />
                     </div>
-                    <button type="submit" className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2">
-                      <Send className="h-4 w-4" /> Send Message
+                    <button type="submit" disabled={loading} className="w-full py-3 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2">
+                      {loading ? "Sending..." : <><Send className="h-4 w-4" /> Send Message</>}
                     </button>
                   </form>
                 )}

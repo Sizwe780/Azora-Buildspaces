@@ -1,6 +1,16 @@
 /** @jest-environment node */
 
 import { authOptions } from '@/lib/auth/config'
+import { prisma } from '@/lib/database/client'
+
+jest.mock('@/lib/database/client', () => ({
+  prisma: {
+    user: {
+      findUnique: jest.fn().mockResolvedValue({}),
+    },
+  },
+  PRISMA_AVAILABLE: true,
+}))
 
 describe('NextAuth callbacks', () => {
   test('jwt callback persists user id to token', async () => {

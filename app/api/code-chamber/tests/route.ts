@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
+import { readFile } from 'fs/promises'
+import path from 'path'
 
 /**
  * Code Chamber — Test Discovery API
  * GET /api/code-chamber/tests?file={filePath}
- * 
- * Parses test files to discover test cases for the testing panel.
+ *
+ * Reads the actual file from the workspace filesystem and parses test blocks.
  */
 
 interface DiscoveredTest {
@@ -17,7 +21,7 @@ interface DiscoveredTest {
 function parseTestFile(content: string, fileName: string): DiscoveredTest[] {
   const tests: DiscoveredTest[] = []
   const lines = content.split('\n')
-  
+
   let currentSuite = fileName.replace(/\.(test|spec)\.(ts|tsx|js|jsx)$/, '')
   let testIndex = 0
 
@@ -36,7 +40,7 @@ function parseTestFile(content: string, fileName: string): DiscoveredTest[] {
         id: `test-${testIndex}`,
         name: testMatch[1],
         suite: currentSuite,
-        file: fileName
+        file: fileName,
       })
     }
   }
@@ -45,40 +49,35 @@ function parseTestFile(content: string, fileName: string): DiscoveredTest[] {
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const file = searchParams.get('file')
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Auth required' }, { status: 401 })
+  }
 
+  const file = request.nextUrl.searchParams.get('file')
   if (!file) {
-    return NextResponse.json({ tests: [], message: 'No file specified' })
+    return NextResponse.json({ tests: [] })
   }
 
-  // In a real implementation, we'd read the actual file from the filesystem
-  // For now, return placeholder tests based on filename
-  const baseName = file.split('/').pop()?.replace(/\.(ts|tsx|js|jsx)$/, '') || 'module'
-  const isTestFile = /\.(test|spec)\.(ts|tsx|js|jsx)$/.test(file)
+  const workspaceRoot = process.env.WORKSPACE_ROOT || process.cwd()
+  const filePath = path.resolve(workspaceRoot, file)
 
-  if (isTestFile) {
-    // Simulate discovered tests for test files
-    return NextResponse.json({
-      tests: [
-        { id: '1', name: 'should render correctly', suite: baseName },
-        { id: '2', name: 'should handle user input', suite: baseName },
-        { id: '3', name: 'should update state', suite: baseName },
-        { id: '4', name: 'should call API on submit', suite: baseName },
-        { id: '5', name: 'should handle errors gracefully', suite: baseName },
-      ]
-    })
+  // Security: ensure file is within workspace (path traversal protection)
+  if (!filePath.startsWith(workspaceRoot + path.sep) && filePath !== workspaceRoot) {
+    return NextResponse.json({ error: 'Path traversal denied' }, { status: 403 })
   }
 
-  // For non-test files, suggest potential tests
-  return NextResponse.json({
-    tests: [
-      { id: '1', name: 'renders without crashing', suite: `${baseName}.test` },
-      { id: '2', name: 'handles props correctly', suite: `${baseName}.test` },
-      { id: '3', name: 'matches snapshot', suite: `${baseName}.test` },
-      { id: '4', name: 'handles edge cases', suite: `${baseName}.test` },
-      { id: '5', name: 'accessibility compliance', suite: `${baseName}.test` },
-    ],
-    generated: true
-  })
+  try {
+    const content = await readFile(filePath, 'utf-8')
+    const tests = parseTestFile(content, path.basename(file))
+    return NextResponse.json({ tests })
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 })
+    }
+    if (error.code === 'EACCES') {
+      return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
+    }
+    return NextResponse.json({ error: 'Failed to read file' }, { status: 500 })
+  }
 }

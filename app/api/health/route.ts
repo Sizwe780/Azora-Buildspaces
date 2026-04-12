@@ -2,7 +2,8 @@
  * Health Check Endpoint
  * 
  * Provides system health status including database connectivity, Prisma client
- * availability, and AI provider circuit breaker health (B6).
+ * availability, feature flag status based on environment variables, and
+ * AI provider circuit breaker health (B6).
  * Returns appropriate HTTP status codes for monitoring and alerting systems.
  * 
  * Requirements: 6.1, 6.2, 6.3
@@ -10,12 +11,25 @@
 
 import { NextResponse } from 'next/server'
 import { getDatabaseStatus, PRISMA_AVAILABLE } from '@/lib/database/client'
-// import { getProviderHealth } from '../../../../packages/shared-api/ai-router'
 import { auditLogger } from '@/lib/services/centralized-audit-logger'
 
-// Stub for getProviderHealth until shared-api package is available
-function getProviderHealth(): Record<string, { state: string; failures: number }> {
-    return {}
+/**
+ * Returns feature availability based on environment variable configuration.
+ * Critical features: database, auth — absence returns 503.
+ */
+function getFeatureFlags() {
+  return {
+    database: !!process.env.DATABASE_URL,
+    redis: !!process.env.REDIS_URL,
+    auth: !!process.env.NEXTAUTH_SECRET,
+    email: !!process.env.RESEND_API_KEY,
+    codeExecution: !!process.env.PISTON_API_URL,
+    lsp: process.env.LSP_BACKEND_ENABLED === 'true',
+    dap: process.env.DAP_BACKEND_ENABLED === 'true',
+    figma: !!process.env.FIGMA_TOKEN,
+    web3Bridge: !!process.env.WEB3_BRIDGE_URL,
+    openai: !!process.env.OPENAI_API_KEY,
+  }
 }
 
 export const dynamic = 'force-dynamic'
@@ -24,6 +38,18 @@ interface HealthCheckResponse {
   ok: boolean
   status: 'healthy' | 'degraded' | 'unhealthy'
   timestamp: string
+  features: {
+    database: boolean
+    redis: boolean
+    auth: boolean
+    email: boolean
+    codeExecution: boolean
+    lsp: boolean
+    dap: boolean
+    figma: boolean
+    web3Bridge: boolean
+    openai: boolean
+  }
   checks: {
     database: {
       status: 'pass' | 'fail' | 'warn' | 'unavailable'
@@ -36,11 +62,6 @@ interface HealthCheckResponse {
     prisma: {
       status: 'pass' | 'fail'
       available: boolean
-      message: string
-    }
-    aiProviders?: {
-      status: 'pass' | 'warn' | 'fail'
-      providers: Record<string, { state: string; failures: number }>
       message: string
     }
     audit?: {
@@ -64,6 +85,10 @@ interface HealthCheckResponse {
  */
 export async function GET() {
   try {
+    // Evaluate feature flags from environment variables
+    const features = getFeatureFlags()
+    const criticalFeaturesConfigured = features.database && features.auth
+
     // Check Prisma client availability
     const prismaCheck = {
       status: PRISMA_AVAILABLE ? ('pass' as const) : ('fail' as const),
@@ -90,28 +115,6 @@ export async function GET() {
       ...(dbStatus.error && { error: dbStatus.error }),
     }
 
-    // Check AI provider circuit breaker health (B6)
-    let aiProvidersCheck: HealthCheckResponse['checks']['aiProviders']
-    try {
-      const health = getProviderHealth()
-      const openCount = Object.values(health).filter((h) => h.state === 'OPEN').length
-      const totalProviders = Object.keys(health).length
-
-      aiProvidersCheck = {
-        status: openCount === 0
-          ? 'pass'
-          : openCount < totalProviders
-            ? 'warn'
-            : 'fail',
-        providers: health,
-        message: openCount === 0
-          ? 'All AI providers healthy'
-          : `${openCount}/${totalProviders} providers have open circuit breakers`,
-      }
-    } catch {
-      aiProvidersCheck = undefined
-    }
-
     // Check audit system health
     let auditCheck: HealthCheckResponse['checks']['audit']
     try {
@@ -126,38 +129,32 @@ export async function GET() {
       auditCheck = undefined
     }
 
-    // Determine overall system status
+    // Determine overall system status.
+    // Critical: database + auth must be configured (503 if not).
     let overallStatus: 'healthy' | 'degraded' | 'unhealthy'
     let httpStatus: number
 
-    if (databaseCheck.status === 'pass' && prismaCheck.status === 'pass') {
-      // All checks pass - system is healthy
+    if (!criticalFeaturesConfigured) {
+      // Missing DATABASE_URL or NEXTAUTH_SECRET — service cannot operate
+      overallStatus = 'unhealthy'
+      httpStatus = 503
+    } else if (databaseCheck.status === 'pass' && prismaCheck.status === 'pass') {
       overallStatus = 'healthy'
       httpStatus = 200
-    } else if (databaseCheck.status === 'warn' || prismaCheck.status === 'fail') {
-      // Database configured but not connected, or Prisma not available
-      // System can still function in degraded mode
-      overallStatus = 'degraded'
-      httpStatus = 200 // Use 200 for degraded as per tests
     } else {
-      // Critical failures - system cannot function properly
-      overallStatus = 'unhealthy'
-      httpStatus = 503 // Service Unavailable
-    }
-
-    // AI provider failures can degrade the system but not make it unhealthy
-    if (aiProvidersCheck?.status === 'fail' && overallStatus === 'healthy') {
+      // Critical env vars present but DB not yet reachable or Prisma not generated
       overallStatus = 'degraded'
+      httpStatus = 503
     }
 
     const response: HealthCheckResponse = {
       ok: overallStatus !== 'unhealthy',
       status: overallStatus,
       timestamp: new Date().toISOString(),
+      features,
       checks: {
         database: databaseCheck,
         prisma: prismaCheck,
-        ...(aiProvidersCheck && { aiProviders: aiProvidersCheck }),
         ...(auditCheck && { audit: auditCheck }),
       },
     }
@@ -171,6 +168,7 @@ export async function GET() {
       ok: false,
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
+      features: getFeatureFlags(),
       checks: {
         database: {
           status: 'fail',

@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dap-broker
+  namespace: buildspaces
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dap-broker
+  template:
+    metadata:
+      labels:
+        app: dap-broker
+    spec:
+      containers:
+      - name: dap-broker
+        image: buildspaces-dap-broker:latest
+        ports:
+        - containerPort: 3002
+        env:
+        - name: DAP_PORT
+          value: "3002"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3002
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3002
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dap-broker
+  namespace: buildspaces
+spec:
+  selector:
+    app: dap-broker
+  ports:
+  - port: 3002
+    targetPort: 3002

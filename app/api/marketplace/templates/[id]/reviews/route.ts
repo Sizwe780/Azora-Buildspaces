@@ -1,27 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/config"
+import { prisma } from "@/lib/database/client"
 
 /**
  * Marketplace — Template Reviews API
  * GET/POST /api/marketplace/templates/[id]/reviews
- * 
+ *
  * Handles reviews for marketplace templates.
  */
-
-interface Review {
-  id: string
-  templateId: string
-  author: string
-  authorId: string
-  rating: number
-  comment: string
-  helpful: number
-  date: string
-}
-
-// In-memory reviews store (replace with DB in production)
-const reviewsStore = new Map<string, Review[]>()
 
 export async function GET(
   request: NextRequest,
@@ -33,15 +20,21 @@ export async function GET(
     return NextResponse.json({ error: 'Template ID required' }, { status: 400 })
   }
 
-  const reviews = reviewsStore.get(id) || []
-  const avgRating = reviews.length > 0 
-    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length 
-    : 0
+  const reviews = await prisma.templateReview.findMany({
+    where: { templateId: id },
+    include: { user: { select: { name: true, email: true } } },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  const avgRating =
+    reviews.length > 0
+      ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+      : 0
 
   return NextResponse.json({
     reviews,
     count: reviews.length,
-    averageRating: Math.round(avgRating * 10) / 10
+    averageRating: Math.round(avgRating * 10) / 10,
   })
 }
 
@@ -73,36 +66,33 @@ export async function POST(
       return NextResponse.json({ error: 'Comment must be under 1000 characters' }, { status: 400 })
     }
 
-    const userId = (session.user as any).id || 'unknown'
-    
-    // Check if user already reviewed this template
-    const existingReviews = reviewsStore.get(id) || []
-    const alreadyReviewed = existingReviews.some(r => r.authorId === userId)
-    if (alreadyReviewed) {
-      return NextResponse.json({ error: 'You have already reviewed this template' }, { status: 400 })
-    }
+    const userId = (session.user as any).id as string
 
-    const review: Review = {
-      id: `rev_${Date.now().toString(36)}`,
-      templateId: id,
-      author: session.user.name || session.user.email || 'Anonymous',
-      authorId: userId,
-      rating: Math.round(rating),
-      comment: comment.trim(),
-      helpful: 0,
-      date: new Date().toISOString().split('T')[0]
-    }
+    // Upsert: update if user already reviewed, create otherwise
+    const review = await prisma.templateReview.upsert({
+      where: { templateId_userId: { templateId: id, userId } },
+      update: { rating: Math.round(rating), comment: comment.trim() },
+      create: {
+        templateId: id,
+        userId,
+        rating: Math.round(rating),
+        comment: comment.trim(),
+      },
+    })
 
-    existingReviews.push(review)
-    reviewsStore.set(id, existingReviews)
-
-    const avgRating = existingReviews.reduce((sum, r) => sum + r.rating, 0) / existingReviews.length
+    // Recalculate average rating
+    const allReviews = await prisma.templateReview.findMany({ where: { templateId: id } })
+    const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length
+    await prisma.marketplaceTemplate.update({
+      where: { id },
+      data: { rating: avgRating },
+    })
 
     return NextResponse.json({
       success: true,
       review,
       newAverageRating: Math.round(avgRating * 10) / 10,
-      totalReviews: existingReviews.length
+      totalReviews: allReviews.length,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to submit review' }, { status: 500 })

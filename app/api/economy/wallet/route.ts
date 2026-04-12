@@ -40,22 +40,18 @@ export async function GET(request: NextRequest) {
     const userRank = Math.floor((truthScore / 100) * 10) + 1
 
     return NextResponse.json({
-      success: true,
-      wallet: {
-        userId,
-        balance,
-        truthScore,
-        rank: userRank,
-        status: truthScore >= 70 ? 'VERIFIED' : truthScore >= 40 ? 'ACTIVE' : 'NEW'
-      },
+      balance,
+      truthScore,
+      rank: userRank,
+      status: truthScore >= 70 ? 'sovereign' : 'pooled',
       transactions: transactions.map((tx: any) => ({
         id: tx.id,
         amount: tx.amount,
         type: tx.type,
         description: tx.description,
-        rewardType: tx.rewardType,
-        timestamp: tx.timestamp,
-        status: tx.status
+        status: tx.status || 'COMPLETED',
+        createdAt: tx.timestamp || new Date().toISOString(),
+        metadata: tx.metadata
       })),
       statistics: {
         totalSupply: statistics.totalSupply,

@@ -1,110 +1,79 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/config'
+import { prisma } from '@/lib/database/client'
 
 /**
  * Deep Focus — Session History & Management
  * GET/POST /api/deep-focus/sessions
  *
- * Manages focus session records: list past sessions, retrieve stats,
- * tag sessions with projects/labels.
+ * Manages focus session records: list past sessions, retrieve stats.
+ * Backed by Prisma FocusSession model.
  *
  * Industry parity: Toggl Track, RescueTime session log
  */
 
-interface FocusSession {
-  id: string
-  userId: string
-  mode: string
-  duration: number
-  completed: boolean
-  startedAt: string
-  endedAt: string
-  distractions: number
-  project?: string
-  tags: string[]
-  notes?: string
-}
-
-// In-memory session history
-const sessionHistory = new Map<string, FocusSession[]>()
-
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get('userId') || 'default'
-  const limit = parseInt(req.nextUrl.searchParams.get('limit') || '50', 10)
-  const project = req.nextUrl.searchParams.get('project')
-
-  let sessions = sessionHistory.get(userId) || []
-
-  if (project) {
-    sessions = sessions.filter((s) => s.project === project)
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
+  const userId = (session.user as any).id as string
 
-  // Sort by most recent first
-  const sorted = [...sessions].sort(
-    (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
-  )
+  const limit = parseInt(req.nextUrl.searchParams.get('limit') || '50', 10)
 
-  const limited = sorted.slice(0, limit)
-
-  // Calculate aggregate stats
-  const totalMinutes = sessions.reduce((sum, s) => sum + s.duration, 0)
-  const completedSessions = sessions.filter((s) => s.completed).length
-  const completionRate =
-    sessions.length > 0 ? Math.round((completedSessions / sessions.length) * 100) : 0
-
-  // Project breakdown
-  const projectMap = new Map<string, number>()
-  sessions.forEach((s) => {
-    const p = s.project || 'untagged'
-    projectMap.set(p, (projectMap.get(p) || 0) + s.duration)
+  const sessions = await prisma.focusSession.findMany({
+    where: { userId },
+    orderBy: { startedAt: 'desc' },
+    take: limit,
   })
 
+  // Aggregate stats
+  const allSessions = await prisma.focusSession.findMany({ where: { userId } })
+  const totalMinutes = allSessions.reduce((sum, s) => sum + s.duration, 0)
+  const completedSessions = allSessions.filter((s) => s.completed).length
+  const completionRate =
+    allSessions.length > 0 ? Math.round((completedSessions / allSessions.length) * 100) : 0
+
   return NextResponse.json({
-    sessions: limited,
+    sessions,
     stats: {
-      totalSessions: sessions.length,
+      totalSessions: allSessions.length,
       totalMinutes,
       completedSessions,
       completionRate,
-      avgDuration: sessions.length > 0 ? Math.round(totalMinutes / sessions.length) : 0,
-      avgDistractions:
-        sessions.length > 0
-          ? +(sessions.reduce((s, se) => s + se.distractions, 0) / sessions.length).toFixed(1)
-          : 0,
+      avgDuration:
+        allSessions.length > 0 ? Math.round(totalMinutes / allSessions.length) : 0,
     },
-    projects: Array.from(projectMap.entries()).map(([name, minutes]) => ({
-      name,
-      minutes,
-    })),
   })
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+  const userId = (session.user as any).id as string
+
   try {
-    const { userId = 'default', session: sessionData } = await req.json()
+    const { session: sessionData } = await req.json()
 
     if (!sessionData) {
       return NextResponse.json({ error: 'Session data is required' }, { status: 400 })
     }
 
-    const session: FocusSession = {
-      id: `fs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      userId,
-      mode: sessionData.mode || 'pomodoro',
-      duration: sessionData.duration || 25,
-      completed: sessionData.completed !== false,
-      startedAt: sessionData.startedAt || new Date().toISOString(),
-      endedAt: sessionData.endedAt || new Date().toISOString(),
-      distractions: sessionData.distractions || 0,
-      project: sessionData.project,
-      tags: sessionData.tags || [],
-      notes: sessionData.notes,
-    }
+    const focusSession = await prisma.focusSession.create({
+      data: {
+        userId,
+        duration: sessionData.duration ?? 25,
+        mode: sessionData.mode ?? 'pomodoro',
+        completed: sessionData.completed !== false,
+        startedAt: sessionData.startedAt ? new Date(sessionData.startedAt) : new Date(),
+        endedAt: sessionData.endedAt ? new Date(sessionData.endedAt) : new Date(),
+      },
+    })
 
-    const sessions = sessionHistory.get(userId) || []
-    sessions.push(session)
-    sessionHistory.set(userId, sessions)
-
-    return NextResponse.json({ success: true, session })
+    return NextResponse.json({ success: true, session: focusSession })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

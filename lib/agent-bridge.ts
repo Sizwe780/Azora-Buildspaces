@@ -214,55 +214,79 @@ export class AgentBridge {
 
   private async callAgentAPI(request: AgentRequest): Promise<AgentResponse> {
     // Call the server-side agent routing endpoint
-    try {
-      const action = this.signalToAction(request.signal)
-      const body = {
-        action,
-        context: request.payload.context || request.payload.fileContent || '',
-        code: request.payload.fileContent,
-        language: undefined,
-        userId: request.userId,
-        sessionId: 'default'
+    const action = this.signalToAction(request.signal)
+    const body = {
+      action,
+      context: request.payload.context || request.payload.fileContent || '',
+      code: request.payload.fileContent,
+      language: undefined,
+      userId: request.userId,
+      sessionId: 'default'
+    }
+
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY_MS = 1000;
+    let lastError: any = null;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 15000)
+
+        const resp = await fetch('/api/agents/invoke', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+
+        if (!resp.ok) {
+          if (resp.status >= 500 || resp.status === 429) {
+            throw new Error(`Agent API responsed with status ${resp.status} (attempt ${attempt})`);
+          } else {
+            throw new Error(`Client error: ${resp.status}`);
+          }
+        }
+
+        const data = await resp.json()
+
+        const response: AgentResponse = {
+          requestId: request.id,
+          agent: (data.agent as AgentName) || request.agent,
+          status: 'success',
+          data: {
+            result: data.result || data.message || '',
+            confidence: undefined,
+            metadata: data,
+          },
+          constitutionalCheck: {
+            passed: data.constitutionalVerdict?.allowed ?? true,
+            violations: [],
+            healthScore: data.constitutionalVerdict?.score ?? 100,
+          },
+          timestamp: Date.now(),
+        }
+
+        return response
+      } catch (err: any) {
+        lastError = err;
+        
+        if (err.message?.startsWith('Client error:')) {
+          break; // Stop retrying on 4xx
+        }
+
+        if (attempt < MAX_RETRIES) {
+          console.warn(`[AgentBridge] callAgentAPI attempt ${attempt} failed, retrying... (${err.message})`)
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt))
+        }
       }
+    }
 
-      const resp = await fetch('/api/agents/invoke', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: (typeof AbortSignal !== 'undefined' && (AbortSignal as any).timeout)
-          ? (AbortSignal as any).timeout(10000)
-          : undefined,
-      })
+    console.warn('[AgentBridge] Agent API failed after retries, falling back to simulated response', lastError)
 
-      if (!resp.ok) {
-        throw new Error(`Agent API responded with status ${resp.status}`)
-      }
-
-      const data = await resp.json()
-
-      const response: AgentResponse = {
-        requestId: request.id,
-        agent: (data.agent as AgentName) || request.agent,
-        status: 'success',
-        data: {
-          result: data.result || data.message || '',
-          confidence: undefined,
-          metadata: data,
-        },
-        constitutionalCheck: {
-          passed: data.constitutionalVerdict?.allowed ?? true,
-          violations: [],
-          healthScore: data.constitutionalVerdict?.score ?? 100,
-        },
-        timestamp: Date.now(),
-      }
-
-      return response
-    } catch (err) {
-      console.warn('[AgentBridge] Agent API failed, falling back to simulated response', err)
-
-      // Fallback to simulated response for offline/dev environments
-      await new Promise(resolve => setTimeout(resolve, 250))
+    // Fallback to simulated response for offline/dev environments
+    await new Promise(resolve => setTimeout(resolve, 250))
 
       const fallback: AgentResponse = {
         requestId: request.id,
@@ -273,7 +297,7 @@ export class AgentBridge {
           confidence: 0.5,
           metadata: {
             fallback: true,
-            error: err instanceof Error ? err.message : String(err),
+            error: lastError instanceof Error ? lastError.message : String(lastError),
           },
         },
         constitutionalCheck: {
@@ -285,7 +309,6 @@ export class AgentBridge {
       }
 
       return fallback
-    }
   }
 
   /**

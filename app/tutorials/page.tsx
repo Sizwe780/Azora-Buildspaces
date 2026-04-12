@@ -10,7 +10,7 @@ const tutorials = [
     duration: "10 min",
     level: "Beginner",
     levelColor: "emerald",
-    href: "#",
+    href: "https://github.com/Azora/azora-buildspaces/blob/main/docs/tutorials.md",
   },
   {
     title: "Code Chamber: Full IDE Walkthrough",
@@ -18,7 +18,7 @@ const tutorials = [
     duration: "15 min",
     level: "Beginner",
     levelColor: "emerald",
-    href: "#",
+    href: "https://github.com/Azora/azora-buildspaces/blob/main/docs/tutorials.md",
   },
   {
     title: "Spec-Driven Development with Spec Chamber",
@@ -26,7 +26,7 @@ const tutorials = [
     duration: "12 min",
     level: "Intermediate",
     levelColor: "amber",
-    href: "#",
+    href: "https://github.com/Azora/azora-buildspaces/blob/main/docs/tutorials.md",
   },
   {
     title: "Working with AI Agents",
@@ -34,7 +34,7 @@ const tutorials = [
     duration: "20 min",
     level: "Intermediate",
     levelColor: "amber",
-    href: "#",
+    href: "https://github.com/Azora/azora-buildspaces/blob/main/docs/tutorials.md",
   },
   {
     title: "Building a Full-Stack App in Maker Lab",
@@ -42,7 +42,7 @@ const tutorials = [
     duration: "30 min",
     level: "Intermediate",
     levelColor: "amber",
-    href: "#",
+    href: "https://github.com/Azora/azora-buildspaces/blob/main/docs/tutorials.md",
   },
   {
     title: "Real-Time Collaboration in Collaboration Pod",
@@ -50,7 +50,7 @@ const tutorials = [
     duration: "15 min",
     level: "Beginner",
     levelColor: "emerald",
-    href: "#",
+    href: "https://github.com/Azora/azora-buildspaces/blob/main/docs/tutorials.md",
   },
   {
     title: "Knowledge Ocean: Semantic Code Search",
@@ -58,7 +58,7 @@ const tutorials = [
     duration: "18 min",
     level: "Advanced",
     levelColor: "red",
-    href: "#",
+    href: "https://github.com/Azora/azora-buildspaces/blob/main/docs/tutorials.md",
   },
   {
     title: "Constitutional AI: Understanding Ethics-First Development",
@@ -66,7 +66,7 @@ const tutorials = [
     duration: "25 min",
     level: "Advanced",
     levelColor: "red",
-    href: "#",
+    href: "https://github.com/Azora/azora-buildspaces/blob/main/docs/tutorials.md",
   },
 ]
 

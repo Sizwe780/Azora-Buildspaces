@@ -2,86 +2,99 @@
  * Innovation Theater — Chat Route
  *
  * Public audience chat during a live session.
- * In-memory store per session (replace with Redis pub/sub for production scale).
+ * Persisted via Prisma TheaterChatMessage model.
  */
 
-import { NextRequest, NextResponse } from "next/server"
-
-interface ChatMessage {
-  id: string
-  sessionId: string
-  authorId: string
-  authorName: string
-  content: string
-  createdAt: string
-  pinned?: boolean
-}
-
-// sessionId -> messages[]
-const sessionChats = new Map<string, ChatMessage[]>()
-
-const MAX_MESSAGES_PER_SESSION = 200
-
-function getMessages(sessionId: string): ChatMessage[] {
-  if (!sessionChats.has(sessionId)) {
-    sessionChats.set(sessionId, [])
-  }
-  return sessionChats.get(sessionId)!
-}
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/database/client'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const sessionId = searchParams.get("sessionId") ?? "default"
-  const since = searchParams.get("since")
+  const sessionId = searchParams.get('sessionId') ?? 'default'
+  const since = searchParams.get('since')
 
-  let messages = getMessages(sessionId)
+  try {
+    const where: any = { sessionId }
+    if (since) {
+      where.createdAt = { gt: new Date(since) }
+    }
 
-  if (since) {
-    messages = messages.filter((m) => m.createdAt > since)
+    const messages = await prisma.theaterChatMessage.findMany({
+      where,
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+    })
+
+    return NextResponse.json({
+      messages: messages.map((m) => ({
+        id: m.id,
+        sessionId: m.sessionId,
+        authorId: m.userId ?? m.displayName,
+        authorName: m.displayName,
+        content: m.content,
+        createdAt: m.createdAt.toISOString(),
+        pinned: m.pinned,
+      })),
+      total: messages.length,
+      sessionId,
+    })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Failed to fetch messages' }, { status: 500 })
   }
-
-  return NextResponse.json({ messages, total: messages.length, sessionId })
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { sessionId = "default", authorId, authorName, content, pin } = body
+    const { sessionId = 'default', authorId, authorName, content, pin, messageId } = body
 
     if (!authorId || !content?.trim()) {
-      return NextResponse.json({ error: "authorId and content are required" }, { status: 400 })
+      return NextResponse.json({ error: 'authorId and content are required' }, { status: 400 })
     }
-
-    const messages = getMessages(sessionId)
 
     // Handle pin toggle for existing message
-    if (pin !== undefined) {
-      const msg = messages.find((m) => m.id === body.messageId)
-      if (msg) {
-        msg.pinned = Boolean(pin)
-        return NextResponse.json({ success: true, message: msg })
-      }
+    if (pin !== undefined && messageId) {
+      const updated = await prisma.theaterChatMessage.update({
+        where: { id: messageId },
+        data: { pinned: Boolean(pin) },
+      })
+      return NextResponse.json({
+        success: true,
+        message: {
+          id: updated.id,
+          sessionId: updated.sessionId,
+          authorId: updated.userId ?? updated.displayName,
+          authorName: updated.displayName,
+          content: updated.content,
+          createdAt: updated.createdAt.toISOString(),
+          pinned: updated.pinned,
+        },
+      })
     }
 
-    const newMessage: ChatMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      sessionId,
-      authorId,
-      authorName: authorName ?? "Anonymous",
-      content: content.trim(),
-      createdAt: new Date().toISOString(),
-      pinned: false,
-    }
+    const newMessage = await prisma.theaterChatMessage.create({
+      data: {
+        sessionId,
+        userId: authorId,
+        displayName: authorName ?? 'Anonymous',
+        content: content.trim(),
+        pinned: false,
+      },
+    })
 
-    messages.push(newMessage)
-
-    // Trim to max window
-    if (messages.length > MAX_MESSAGES_PER_SESSION) {
-      messages.splice(0, messages.length - MAX_MESSAGES_PER_SESSION)
-    }
-
-    return NextResponse.json({ success: true, message: newMessage })
+    return NextResponse.json({
+      success: true,
+      message: {
+        id: newMessage.id,
+        sessionId: newMessage.sessionId,
+        authorId: newMessage.userId ?? newMessage.displayName,
+        authorName: newMessage.displayName,
+        content: newMessage.content,
+        createdAt: newMessage.createdAt.toISOString(),
+        pinned: newMessage.pinned,
+      },
+    })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Failed to post message" }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Failed to post message' }, { status: 500 })
   }
 }

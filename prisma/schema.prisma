@@ -29,6 +29,9 @@ model User {
   emailVerified DateTime?
   image     String?
   role      UserRole @default(STUDENT)
+  failedLoginAttempts  Int       @default(0)
+  lockedUntil         DateTime?
+  sessionValidAfter   DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -74,6 +77,18 @@ model User {
   buildspacesProjects BuildSpaceProject[]
   figmaFrames         FigmaFrame[]
   collectibles        Collectible[]
+
+  // BuildSpaces room models
+  theaterSessions      TheaterSession[]
+  notebooks            Notebook[]
+  marketplaceTemplates MarketplaceTemplate[]
+  templateReviews      TemplateReview[]
+  focusSessions        FocusSession[]
+  focusAnalytics       FocusAnalytics?
+  activityEntries      ActivityEntry[]
+  aiUsageRecords       AIUsageRecord[]
+  verificationSubmissions VerificationSubmission[]
+  commandHistory       CommandHistory[]
 
   // NextAuth fields
   accounts Account[]
@@ -2073,4 +2088,190 @@ model InstalledExtension {
 
   @@unique([projectId, extensionId])
   @@index([projectId])
+}
+
+// ============================================
+// BUILDSPACES ROOM MODELS
+// ============================================
+
+model TheaterSession {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  presentations TheaterPresentation[]
+  qaEntries   TheaterQAEntry[]
+  chatMessages TheaterChatMessage[]
+  @@map("theater_sessions")
+}
+
+model TheaterPresentation {
+  id          String   @id @default(cuid())
+  sessionId   String
+  title       String
+  slides      Json
+  activeIndex Int      @default(0)
+  createdAt   DateTime @default(now())
+  session     TheaterSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  @@map("theater_presentations")
+}
+
+model TheaterQAEntry {
+  id          String   @id @default(cuid())
+  sessionId   String
+  userId      String?
+  displayName String
+  question    String
+  upvotes     Int      @default(0)
+  answered    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  session     TheaterSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  @@map("theater_qa_entries")
+}
+
+model TheaterChatMessage {
+  id          String   @id @default(cuid())
+  sessionId   String
+  userId      String?
+  displayName String
+  content     String
+  pinned      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  session     TheaterSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  @@map("theater_chat_messages")
+}
+
+model Notebook {
+  id        String         @id @default(cuid())
+  userId    String
+  title     String         @default("Untitled Notebook")
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cells     NotebookCell[]
+  @@map("notebooks")
+}
+
+model NotebookCell {
+  id         String   @id @default(cuid())
+  notebookId String
+  type       String   @default("code")
+  content    String
+  output     String?
+  order      Int
+  createdAt  DateTime @default(now())
+  notebook   Notebook @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  @@map("notebook_cells")
+}
+
+model MarketplaceTemplate {
+  id          String   @id @default(cuid())
+  publisherId String
+  name        String
+  description String
+  category    String
+  tags        String[]
+  files       Json
+  price       Float    @default(0)
+  downloads   Int      @default(0)
+  rating      Float    @default(0)
+  status      String   @default("published")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publisher   User     @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+  reviews     TemplateReview[]
+  @@map("marketplace_templates")
+}
+
+model TemplateReview {
+  id         String   @id @default(cuid())
+  templateId String
+  userId     String
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+  template   MarketplaceTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([templateId, userId])
+  @@map("template_reviews")
+}
+
+model FocusSession {
+  id          String    @id @default(cuid())
+  userId      String
+  duration    Int
+  mode        String    @default("pomodoro")
+  completed   Boolean   @default(false)
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@map("focus_sessions")
+}
+
+model FocusAnalytics {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  totalSessions Int      @default(0)
+  totalMinutes  Int      @default(0)
+  streak        Int      @default(0)
+  lastSessionAt DateTime?
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("focus_analytics")
+}
+
+model ActivityEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  room      String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+  @@map("activity_entries")
+}
+
+model AIUsageRecord {
+  id           String   @id @default(cuid())
+  userId       String
+  model        String
+  provider     String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  cost         Float    @default(0)
+  room         String?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+  @@map("ai_usage_records")
+}
+
+model VerificationSubmission {
+  id         String    @id @default(cuid())
+  userId     String
+  type       String
+  status     String    @default("pending")
+  data       Json
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("verification_submissions")
+}
+
+model CommandHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  command   String
+  output    String?
+  exitCode  Int?
+  room      String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+  @@map("command_history")
 }

@@ -14,12 +14,25 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/config';
-// import { getProviderHealth } from '../../../../packages/shared-api/ai-router'
 import { auditLogger } from '@/lib/services/centralized-audit-logger'
 
-// Stub for getProviderHealth until shared-api package is available
-function getProviderHealth(): Record<string, { state: string; failures: number }> {
-    return {}
+/**
+ * Returns feature availability based on environment variable configuration.
+ * Replaces the former stub getProviderHealth() with real env var checks.
+ */
+function getFeatureFlags(): Record<string, boolean> {
+  return {
+    database: !!process.env.DATABASE_URL,
+    redis: !!process.env.REDIS_URL,
+    auth: !!process.env.NEXTAUTH_SECRET,
+    email: !!process.env.RESEND_API_KEY,
+    codeExecution: !!process.env.PISTON_API_URL,
+    lsp: process.env.LSP_BACKEND_ENABLED === 'true',
+    dap: process.env.DAP_BACKEND_ENABLED === 'true',
+    figma: !!process.env.FIGMA_TOKEN,
+    web3Bridge: !!process.env.WEB3_BRIDGE_URL,
+    openai: !!process.env.OPENAI_API_KEY,
+  }
 }
 
 export const dynamic = "force-dynamic"
@@ -133,23 +146,16 @@ constitutional_alignment_score ${data.constitutional_alignment_score}
 truth_mandate_score ${data.truth_mandate_score}
 `
 
-  // Append AI provider circuit breaker metrics (B6)
+  // Append feature flag metrics (replaces AI provider circuit breaker stub)
   try {
-    const health = getProviderHealth()
-    output += `\n# HELP ai_provider_circuit_state AI provider circuit breaker state (0=CLOSED, 1=HALF_OPEN, 2=OPEN)\n`
-    output += `# TYPE ai_provider_circuit_state gauge\n`
-    for (const [provider, info] of Object.entries(health)) {
-      const stateVal = info.state === 'CLOSED' ? 0 : info.state === 'HALF_OPEN' ? 1 : 2
-      output += `ai_provider_circuit_state{provider="${provider}"} ${stateVal}\n`
-    }
-
-    output += `\n# HELP ai_provider_failures_total AI provider consecutive failure count\n`
-    output += `# TYPE ai_provider_failures_total gauge\n`
-    for (const [provider, info] of Object.entries(health)) {
-      output += `ai_provider_failures_total{provider="${provider}"} ${info.failures}\n`
+    const features = getFeatureFlags()
+    output += `\n# HELP buildspaces_feature_enabled Feature flag status (1=enabled, 0=disabled)\n`
+    output += `# TYPE buildspaces_feature_enabled gauge\n`
+    for (const [feature, enabled] of Object.entries(features)) {
+      output += `buildspaces_feature_enabled{feature="${feature}"} ${enabled ? 1 : 0}\n`
     }
   } catch {
-    // provider health unavailable
+    // feature flags unavailable
   }
 
   // Append audit stats

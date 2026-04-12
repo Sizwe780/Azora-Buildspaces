@@ -40,11 +40,27 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [authService] = useState(() => AuthService.getInstance())
+  const [aiHealthy, setAiHealthy] = useState<boolean | null>(null)
   const router = useRouter()
 
   useEffect(() => {
     loadUser()
+    checkAiHealth()
   }, [])
+
+  const checkAiHealth = async () => {
+    try {
+      const res = await fetch('/api/health')
+      if (res.ok || res.status === 207) {
+        const data = await res.json()
+        setAiHealthy(data?.features?.openai === true)
+      } else {
+        setAiHealthy(false)
+      }
+    } catch {
+      setAiHealthy(false)
+    }
+  }
 
   const loadUser = async () => {
     try {
@@ -617,11 +633,17 @@ export default function DashboardPage() {
               ].map((agent) => (
                 <div key={agent.name} className="flex items-center justify-between p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04]">
                   <div className="flex items-center gap-2.5">
-                    <div className="h-2 w-2 rounded-full bg-green-400 shadow-[0_0_6px_theme(colors.green.400)]" />
+                    <div className={`h-2 w-2 rounded-full ${aiHealthy ? 'bg-green-400 shadow-[0_0_6px_theme(colors.green.400)]' : aiHealthy === false ? 'bg-red-400' : 'bg-yellow-400'}`} />
                     <span className="text-sm text-gray-300">{agent.name}</span>
                     <span className="text-[11px] text-gray-600">({agent.role})</span>
                   </div>
-                  <Badge className="bg-green-500/10 text-green-400 border-green-500/20 text-[10px]">Active</Badge>
+                  {aiHealthy === null ? (
+                    <Badge className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20 text-[10px]">Checking</Badge>
+                  ) : aiHealthy ? (
+                    <Badge className="bg-green-500/10 text-green-400 border-green-500/20 text-[10px]">Active</Badge>
+                  ) : (
+                    <Badge className="bg-red-500/10 text-red-400 border-red-500/20 text-[10px]">Unavailable</Badge>
+                  )}
                 </div>
               ))}
             </div>

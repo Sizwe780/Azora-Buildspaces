@@ -35,7 +35,7 @@ const DeepFocus = dynamic(() => import("@/components/rooms/deep-focus"), { ssr: 
 import { TerminalPanel } from "@/components/workspace/panels/terminal-panel"
 import { PreviewPanel } from "@/components/workspace/panels/preview-panel"
 import { RoomSelector } from "@/components/workspace/room-selector"
-import { StatusBar } from "@/components/workspace/status-bar"
+import { StatusBar } from "@/components/workspace/layout/status-bar"
 import { AIAssistantPanel } from "@/components/workspace/ai-assistant-panel"
 import { Onboarding } from "@/components/workspace/onboarding"
 import { CommandPalette } from "@/components/workspace/layout/command-palette"
@@ -273,11 +273,7 @@ function WorkspaceContent() {
           )}
         </div>
 
-        <StatusBar 
-          activeFile=""
-          agentCount={3}
-          activeAgents={1}
-        />
+        <StatusBar />
         
         <Onboarding />
 
