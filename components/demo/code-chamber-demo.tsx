@@ -19,6 +19,10 @@ import {
   Save,
   Maximize2,
   Minimize2,
+  Code2,
+  Zap,
+  MessageSquare,
+  MoreVertical,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AfricanAgentAvatar } from "@/components/ui/african-agent-avatar"
@@ -135,17 +139,25 @@ function FileTreeItem({
     return (
       <div>
         <div
-          className={`flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-white/5 rounded text-sm ${isSelected ? "bg-white/10" : ""}`}
+          className={`flex items-center gap-1.5 px-2 py-1.5 cursor-pointer text-sm transition-colors ${
+            isSelected 
+              ? "bg-emerald-500/15 text-white" 
+              : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]"
+          }`}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
           onClick={() => setIsOpen(!isOpen)}
         >
           {isOpen ? (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
+            <ChevronDown className="h-3.5 w-3.5 text-gray-500" />
           ) : (
-            <ChevronRight className="h-4 w-4 text-gray-400" />
+            <ChevronRight className="h-3.5 w-3.5 text-gray-500" />
           )}
-          {isOpen ? <FolderOpen className="h-4 w-4 text-amber-400" /> : <Folder className="h-4 w-4 text-amber-400" />}
-          <span className="text-gray-300">{node.name}</span>
+          {isOpen ? (
+            <FolderOpen className="h-4 w-4 text-amber-400/70" />
+          ) : (
+            <Folder className="h-4 w-4 text-amber-400/60" />
+          )}
+          <span className="text-gray-300 font-medium">{node.name}</span>
         </div>
         {isOpen &&
           node.children?.map((child, i) => (
@@ -165,12 +177,16 @@ function FileTreeItem({
 
   return (
     <div
-      className={`flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-white/5 rounded text-sm ${isSelected ? "bg-emerald-500/20 text-emerald-400" : ""}`}
+      className={`flex items-center gap-2 px-2 py-1.5 cursor-pointer text-sm transition-colors ${
+        isSelected 
+          ? "bg-emerald-500/15 text-emerald-200" 
+          : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]"
+      }`}
       style={{ paddingLeft: `${depth * 12 + 28}px` }}
       onClick={() => onSelect(node)}
     >
-      <File className={`h-4 w-4 ${getFileIcon(node.name)}`} />
-      <span className="text-gray-300">{node.name}</span>
+      <File className={`h-3.5 w-3.5 ${getFileIcon(node.name)}`} />
+      <span className="text-gray-300 font-medium truncate">{node.name}</span>
     </div>
   )
 }
@@ -323,24 +339,31 @@ export function CodeChamber() {
     <div
       className={`flex flex-col bg-[#0d1117] ${isFullscreen ? "fixed inset-0 z-50" : "h-[800px]"} rounded-xl overflow-hidden border border-white/10`}
     >
-      {/* Top toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#161b22] border-b border-white/10">
+      {/* Premium Top toolbar */}
+      <div className="flex items-center justify-between px-5 py-3 bg-[#0d1117] border-b border-white/[0.08]">
         <div className="flex items-center gap-3">
-          <CitadelLogo size="sm" />
-          <span className="text-sm font-medium text-white">Code Chamber</span>
-          <span className="text-xs text-gray-500">buildspaces-app</span>
+          <div className="flex items-center justify-center w-8 h-8 rounded-md bg-gradient-to-br from-emerald-500 to-cyan-500">
+            <Code2 className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold text-white">Code Chamber</span>
+            <span className="text-xs text-gray-500">buildspaces-app</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="h-7 text-gray-400 hover:text-white">
-            <Save className="h-4 w-4 mr-1" /> Save
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" className="h-8 px-3 text-gray-400 hover:text-white hover:bg-white/[0.08] transition-all">
+            <Save className="h-4 w-4 mr-2" />
+            <span className="text-xs font-medium">Save</span>
           </Button>
-          <Button variant="ghost" size="sm" className="h-7 text-gray-400 hover:text-white">
-            <Play className="h-4 w-4 mr-1" /> Run
+          <Button variant="ghost" size="sm" className="h-8 px-3 text-gray-400 hover:text-white hover:bg-white/[0.08] transition-all">
+            <Play className="h-4 w-4 mr-2" />
+            <span className="text-xs font-medium">Run</span>
           </Button>
+          <div className="w-px h-4 bg-white/[0.08]" />
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 text-gray-400 hover:text-white"
+            className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-white/[0.08] transition-all"
             onClick={() => setIsFullscreen(!isFullscreen)}
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
@@ -349,54 +372,66 @@ export function CodeChamber() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <div className="w-12 bg-[#0d1117] border-r border-white/10 flex flex-col items-center py-2 gap-2">
-          <button className="p-2 rounded-lg bg-white/5 text-emerald-400">
+        {/* Activity Bar - Premium styling */}
+        <div className="w-14 bg-[#0d1117] border-r border-white/[0.08] flex flex-col items-center py-4 gap-4 select-none">
+          <button className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/15 transition-all">
             <File className="h-5 w-5" />
           </button>
-          <button className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5">
+          <button className="p-2.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/[0.08] transition-all">
             <Search className="h-5 w-5" />
           </button>
-          <button className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5">
+          <button className="p-2.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/[0.08] transition-all">
             <GitBranch className="h-5 w-5" />
           </button>
-          <button className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5">
+          <button className="p-2.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/[0.08] transition-all">
             <Settings className="h-5 w-5" />
           </button>
           <div className="flex-1" />
           <button
-            className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5"
+            className="p-2.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/[0.08] transition-all"
             onClick={() => setShowChat(!showChat)}
+            title={showChat ? "Hide AI Assistant" : "Show AI Assistant"}
           >
-            <AfricanAgentAvatar agent="elara" size="sm" showGlow={false} showAura={false} />
+            <MessageSquare className="h-5 w-5" />
           </button>
         </div>
 
-        {/* File explorer */}
-        <div className="w-56 bg-[#0d1117] border-r border-white/10 overflow-auto">
-          <div className="p-2 text-xs uppercase tracking-wider text-gray-500 font-medium">Explorer</div>
-          {defaultFileTree.map((node, i) => (
-            <FileTreeItem key={i} node={node} onSelect={handleFileSelect} selectedFile={activeTab} />
-          ))}
+        {/* File explorer panel */}
+        <div className="w-60 bg-[#0d1117] border-r border-white/[0.08] overflow-auto flex flex-col">
+          <div className="px-4 py-3 text-xs uppercase tracking-widest text-gray-500 font-semibold border-b border-white/[0.08]">
+            <div className="flex items-center justify-between">
+              <span>Explorer</span>
+              <Plus className="h-3.5 w-3.5 hover:text-gray-300 cursor-pointer transition-colors" />
+            </div>
+          </div>
+          <div className="flex-1 overflow-auto">
+            {defaultFileTree.map((node, i) => (
+              <FileTreeItem key={i} node={node} onSelect={handleFileSelect} selectedFile={activeTab} />
+            ))}
+          </div>
         </div>
 
         {/* Main editor area */}
         <div className="flex-1 flex flex-col">
-          {/* Tabs */}
-          <div className="flex items-center bg-[#0d1117] border-b border-white/10 overflow-x-auto">
+          {/* Editor Tabs - Premium styling */}
+          <div className="flex items-center bg-[#0d1117] border-b border-white/[0.08] overflow-x-auto gap-1 px-2">
             {openTabs.map((tab) => (
               <div
                 key={tab.name}
-                className={`flex items-center gap-2 px-4 py-2 text-sm cursor-pointer border-r border-white/5 ${activeTab === tab.name ? "bg-[#1e2228] text-white" : "text-gray-400 hover:text-white"}`}
+                className={`flex items-center gap-2 px-3 py-2.5 text-sm cursor-pointer rounded-t-md transition-all ${
+                  activeTab === tab.name 
+                    ? "bg-white/[0.08] text-white border-b-2 border-emerald-500" 
+                    : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]"
+                }`}
                 onClick={() => {
                   setActiveTab(tab.name)
                   setSelectedFile(tab)
                 }}
               >
-                <File className="h-4 w-4" />
-                {tab.name}
+                <File className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs font-medium truncate max-w-[120px]">{tab.name}</span>
                 <X
-                  className="h-3 w-3 hover:bg-white/10 rounded"
+                  className="h-3 w-3 hover:bg-white/20 rounded p-0.5 flex-shrink-0 ml-1"
                   onClick={(e) => {
                     e.stopPropagation()
                     closeTab(tab.name)
@@ -404,7 +439,7 @@ export function CodeChamber() {
                 />
               </div>
             ))}
-            <button className="p-2 text-gray-500 hover:text-white">
+            <button className="p-1.5 text-gray-500 hover:text-gray-300 hover:bg-white/[0.08] rounded transition-all ml-auto flex-shrink-0">
               <Plus className="h-4 w-4" />
             </button>
           </div>
@@ -424,15 +459,17 @@ export function CodeChamber() {
           </div>
 
 
-          {/* Terminal */}
+          {/* Terminal Panel */}
           {terminalOpen && (
-            <div className="h-48 bg-[#0d1117] border-t border-white/10 flex flex-col">
-              <div className="flex items-center justify-between px-4 py-1 border-b border-white/10">
-                <div className="flex items-center gap-2">
-                  <TerminalIcon className="h-4 w-4 text-emerald-400" />
-                  <span className="text-sm text-gray-400">Terminal</span>
+            <div className="h-48 bg-[#0d1117] border-t border-white/[0.08] flex flex-col">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.08]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-4 h-4 rounded-sm bg-emerald-500/20 flex items-center justify-center">
+                    <TerminalIcon className="h-3 w-3 text-emerald-400" />
+                  </div>
+                  <span className="text-xs font-medium text-gray-300">Terminal</span>
                 </div>
-                <button className="text-gray-500 hover:text-white" onClick={() => setTerminalOpen(false)}>
+                <button className="text-gray-500 hover:text-gray-300 hover:bg-white/[0.08] p-1 rounded transition-all" onClick={() => setTerminalOpen(false)}>
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -443,37 +480,48 @@ export function CodeChamber() {
           )}
         </div>
 
-        {/* AI Chat panel */}
+        {/* AI Assistant Panel */}
         {showChat && (
-          <div className="w-80 bg-[#0d1117] border-l border-white/10 flex flex-col">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
-              <AfricanAgentAvatar agent="elara" size="sm" />
-              <div>
-                <p className="text-sm font-medium text-white">Elara</p>
-                <p className="text-xs text-emerald-400">XO Architect</p>
+          <div className="w-80 bg-[#0d1117] border-l border-white/[0.08] flex flex-col">
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/[0.08]">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">Elara</p>
+                  <p className="text-xs text-emerald-400">AI Architect</p>
+                </div>
               </div>
+              <button className="text-gray-500 hover:text-gray-300 p-1.5 rounded hover:bg-white/[0.08] transition-all">
+                <MoreVertical className="h-4 w-4" />
+              </button>
             </div>
-            <div ref={chatRef} className="flex-1 overflow-auto p-4 space-y-4">
+            <div ref={chatRef} className="flex-1 overflow-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10">
               {chatMessages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
-                    className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${msg.role === "user" ? "bg-emerald-500/20 text-emerald-100" : "bg-white/5 text-gray-300"}`}
+                    className={`max-w-[85%] rounded-lg px-3 py-2.5 text-sm leading-relaxed ${
+                      msg.role === "user" 
+                        ? "bg-emerald-500/15 text-emerald-100 rounded-br-none" 
+                        : "bg-white/[0.08] text-gray-200 rounded-bl-none"
+                    }`}
                   >
                     {msg.content}
                   </div>
                 </div>
               ))}
             </div>
-            <form onSubmit={handleChatSubmit} className="p-4 border-t border-white/10">
+            <form onSubmit={handleChatSubmit} className="p-3 border-t border-white/[0.08]">
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ask Elara anything..."
-                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 outline-none focus:border-emerald-500/50"
+                  placeholder="Ask Elara..."
+                  className="flex-1 bg-white/[0.08] border border-white/[0.12] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 outline-none focus:border-emerald-500/50 focus:bg-white/[0.1] transition-all"
                 />
-                <Button type="submit" size="sm" className="bg-emerald-500 hover:bg-emerald-600">
+                <Button type="submit" size="sm" className="bg-emerald-500 hover:bg-emerald-600 h-9 px-3 text-xs font-medium transition-all">
                   Send
                 </Button>
               </div>
