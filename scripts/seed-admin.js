@@ -1,22 +1,32 @@
 #!/usr/bin/env node
 
-// load environment variables from .env.local if present (manual parser)
+// load environment variables from .env files (manual parser)
 {
   const path = require('path');
   const fs = require('fs');
-  const envPath = path.resolve(__dirname, '../.env.local');
-  if (fs.existsSync(envPath)) {
-    const contents = fs.readFileSync(envPath, 'utf-8');
-    for (const line of contents.split(/\r?\n/)) {
-      const m = line.match(/^\s*([^#=\s]+)\s*=\s*(.*)\s*$/);
-      if (m) {
-        const key = m[1];
-        let val = m[2];
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-          val = val.slice(1, -1);
-        }
-        if (!process.env[key]) {
-          process.env[key] = val;
+  
+  // Try multiple env file locations
+  const envPaths = [
+    path.resolve(__dirname, '../.env.development.local'),
+    path.resolve(__dirname, '../.env.local'),
+    path.resolve(__dirname, '../.env'),
+  ];
+  
+  for (const envPath of envPaths) {
+    if (fs.existsSync(envPath)) {
+      console.log('[SEED] Loading env from:', envPath);
+      const contents = fs.readFileSync(envPath, 'utf-8');
+      for (const line of contents.split(/\r?\n/)) {
+        const m = line.match(/^\s*([^#=\s]+)\s*=\s*(.*)\s*$/);
+        if (m) {
+          const key = m[1];
+          let val = m[2];
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.slice(1, -1);
+          }
+          if (!process.env[key]) {
+            process.env[key] = val;
+          }
         }
       }
     }
