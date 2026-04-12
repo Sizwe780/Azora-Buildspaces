@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useRoomEvents } from "@/lib/hooks/use-room-events";
@@ -210,7 +210,7 @@ function IDEActivityBar({
     ];
 
   return (
-    <div className="w-12 flex flex-col items-center py-1 bg-[#0d1117] border-r border-[#1b1f27] shrink-0 select-none">
+    <div className="w-12 flex flex-col items-center py-2 bg-[#010409] border-r border-[#21262d] shrink-0 select-none">
       {items.map((item) => {
         const Icon = item.icon;
         const isActive = activeView === item.view && sidebarVisible;
@@ -220,21 +220,21 @@ function IDEActivityBar({
               <button
                 onClick={() => onViewChange(item.view)}
                 className={cn(
-                  "w-12 h-11 flex items-center justify-center relative transition-colors",
+                  "w-10 h-10 flex items-center justify-center relative transition-all duration-150 rounded-lg mx-1 my-0.5",
                   isActive
-                    ? "text-white"
-                    : "text-[#484f58] hover:text-[#8b949e]",
+                    ? "text-white bg-[#21262d]"
+                    : "text-[#7d8590] hover:text-[#e6edf3] hover:bg-[#21262d]/50",
                 )}
               >
                 {isActive && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-white rounded-r" />
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 bg-emerald-400 rounded-r" />
                 )}
-                <Icon className="w-[22px] h-[22px]" strokeWidth={1.5} />
+                <Icon className="w-5 h-5" strokeWidth={1.5} />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="right" className="text-xs">
+            <TooltipContent side="right" className="text-xs bg-[#1c2128] border-[#30363d] text-[#e6edf3]">
               {item.label}{" "}
-              <span className="text-[#484f58] ml-2">{item.shortcut}</span>
+              <span className="text-[#7d8590] ml-2">{item.shortcut}</span>
             </TooltipContent>
           </Tooltip>
         );
@@ -246,12 +246,12 @@ function IDEActivityBar({
         <TooltipTrigger asChild>
           <button
             onClick={onSettingsOpen}
-            className="w-12 h-11 flex items-center justify-center text-[#484f58] hover:text-[#8b949e] transition-colors"
+            className="w-10 h-10 flex items-center justify-center text-[#7d8590] hover:text-[#e6edf3] hover:bg-[#21262d]/50 transition-all duration-150 rounded-lg mx-1"
           >
-            <Settings className="w-[22px] h-[22px]" strokeWidth={1.5} />
+            <Settings className="w-5 h-5" strokeWidth={1.5} />
           </button>
         </TooltipTrigger>
-        <TooltipContent side="right" className="text-xs">
+        <TooltipContent side="right" className="text-xs bg-[#1c2128] border-[#30363d] text-[#e6edf3]">
           Settings (Ctrl+,)
         </TooltipContent>
       </Tooltip>
@@ -367,12 +367,12 @@ function ExplorerSidebar() {
       <div key={nodeId}>
         <div
           className={cn(
-            "flex items-center gap-1 px-1 py-[3px] cursor-pointer text-[13px] leading-[22px] group select-none",
+            "flex items-center gap-1.5 px-1.5 py-[5px] cursor-pointer text-[13px] leading-[20px] group select-none transition-all duration-100",
             isActive
-              ? "bg-[#1f6feb26] text-white"
-              : "text-[#c9d1d9] hover:bg-[#1f1f1f]",
+              ? "bg-emerald-500/10 text-emerald-200 border-l-2 border-emerald-400"
+              : "text-[#e6edf3] hover:bg-[#21262d] border-l-2 border-transparent",
           )}
-          style={{ paddingLeft: `${depth * 16 + 4}px` }}
+          style={{ paddingLeft: `${depth * 14 + 6}px` }}
           onClick={() => (isDir ? toggle(nodeId) : openFile(nodeId))}
           onContextMenu={(e: React.MouseEvent) => handleContextMenu(e, nodeId)}
           onDoubleClick={() => {
@@ -523,13 +523,13 @@ function ExplorerSidebar() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#0d1117] text-[#c9d1d9]">
-      <div className="h-9 flex items-center justify-between px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">
+    <div className="h-full flex flex-col bg-[#010409] text-[#e6edf3]">
+      <div className="h-10 flex items-center justify-between px-4 text-[11px] font-semibold uppercase tracking-wider text-[#7d8590] shrink-0 border-b border-[#21262d]">
         <span>Explorer</span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <button
             onClick={() => rootId && setCreatingIn(rootId)}
-            className="p-1 rounded hover:bg-[#30363d] transition-colors"
+            className="p-1.5 rounded-md hover:bg-[#21262d] transition-all duration-150"
             title="New File"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -541,28 +541,28 @@ function ExplorerSidebar() {
                 setNewFileName("folder-name/");
               }
             }}
-            className="p-1 rounded hover:bg-[#30363d] transition-colors"
+            className="p-1.5 rounded-md hover:bg-[#21262d] transition-all duration-150"
             title="New Folder"
           >
             <FolderPlus className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={handleRefresh}
-            className="p-1 rounded hover:bg-[#30363d] transition-colors"
+            className="p-1.5 rounded-md hover:bg-[#21262d] transition-all duration-150"
             title="Refresh"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={collapseAll}
-            className="p-1 rounded hover:bg-[#30363d] transition-colors"
+            className="p-1.5 rounded-md hover:bg-[#21262d] transition-all duration-150"
             title="Collapse All"
           >
             <ChevronsDownUp className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-[#30363d] scrollbar-track-transparent">
         {rootId ? (
           fileMap[rootId]?.children?.map((childId) => renderNode(childId, 0))
         ) : (
@@ -575,7 +575,7 @@ function ExplorerSidebar() {
       {/* Context Menu */}
       {contextMenu && (
         <div
-          className="fixed z-[9999] bg-[#1c2128] border border-[#30363d] rounded-lg shadow-xl py-1 min-w-[180px]"
+          className="fixed z-[9999] bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl py-1.5 min-w-[200px] backdrop-blur-sm"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e: React.MouseEvent) => e.stopPropagation()}
         >
@@ -688,32 +688,33 @@ function SearchSidebar() {
   }, [query, fileMap]);
 
   return (
-    <div className="h-full flex flex-col bg-[#0d1117]">
-      <div className="h-9 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">
+    <div className="h-full flex flex-col bg-[#010409]">
+      <div className="h-10 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#7d8590] shrink-0 border-b border-[#21262d]">
+        <Search className="w-3.5 h-3.5 mr-2 text-emerald-400" />
         Search
       </div>
-      <div className="px-3 pb-2">
+      <div className="px-3 py-3">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search files..."
-          className="w-full bg-[#161b22] border border-[#30363d] rounded-md px-3 py-1.5 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
+          className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-[13px] text-[#e6edf3] placeholder-[#7d8590] outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all duration-150"
         />
       </div>
-      <div className="flex-1 overflow-y-auto px-2">
+      <div className="flex-1 overflow-y-auto px-2 scrollbar-thin scrollbar-thumb-[#30363d] scrollbar-track-transparent">
         {results.length === 0 && query && (
-          <p className="text-[13px] text-[#484f58] px-2 py-4 text-center">
-            No results
+          <p className="text-[13px] text-[#7d8590] px-2 py-8 text-center">
+            No results found
           </p>
         )}
         {results.map((r, i) => (
           <button
             key={`${r.fileId}-${r.line}-${i}`}
-            className="w-full text-left px-2 py-1.5 text-[13px] hover:bg-[#1f1f1f] rounded transition-colors"
+            className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#21262d] rounded-lg transition-all duration-150 mb-1"
             onClick={() => openFile(r.fileId)}
           >
-            <div className="text-[#c9d1d9] truncate">{r.text}</div>
-            <div className="text-[11px] text-[#484f58]">
+            <div className="text-[#e6edf3] truncate font-medium">{r.text}</div>
+            <div className="text-[11px] text-[#7d8590] mt-0.5">
               {fileMap[r.fileId]?.name}:{r.line}
             </div>
           </button>
@@ -973,29 +974,30 @@ function GitSidebar() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#0d1117]">
-      <div className="h-9 flex items-center justify-between px-4 shrink-0">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-[#8b949e]">
+    <div className="h-full flex flex-col bg-[#010409]">
+      <div className="h-10 flex items-center justify-between px-4 shrink-0 border-b border-[#21262d]">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-[#7d8590] flex items-center gap-2">
+          <GitBranch className="w-3.5 h-3.5 text-purple-400" />
           Source Control
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <button
             onClick={handlePull}
-            className="p-1 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-white transition-colors"
+            className="p-1.5 rounded-md hover:bg-[#21262d] text-[#7d8590] hover:text-[#e6edf3] transition-all duration-150"
             title="Pull"
           >
             <Download className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={handlePush}
-            className="p-1 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-white transition-colors"
+            className="p-1.5 rounded-md hover:bg-[#21262d] text-[#7d8590] hover:text-[#e6edf3] transition-all duration-150"
             title="Push"
           >
             <Upload className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
-      <div className="px-3 pb-3">
+      <div className="px-3 py-3 space-y-2">
         <input
           value={commitMsg}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
@@ -1004,15 +1006,15 @@ function GitSidebar() {
           onKeyDown={(e: React.KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleCommit();
           }}
-          placeholder="Message (ΓîÿEnter to commit)"
-          className="w-full bg-[#161b22] border border-[#30363d] rounded-md px-3 py-1.5 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
+          placeholder="Message (Cmd+Enter to commit)"
+          className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-[13px] text-[#e6edf3] placeholder-[#7d8590] outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all duration-150"
         />
         <button
           onClick={handleCommit}
-          className="w-full mt-2 py-1.5 rounded-md text-[12px] font-medium bg-[#238636] hover:bg-[#2ea043] text-white transition-colors disabled:opacity-40"
+          className="w-full py-2 rounded-lg text-[12px] font-semibold bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
           disabled={!commitMsg.trim() || isCommitting}
         >
-          {isCommitting ? "Committing..." : "Commit"}
+          {isCommitting ? "Committing..." : "Commit Changes"}
         </button>
       </div>
 
@@ -1288,16 +1290,17 @@ function ExtensionsSidebar() {
   const displayList = tab === "installed" ? installed : extensions;
 
   return (
-    <div className="h-full flex flex-col bg-[#0d1117]">
-      <div className="h-9 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">
+    <div className="h-full flex flex-col bg-[#010409]">
+      <div className="h-10 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#7d8590] shrink-0 border-b border-[#21262d]">
+        <Box className="w-3.5 h-3.5 mr-2 text-amber-400" />
         Extensions
       </div>
-      <div className="px-3 pb-2 space-y-2">
+      <div className="px-3 py-3 space-y-3">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search extensions..."
-          className="w-full bg-[#161b22] border border-[#30363d] rounded-md px-3 py-1.5 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors"
+          className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-[13px] text-[#e6edf3] placeholder-[#7d8590] outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all duration-150"
         />
         <div className="flex items-center gap-1">
           {(["featured", "installed"] as const).map((t) => (
@@ -1305,10 +1308,10 @@ function ExtensionsSidebar() {
               key={t}
               onClick={() => setTab(t)}
               className={cn(
-                "px-3 py-0.5 rounded text-[11px] font-medium transition-colors capitalize",
+                "px-3 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 capitalize",
                 tab === t
-                  ? "bg-[#1f6feb]/20 text-[#58a6ff]"
-                  : "text-[#484f58] hover:text-[#8b949e]",
+                  ? "bg-emerald-500/15 text-emerald-400"
+                  : "text-[#7d8590] hover:text-[#e6edf3] hover:bg-[#21262d]",
               )}
             >
               {t === "installed"
@@ -1460,58 +1463,61 @@ function AISidebar() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#0d1117]">
-      <div className="h-9 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#8b949e] shrink-0">
-        <Sparkles className="w-3.5 h-3.5 mr-2 text-emerald-400" />
+    <div className="h-full flex flex-col bg-[#010409]">
+      <div className="h-10 flex items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-[#7d8590] shrink-0 border-b border-[#21262d]">
+        <div className="w-5 h-5 rounded-md bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center mr-2">
+          <Sparkles className="w-3 h-3 text-white" />
+        </div>
         Elara AI
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-[#30363d] scrollbar-track-transparent">
         {messages.map((msg, i) => (
           <div
             key={i}
             className={cn(
               "text-[13px] leading-relaxed",
-              msg.role === "user" ? "text-white" : "text-[#c9d1d9]",
+              msg.role === "user" ? "text-[#e6edf3]" : "text-[#e6edf3]",
             )}
           >
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-2">
               {msg.role === "assistant" ? (
-                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shrink-0">
-                  <Bot className="w-3 h-3 text-black" />
+                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20">
+                  <Bot className="w-3.5 h-3.5 text-white" />
                 </div>
               ) : (
-                <div className="w-5 h-5 rounded-full bg-[#30363d] flex items-center justify-center shrink-0">
-                  <span className="text-[10px] font-bold text-white">Y</span>
+                <div className="w-6 h-6 rounded-lg bg-[#21262d] flex items-center justify-center shrink-0">
+                  <span className="text-[10px] font-bold text-[#e6edf3]">Y</span>
                 </div>
               )}
-              <span className="text-[11px] font-medium text-[#8b949e]">
+              <span className="text-[11px] font-semibold text-[#7d8590]">
                 {msg.role === "assistant" ? "Elara" : "You"}
               </span>
             </div>
-            <div className="pl-7 whitespace-pre-wrap">{msg.content}</div>
+            <div className="pl-8 whitespace-pre-wrap text-[#adbac7]">{msg.content}</div>
           </div>
         ))}
         {isRefactoring && (
-          <div className="text-[13px] text-[#8b949e] pl-7 animate-pulse">
-            Elara is thinking and refactoring...
+          <div className="text-[13px] text-emerald-400 pl-8 animate-pulse flex items-center gap-2">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            Elara is thinking...
           </div>
         )}
       </div>
-      <div className="p-3 border-t border-[#1b1f27]">
+      <div className="p-3 border-t border-[#21262d]">
         <div className="flex items-center gap-2">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder="Ask Elara to refactor..."
+            placeholder="Ask Elara..."
             disabled={isRefactoring}
-            className="flex-1 bg-[#161b22] border border-[#30363d] rounded-md px-3 py-1.5 text-[13px] text-white placeholder-[#484f58] outline-none focus:border-[#1f6feb] transition-colors disabled:opacity-50"
+            className="flex-1 bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-[13px] text-[#e6edf3] placeholder-[#7d8590] outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all duration-150 disabled:opacity-50"
           />
           <Button
             size="sm"
             onClick={send}
             disabled={isRefactoring}
-            className="h-7 bg-[#238636] hover:bg-[#2ea043] border-0 text-white disabled:opacity-50"
+            className="h-8 px-4 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 border-0 text-white font-semibold disabled:opacity-50 transition-all duration-150"
           >
             Send
           </Button>
@@ -1547,17 +1553,17 @@ function PanelTabs({
     { view: "terminal", label: "TERMINAL" },
   ];
   return (
-    <div className="flex items-center justify-between h-9 border-t border-[#1b1f27] bg-[#0d1117] px-2 select-none shrink-0">
-      <div className="flex items-center">
+    <div className="flex items-center justify-between h-9 border-t border-[#21262d] bg-[#010409] px-1 select-none shrink-0">
+      <div className="flex items-center gap-0.5">
         {tabs.map((tab) => (
           <button
             key={tab.view}
             onClick={() => onPanelChange(tab.view)}
             className={cn(
-              "px-3 h-9 text-[11px] font-medium uppercase tracking-wider border-t-2 transition-colors flex items-center gap-1.5",
+              "px-3 h-7 text-[10px] font-semibold uppercase tracking-wider rounded-md transition-all duration-150 flex items-center gap-1.5",
               activePanel === tab.view
-                ? "border-[#1f6feb] text-white"
-                : "border-transparent text-[#484f58] hover:text-[#8b949e]",
+                ? "bg-[#21262d] text-[#e6edf3]"
+                : "text-[#7d8590] hover:text-[#e6edf3] hover:bg-[#21262d]/50",
             )}
           >
             {tab.label}
@@ -1596,15 +1602,15 @@ function BreadcrumbBar({ fileName }: { fileName: string }) {
   if (!fileName) return null;
   const parts = fileName.split("/");
   return (
-    <div className="h-7 flex items-center px-4 gap-1 bg-[#010409] border-b border-[#1b1f27] text-[12px] text-[#484f58] select-none shrink-0">
-      <span className="hover:text-[#8b949e] cursor-pointer">src</span>
+    <div className="h-8 flex items-center px-4 gap-1.5 bg-[#010409] border-b border-[#21262d] text-[12px] text-[#7d8590] select-none shrink-0">
+      <span className="hover:text-[#e6edf3] hover:bg-[#21262d] px-1.5 py-0.5 rounded cursor-pointer transition-all duration-150">src</span>
       {parts.map((part, i) => (
-        <span key={i} className="flex items-center gap-1">
+        <span key={i} className="flex items-center gap-1.5">
           <ChevronRight className="w-3 h-3 text-[#30363d]" />
           <span
             className={cn(
-              "hover:text-[#8b949e] cursor-pointer",
-              i === parts.length - 1 && "text-[#c9d1d9]",
+              "hover:text-[#e6edf3] hover:bg-[#21262d] px-1.5 py-0.5 rounded cursor-pointer transition-all duration-150",
+              i === parts.length - 1 && "text-[#e6edf3] font-medium",
             )}
           >
             {part}
@@ -1638,39 +1644,51 @@ function IDEStatusBar({
 }) {
   const lang = activeFile ? getLanguage(activeFile) : "plaintext";
   return (
-    <div className="h-6 bg-[#1f6feb] flex items-center justify-between px-3 text-[11px] text-white/80 select-none shrink-0">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
+    <div className="h-6 bg-gradient-to-r from-emerald-600 to-cyan-600 flex items-center justify-between px-3 text-[11px] text-white/90 select-none shrink-0">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 cursor-pointer hover:text-white hover:bg-white/10 px-1.5 py-0.5 rounded transition-all duration-150">
           <GitBranch className="w-3 h-3" />
-          <span>{gitBranch}</span>
+          <span className="font-medium">{gitBranch}</span>
         </div>
-        <div className="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
-          <CircleDot className="w-3 h-3" />
-          <span>
-            {errorCount} error{errorCount !== 1 ? "s" : ""}, {warningCount}{" "}
-            warning{warningCount !== 1 ? "s" : ""}
-          </span>
+        <div className="w-px h-3 bg-white/20" />
+        <div className="flex items-center gap-1.5 cursor-pointer hover:text-white hover:bg-white/10 px-1.5 py-0.5 rounded transition-all duration-150">
+          {errorCount > 0 ? (
+            <span className="flex items-center gap-1 text-red-200">
+              <X className="w-3 h-3" />
+              {errorCount}
+            </span>
+          ) : null}
+          {warningCount > 0 ? (
+            <span className="flex items-center gap-1 text-yellow-200 ml-1">
+              <CircleDot className="w-3 h-3" />
+              {warningCount}
+            </span>
+          ) : null}
+          {errorCount === 0 && warningCount === 0 && (
+            <span className="flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" />
+              No Issues
+            </span>
+          )}
         </div>
       </div>
-      <div className="flex items-center gap-4">
-        <span className="cursor-pointer hover:text-white transition-colors">
+      <div className="flex items-center gap-2">
+        <span className="cursor-pointer hover:text-white hover:bg-white/10 px-1.5 py-0.5 rounded transition-all duration-150">
           Ln {cursorLine}, Col {cursorCol}
         </span>
-        <span className="cursor-pointer hover:text-white transition-colors">
+        <span className="cursor-pointer hover:text-white hover:bg-white/10 px-1.5 py-0.5 rounded transition-all duration-150">
           Spaces: 2
         </span>
-        <span className="cursor-pointer hover:text-white transition-colors">
+        <span className="cursor-pointer hover:text-white hover:bg-white/10 px-1.5 py-0.5 rounded transition-all duration-150">
           UTF-8
         </span>
-        <span className="cursor-pointer hover:text-white transition-colors">
-          LF
-        </span>
-        <span className="cursor-pointer hover:text-white transition-colors capitalize">
+        <span className="cursor-pointer hover:text-white hover:bg-white/10 px-1.5 py-0.5 rounded transition-all duration-150 capitalize font-medium">
           {lang}
         </span>
+        <div className="w-px h-3 bg-white/20" />
         <button
           onClick={onTogglePanel}
-          className="flex items-center gap-1 cursor-pointer hover:text-white transition-colors"
+          className="flex items-center gap-1 cursor-pointer hover:text-white hover:bg-white/10 px-1.5 py-0.5 rounded transition-all duration-150"
         >
           <SquareTerminal className="w-3 h-3" />
         </button>
@@ -1759,50 +1777,56 @@ function WelcomeTab({
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-[#0d1117]">
-      <div className="max-w-3xl mx-auto py-16 px-8">
-        <div className="flex items-center gap-4 mb-12">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-            <Code className="w-8 h-8 text-black" />
+    <div className="h-full overflow-y-auto bg-[#010409] scrollbar-thin scrollbar-thumb-[#30363d] scrollbar-track-transparent">
+      <div className="max-w-4xl mx-auto py-20 px-8">
+        <div className="flex items-center gap-6 mb-16">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 via-cyan-500 to-blue-500 flex items-center justify-center shadow-2xl shadow-emerald-500/30 ring-1 ring-white/10">
+            <Code className="w-10 h-10 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-white">Code Chamber</h1>
-            <p className="text-[#8b949e] text-sm mt-1">
-              Your AI-powered development workspace
+            <h1 className="text-4xl font-bold text-[#e6edf3] tracking-tight">Code Chamber</h1>
+            <p className="text-[#7d8590] text-base mt-2">
+              Your AI-powered cloud development workspace
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-3 gap-4 mb-12">
+        <div className="grid grid-cols-3 gap-5 mb-16">
           <button
             onClick={() => setShowNew(true)}
-            className="group flex items-center gap-4 p-5 rounded-xl bg-[#161b22] border border-[#30363d] hover:border-[#1f6feb]/50 transition-all text-left"
+            className="group flex items-center gap-4 p-6 rounded-2xl bg-[#0d1117] border border-[#21262d] hover:border-emerald-500/40 hover:bg-[#161b22] transition-all duration-200 text-left"
           >
-            <Plus className="w-8 h-8 text-emerald-400 group-hover:text-emerald-300 transition-colors" />
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-all duration-200">
+              <Plus className="w-6 h-6 text-emerald-400" />
+            </div>
             <div>
-              <div className="text-white font-medium">New Project</div>
-              <div className="text-[13px] text-[#8b949e]">Start empty</div>
+              <div className="text-[#e6edf3] font-semibold text-base">New Project</div>
+              <div className="text-[13px] text-[#7d8590]">Start from scratch</div>
             </div>
           </button>
           <button
             onClick={() => setShowClone(true)}
-            className="group flex items-center gap-4 p-5 rounded-xl bg-[#161b22] border border-[#30363d] hover:border-[#1f6feb]/50 transition-all text-left"
+            className="group flex items-center gap-4 p-6 rounded-2xl bg-[#0d1117] border border-[#21262d] hover:border-purple-500/40 hover:bg-[#161b22] transition-all duration-200 text-left"
           >
-            <GitBranch className="w-8 h-8 text-purple-400 group-hover:text-purple-300 transition-colors" />
+            <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-all duration-200">
+              <GitBranch className="w-6 h-6 text-purple-400" />
+            </div>
             <div>
-              <div className="text-white font-medium">Clone Repo</div>
-              <div className="text-[13px] text-[#8b949e]">From Git URL</div>
+              <div className="text-[#e6edf3] font-semibold text-base">Clone Repo</div>
+              <div className="text-[13px] text-[#7d8590]">From Git URL</div>
             </div>
           </button>
           <button
             onClick={() => onProjectSelect(`workspace-${Date.now()}`)}
-            className="group flex items-center gap-4 p-5 rounded-xl bg-[#161b22] border border-[#30363d] hover:border-[#1f6feb]/50 transition-all text-left"
+            className="group flex items-center gap-4 p-6 rounded-2xl bg-[#0d1117] border border-[#21262d] hover:border-amber-500/40 hover:bg-[#161b22] transition-all duration-200 text-left"
           >
-            <FolderOpen className="w-8 h-8 text-amber-400 group-hover:text-amber-300 transition-colors" />
+            <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition-all duration-200">
+              <FolderOpen className="w-6 h-6 text-amber-400" />
+            </div>
             <div>
-              <div className="text-white font-medium">Open Folder</div>
-              <div className="text-[13px] text-[#8b949e]">Empty workspace</div>
+              <div className="text-[#e6edf3] font-semibold text-base">Open Folder</div>
+              <div className="text-[13px] text-[#7d8590]">Empty workspace</div>
             </div>
           </button>
         </div>
@@ -2032,7 +2056,7 @@ export function CodeChamber({ id }: CodeChamberProps) {
   const lintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const monacoRef = useRef<any>(null);
 
-  // ΓöÇΓöÇΓöÇ User session and additional state ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // ΓöÇΓöÇΓöÇ User session and additional state ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ��ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const _codeSession = useSession();
   const userSession = _codeSession?.data ?? null;
   const { session, sessionLoaded, saveSession } =
